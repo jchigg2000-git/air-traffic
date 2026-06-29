@@ -201,7 +201,7 @@ export default function Vendors() {
         )}
       </div>
 
-      {sel && <EndpointModal adapter={sel} open={epOpen} value={epValue} onChange={setEpValue} onClose={() => setEpOpen(false)} onSave={async () => { await patch(sel.id, { upstream_url: epValue.trim() }); setEpOpen(false) }} />}
+      {sel && <EndpointModal adapter={sel} open={epOpen} value={epValue} onChange={setEpValue} onClose={() => setEpOpen(false)} onSave={async () => { await patch(sel.id, { upstream_url: epValue.trim(), mode: 'proxy' }); setEpOpen(false) }} />}
     </div>
   )
 }
@@ -252,7 +252,7 @@ function EndpointModal({
       }
     >
       <p className="mb-3 text-xs text-muted">
-        Upstream admin-API base URL used when this adapter runs in <span className="text-fg">proxy</span> mode. Validated against {adapter.vendor}'s real endpoint contract.
+        Upstream admin-API base URL for <span className="text-fg">proxy</span> mode. Saving switches this adapter to <span className="text-fg">proxy</span> mode and routes through this URL. Validated against {adapter.vendor}'s real endpoint contract.
       </p>
       <label className="flex flex-col gap-1 text-xs text-muted">
         Endpoint URL
