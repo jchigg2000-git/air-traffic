@@ -1,0 +1,163 @@
+@import 'tailwindcss';
+
+/* Map semantic CSS vars into Tailwind utilities (inline → resolved at use-site so
+   theme switching via html.dark works). */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel2);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent2: var(--accent2);
+
+  --color-native: var(--native);
+  --color-env: var(--env);
+  --color-proxy: var(--proxy);
+  --color-monitor: var(--monitor);
+  --color-unverified: var(--unverified);
+  --color-unsupported: var(--unsupported);
+
+  --color-green: var(--green);
+  --color-amber: var(--amber);
+  --color-red: var(--red);
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+/* ---- Dark (default) ---- */
+html.dark {
+  --bg: #0b1220;
+  --panel: #0f1729;
+  --panel2: #131d33;
+  --line: #1e2a44;
+  --fg: #e6edf7;
+  --muted: #93a4c0;
+  --faint: #5b6b88;
+  --accent: #38d5ea;
+  --accent2: #0891b2;
+
+  --native: #22c55e;
+  --env: #2dd4bf;
+  --proxy: #a78bfa;
+  --monitor: #94a3b8;
+  --unverified: #fbbf24;
+  --unsupported: #f87171;
+
+  --green: #22c55e;
+  --amber: #f59e0b;
+  --red: #ef4444;
+}
+
+/* ---- Light ---- */
+:root {
+  --bg: #eef1f6;
+  --panel: #ffffff;
+  --panel2: #f4f7fb;
+  --line: #d8e0ec;
+  --fg: #0b1220;
+  --muted: #4a5a76;
+  --faint: #8595af;
+  --accent: #0891b2;
+  --accent2: #0e7490;
+
+  --native: #16a34a;
+  --env: #0d9488;
+  --proxy: #7c3aed;
+  --monitor: #64748b;
+  --unverified: #d97706;
+  --unsupported: #dc2626;
+
+  --green: #16a34a;
+  --amber: #d97706;
+  --red: #dc2626;
+}
+
+* {
+  border-color: var(--line);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, color-mix(in srgb, var(--accent2) 14%, transparent), transparent),
+    var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---- reusable bits ---- */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.panel-2 {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.pulse-dot {
+  animation: pulse 2.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.tile-flash {
+  animation: flash 0.6s ease-out;
+}
+@keyframes flash {
+  from {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+.grid-fade {
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 28px 28px;
+  -webkit-mask-image: radial-gradient(circle at 50% 0%, black, transparent 70%);
+  mask-image: radial-gradient(circle at 50% 0%, black, transparent 70%);
+  opacity: 0.25;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot,
+  .tile-flash {
+    animation: none;
+  }
+}

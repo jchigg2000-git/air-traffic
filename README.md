@@ -83,7 +83,25 @@ internal/model           domain types + ops-observation-batch/v1 contract
 Plans: [`docs/plans/phase-1-surface-collection.md`](docs/plans/phase-1-surface-collection.md) ·
 [`docs/plans/phase-2-frontend.md`](docs/plans/phase-2-frontend.md).
 
-## Phase 2 (next) — control & observability SPA
+## Phase 2 — control & observability SPA
 
-Vite + React + TS + Tailwind on port 5202, served same-origin from `web/dist`. Flight Deck
-observability landing + Rigor Console + Policy Editor + Cost Explorer. See the Phase 2 plan.
+Vite + React + TS + Tailwind on port 5202, served same-origin from `web/dist`. Dark-first
+control-tower UI; disposition is a first-class visual token (seed-only is never shown as
+"enforced").
+
+```bash
+cd web
+npm install
+npm run dev          # Vite dev server on :5202, proxies /api + /synthetic → :8122
+npm run build        # → web/dist (the Go binary auto-serves it when present)
+```
+
+Screens: **Flight Deck** (observability landing — live vendor status board, KPI strip, plane
+bands, drift, freshness) · **Rigor Console** (baseline + coverage marks) · **Policy Editor**
+(per-vendor control cards with truthful disposition/enforcement chips) · **Cost & Usage
+Explorer** (spend by vendor, velocity, cap alerts) · **Vendors** (mode/scenario/emitter +
+manifest + recorded calls) · **Observability** (raw batches) · **Audit** (normalized stream +
+SIEM export).
+
+To serve the SPA from the Go binary: `cd web && npm run build`, then run the server from the
+repo root and open <http://127.0.0.1:8122/>.
