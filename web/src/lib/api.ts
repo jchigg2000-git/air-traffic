@@ -31,6 +31,7 @@ export interface Adapter {
   enabled: boolean
   emit: boolean
   base_path: string
+  upstream_url: string
   scenario: string
   baa_signed: boolean
   capabilities: Capability[]
@@ -205,7 +206,7 @@ export const api = {
   drift: () => getJSON<{ drift: DriftRecord[] }>('/api/drift').then((d) => d.drift),
   envconfig: () => getJSON<{ artifacts: ManagedArtifact[]; states: EnvState[] }>('/api/envconfig'),
 
-  patchAdapter: (id: string, patch: Partial<Pick<Adapter, 'mode' | 'scenario' | 'enabled' | 'emit'>>) =>
+  patchAdapter: (id: string, patch: Partial<Pick<Adapter, 'mode' | 'scenario' | 'enabled' | 'emit' | 'upstream_url'>>) =>
     send<{ adapter: Adapter }>('PATCH', `/api/adapters/${id}`, patch).then((d) => d.adapter),
   testAdapter: (id: string) => send<{ adapter: Adapter; status: Status }>('POST', `/api/adapters/${id}/test`),
   applyPolicy: (baseline: string, overrides: Record<string, unknown> = {}) =>

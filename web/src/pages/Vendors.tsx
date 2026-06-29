@@ -1,24 +1,43 @@
-import { useState } from 'react'
+import { useEffect, useState, type MouseEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, qk, type Adapter, type Mode } from '../lib/api.ts'
 import PageHeader from '../components/PageHeader.tsx'
 import VendorGlyph from '../components/VendorGlyph.tsx'
 import DispositionChip from '../components/DispositionChip.tsx'
+import Modal from '../components/Modal.tsx'
 import { relativeTime, titleCase } from '../lib/format.ts'
+import { validateEndpoint, expectedFor, knownPrefixes } from '../lib/endpoints.ts'
 
 const MODES: Mode[] = ['synthetic', 'proxy', 'disabled']
 const SCENARIOS = ['healthy', '401', '403', '429-retry-after', '500', '503', 'timeout', 'invalid-json', 'empty']
+
+function Switch({ on, onClick, title }: { on: boolean; onClick: (e: MouseEvent) => void; title?: string }) {
+  return (
+    <button
+      onClick={onClick}
+      role="switch"
+      aria-checked={on}
+      title={title}
+      className="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition"
+      style={{ background: on ? 'var(--accent2)' : 'var(--line)' }}
+    >
+      <span className="inline-block h-4 w-4 rounded-full bg-white shadow transition-transform" style={{ transform: on ? 'translateX(18px)' : 'translateX(2px)' }} />
+    </button>
+  )
+}
 
 export default function Vendors() {
   const qc = useQueryClient()
   const adapters = useQuery({ queryKey: qk.adapters, queryFn: api.adapters })
   const [selId, setSelId] = useState<string | null>(null)
+  const [epOpen, setEpOpen] = useState(false)
+  const [epValue, setEpValue] = useState('')
 
   const list = adapters.data ?? []
   const sel = list.find((a) => a.id === selId) ?? list[0]
   const calls = useQuery({ queryKey: qk.calls(sel?.id ?? ''), queryFn: () => api.calls(sel!.id), enabled: !!sel })
 
-  async function patch(id: string, p: Partial<Pick<Adapter, 'mode' | 'scenario' | 'enabled' | 'emit'>>) {
+  async function patch(id: string, p: Partial<Pick<Adapter, 'mode' | 'scenario' | 'enabled' | 'emit' | 'upstream_url'>>) {
     await api.patchAdapter(id, p)
     qc.invalidateQueries({ queryKey: qk.adapters })
   }
@@ -27,29 +46,57 @@ export default function Vendors() {
     qc.invalidateQueries({ queryKey: qk.adapters })
   }
 
+  function openEndpoint() {
+    if (!sel) return
+    const exp = expectedFor(sel.id)
+    setEpValue(sel.upstream_url || (exp?.example ?? ''))
+    setEpOpen(true)
+  }
+
+  const onCount = list.filter((a) => a.enabled).length
+
   return (
     <div>
-      <PageHeader title="Vendors & Surfaces" subtitle="Drive each synthetic control surface — mode, fault scenario, emitter — and inspect its manifest and recorded calls." />
+      <PageHeader title="Vendors & Surfaces" subtitle="Drive each synthetic control surface — toggle, mode, fault scenario, emitter, endpoint — and inspect its manifest and recorded calls." />
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
-        {/* list */}
-        <div className="panel max-h-[78vh] overflow-auto">
-          {list.map((a) => (
-            <button
-              key={a.id}
-              onClick={() => setSelId(a.id)}
-              className={`flex w-full items-center gap-3 border-b border-line px-4 py-2.5 text-left transition hover:bg-panel2 ${sel?.id === a.id ? 'bg-panel2' : ''}`}
-            >
-              <VendorGlyph id={a.id} />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{a.display_name}</span>
-                <span className="block text-[11px] text-faint">Tier {a.tier} · {a.capabilities.length} controls</span>
-              </span>
-              <span className="rounded px-2 py-0.5 text-[10px]" style={{ background: 'color-mix(in srgb, var(--accent2) 16%, transparent)', color: 'var(--accent)' }}>
-                {a.mode}
-              </span>
-            </button>
-          ))}
+      <div className="grid items-start gap-4 lg:grid-cols-[1fr_1.4fr]">
+        {/* list — fills the viewport height */}
+        <div className="panel flex flex-col overflow-hidden lg:sticky lg:top-5 lg:h-[calc(100vh-7rem)]">
+          <div className="flex items-center justify-between border-b border-line px-4 py-2.5 text-[11px] uppercase tracking-wider text-faint">
+            <span>{list.length} vendors</span>
+            <span>{onCount} on · {list.length - onCount} off</span>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {list.map((a) => (
+              <div
+                key={a.id}
+                className={`flex items-center gap-2 border-b border-line px-3 ${sel?.id === a.id ? 'bg-panel2' : ''}`}
+              >
+                <button
+                  onClick={() => setSelId(a.id)}
+                  className="flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left transition hover:opacity-100"
+                  style={{ opacity: a.enabled ? 1 : 0.45 }}
+                >
+                  <VendorGlyph id={a.id} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{a.display_name}</span>
+                    <span className="block text-[11px] text-faint">Tier {a.tier} · {a.capabilities.length} controls</span>
+                  </span>
+                  <span className="rounded px-2 py-0.5 text-[10px]" style={{ background: 'color-mix(in srgb, var(--accent2) 16%, transparent)', color: 'var(--accent)' }}>
+                    {a.mode}
+                  </span>
+                </button>
+                <Switch
+                  on={a.enabled}
+                  title={a.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    patch(a.id, { enabled: !a.enabled })
+                  }}
+                />
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* detail */}
@@ -58,16 +105,40 @@ export default function Vendors() {
             <div className="panel p-5">
               <div className="mb-4 flex items-center gap-3">
                 <VendorGlyph id={sel.id} size={36} />
-                <div>
+                <div className="min-w-0">
                   <div className="text-lg font-semibold">{sel.display_name}</div>
-                  <div className="text-xs text-muted">{titleCase(sel.family)} · API {sel.api_version} · {sel.base_path}</div>
+                  <div className="truncate text-xs text-muted">{titleCase(sel.family)} · API {sel.api_version} · {sel.base_path}</div>
                 </div>
-                <button onClick={() => test(sel.id)} className="ml-auto rounded-lg border border-line bg-panel2 px-3 py-1.5 text-sm transition hover:border-accent">
-                  Test
-                </button>
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    onClick={openEndpoint}
+                    aria-label="Configure endpoint"
+                    title="Configure endpoint"
+                    className="grid h-9 w-9 place-items-center rounded-lg border border-line bg-panel2 text-muted transition hover:border-accent hover:text-fg"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                  </button>
+                  <button onClick={() => test(sel.id)} className="rounded-lg border border-line bg-panel2 px-3 py-1.5 text-sm transition hover:border-accent">
+                    Test
+                  </button>
+                </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-4">
+                <label className="flex flex-col gap-1 text-xs text-muted">
+                  Active
+                  <button
+                    onClick={() => patch(sel.id, { enabled: !sel.enabled })}
+                    className="flex items-center justify-between rounded-lg border border-line px-2 py-1.5 text-sm"
+                    style={{ background: sel.enabled ? 'color-mix(in srgb, var(--green) 16%, transparent)' : 'var(--panel2)', color: sel.enabled ? 'var(--green)' : 'var(--muted)' }}
+                  >
+                    {sel.enabled ? 'On' : 'Off'}
+                    <Switch on={sel.enabled} onClick={(e) => { e.stopPropagation(); patch(sel.id, { enabled: !sel.enabled }) }} />
+                  </button>
+                </label>
                 <label className="flex flex-col gap-1 text-xs text-muted">
                   Mode
                   <select value={sel.mode} onChange={(e) => patch(sel.id, { mode: e.target.value as Mode })} className="rounded-lg border border-line bg-panel2 px-2 py-1.5 text-sm text-fg">
@@ -91,11 +162,9 @@ export default function Vendors() {
                   </button>
                 </label>
               </div>
-              <div className="mt-3 flex items-center gap-2 text-xs">
-                <span className="text-muted">Status:</span>
-                <span style={{ color: sel.status.state === 'healthy' ? 'var(--green)' : sel.status.state === 'degraded' ? 'var(--amber)' : 'var(--muted)' }}>
-                  {sel.status.state} — {sel.status.message}
-                </span>
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                <span><span className="text-muted">Status:</span> <span style={{ color: sel.status.state === 'healthy' ? 'var(--green)' : sel.status.state === 'degraded' ? 'var(--amber)' : 'var(--muted)' }}>{sel.status.state} — {sel.status.message}</span></span>
+                <span className="text-muted">Endpoint: <span className="font-mono text-fg">{sel.upstream_url || '— (synthetic)'}</span></span>
               </div>
             </div>
 
@@ -131,6 +200,99 @@ export default function Vendors() {
           </div>
         )}
       </div>
+
+      {sel && <EndpointModal adapter={sel} open={epOpen} value={epValue} onChange={setEpValue} onClose={() => setEpOpen(false)} onSave={async () => { await patch(sel.id, { upstream_url: epValue.trim() }); setEpOpen(false) }} />}
     </div>
+  )
+}
+
+function EndpointModal({
+  adapter,
+  open,
+  value,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  adapter: Adapter
+  open: boolean
+  value: string
+  onChange: (v: string) => void
+  onClose: () => void
+  onSave: () => void
+}) {
+  const [touched, setTouched] = useState(false)
+  useEffect(() => {
+    if (open) setTouched(false)
+  }, [open])
+
+  const v = validateEndpoint(adapter, value)
+  const exp = expectedFor(adapter.id)
+  const prefixes = knownPrefixes(adapter)
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Configure endpoint — ${adapter.display_name}`}
+      footer={
+        <>
+          <button onClick={onClose} className="rounded-lg border border-line bg-panel2 px-3 py-1.5 text-sm text-muted transition hover:text-fg">
+            Cancel
+          </button>
+          <button
+            onClick={onSave}
+            disabled={!v.ok}
+            className="rounded-lg px-4 py-1.5 text-sm font-medium text-bg disabled:cursor-not-allowed disabled:opacity-40"
+            style={{ background: 'var(--accent)' }}
+          >
+            Save
+          </button>
+        </>
+      }
+    >
+      <p className="mb-3 text-xs text-muted">
+        Upstream admin-API base URL used when this adapter runs in <span className="text-fg">proxy</span> mode. Validated against {adapter.vendor}'s real endpoint contract.
+      </p>
+      <label className="flex flex-col gap-1 text-xs text-muted">
+        Endpoint URL
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value)
+            setTouched(true)
+          }}
+          placeholder={exp?.example ?? 'https://…'}
+          className="rounded-lg border bg-panel2 px-3 py-2 font-mono text-sm text-fg"
+          style={{ borderColor: touched && !v.ok ? 'var(--red)' : 'var(--line)' }}
+          spellCheck={false}
+        />
+      </label>
+
+      {touched && v.errors.map((e) => (
+        <div key={e} className="mt-1.5 flex items-center gap-1.5 text-xs" style={{ color: 'var(--red)' }}>
+          <span>✕</span> {e}
+        </div>
+      ))}
+      {touched && v.ok && v.warnings.map((w) => (
+        <div key={w} className="mt-1.5 flex items-center gap-1.5 text-xs" style={{ color: 'var(--amber)' }}>
+          <span>⚠</span> {w}
+        </div>
+      ))}
+      {touched && v.ok && !v.warnings.length && (
+        <div className="mt-1.5 flex items-center gap-1.5 text-xs" style={{ color: 'var(--green)' }}>
+          <span>✓</span> Valid — matches the {adapter.vendor} endpoint contract.
+        </div>
+      )}
+
+      <div className="mt-4 rounded-lg border border-line bg-panel2 p-3 text-[11px] text-muted">
+        <div className="mb-1 font-semibold uppercase tracking-wider text-faint">Contract</div>
+        <div>Host · <span className="font-mono text-fg">…{exp?.hostSuffix ?? 'n/a'}</span> · https only</div>
+        {prefixes.length > 0 && (
+          <div className="mt-1">Known admin paths · <span className="font-mono text-fg">{prefixes.slice(0, 4).join('  ')}</span></div>
+        )}
+      </div>
+    </Modal>
   )
 }
