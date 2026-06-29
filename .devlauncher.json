@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "services": [
+    {
+      "role": "app",
+      "command": "AIRTRAFFIC_ADDR=127.0.0.1:{port} go run ./cmd/air-traffic-server",
+      "port": 8122
+    }
+  ]
+}

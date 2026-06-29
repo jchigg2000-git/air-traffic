@@ -1,1 +1,9 @@
 .DS_Store
+
+# Go build artifacts
+/air-traffic-server
+*.test
+
+# Phase 2 frontend
+web/node_modules/
+web/dist/

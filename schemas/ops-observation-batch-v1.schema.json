@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://air-traffic.dev/schemas/ops-observation-batch-v1.schema.json",
+  "title": "Ops Observation Batch v1",
+  "description": "Emission contract reused verbatim from it-scorecard; carries one batch of vendor control-plane observations.",
+  "type": "object",
+  "required": ["contract", "batch_id", "connector", "collected_at", "window", "cursor", "complete", "observations", "errors"],
+  "additionalProperties": false,
+  "properties": {
+    "contract": { "const": "ops-observation-batch/v1" },
+    "batch_id": { "type": "string" },
+    "connector": {
+      "type": "object",
+      "required": ["type", "instance", "api_version"],
+      "properties": {
+        "type": { "type": "string" },
+        "instance": { "type": "string" },
+        "api_version": { "type": "string" }
+      }
+    },
+    "collected_at": { "type": "string", "format": "date-time" },
+    "window": {
+      "type": "object",
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "type": "string", "format": "date-time" },
+        "to": { "type": "string", "format": "date-time" }
+      }
+    },
+    "cursor": {
+      "type": "object",
+      "required": ["input", "output"],
+      "properties": {
+        "input": { "type": ["string", "null"] },
+        "output": { "type": ["string", "null"] }
+      }
+    },
+    "complete": { "type": "boolean" },
+    "observations": { "type": "array" },
+    "errors": { "type": "array" }
+  }
+}
