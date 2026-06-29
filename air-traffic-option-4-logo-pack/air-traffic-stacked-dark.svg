@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1200" viewBox="0 0 1024 1200" role="img" aria-label="Air-Traffic stacked logo">
+  <rect width="1024" height="1200" rx="128" fill="#07111F"/>
+  <g transform="translate(256 116)">
+    <rect width="512" height="512" rx="112" fill="#07111F"/>
+    <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M184 138 H328 C400 138 400 256 328 256 H184 C112 256 112 374 184 374 H328" stroke="#F8FAFC" stroke-width="38"/>
+      <path d="M292 320 L344 374 L292 426" stroke="#38D5EA" stroke-width="36"/>
+    </g>
+    <circle cx="184" cy="138" r="27" fill="#38D5EA"/>
+  </g>
+  <text x="512" y="780" text-anchor="middle" font-family="Inter, Avenir Next, Segoe UI, Arial, sans-serif" font-size="116" font-weight="850" letter-spacing="-3.5" fill="#F8FAFC">Air<tspan fill="#38D5EA">-</tspan>Traffic</text>
+  <text x="512" y="855" text-anchor="middle" font-family="Inter, Avenir Next, Segoe UI, Arial, sans-serif" font-size="32" font-weight="650" letter-spacing="4" fill="#CBD5E1">AI CONTROL PLANE</text>
+</svg>
