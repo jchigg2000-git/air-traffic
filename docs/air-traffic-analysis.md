@@ -1446,7 +1446,7 @@ The DRIFT column is rigor-drift detection in action: it shows when a vendor's co
 
 ## 9. Killer Differentiating Features
 
-> Each feature below was checked against the existing AI-gateway field (§4.6). All five sit in confirmed white space: no incumbent gateway drives vendors' native admin APIs, and none ships cross-vendor policy-as-code, industry baselines, or drift detection.
+> Each feature below was checked against the existing AI-gateway field (§4.6). All six sit in confirmed white space: no incumbent gateway drives vendors' native admin APIs, none ships cross-vendor policy-as-code, industry baselines, or drift detection — and none publishes a measured PII/PHI recall ratchet (§9.6, the one planned on-path feature). Features 9.1–9.5 are spine controls (off the request path); 9.6 is the optional `ProxyEnforced` gateway.
 
 ### 9.1 Cross-Vendor Policy-as-Code
 
@@ -1524,6 +1524,20 @@ A unified `ops-observation-batch/v1` event stream normalizing audit events from 
 Air-Traffic continuously compares the declared policy against observed current state of each vendor's configuration. When a vendor setting drifts — because someone changed it in the console, a vendor updated their default behavior, or a new vendor was added without policy coverage — Air-Traffic surfaces a drift event in the audit stream and Flight Deck UI.
 
 **Why it wins:** Compliance teams struggle to prove AI governance controls are continuously in effect. Rigor-drift detection makes governance a continuous process: every compliance audit starts with a 30-day Air-Traffic drift report showing policy-vs-actual history. The per-capability disposition means drift is detected regardless of mechanism — a console side-change to a `VendorNative` control, a developer overriding a *seed-only* `EnvManaged` setting, or an MDM-locked managed file going missing all degrade the tile to amber and fire a drift alert.
+
+---
+
+### 9.6 Per-Request PII/PHI Redaction with a Published Recall Ratchet *(planned — the `ProxyEnforced` data plane)*
+
+> **Status: planned, optional, off the spine.** This is the one killer feature that legitimately sits *on* the request path. Vendor-neutral design: [`inference-gateway-design.md`](./inference-gateway-design.md). Sequenced, horizontally-scalable build: [`inference-gateway-build-plan.md`](./inference-gateway-build-plan.md).
+
+The two residual controls that no admin-API call or managed-config push can deliver — **per-request PII/PHI redaction** and the **hard cross-vendor mid-request spend stop** (§9.3) — are delivered by an opt-in **inference gateway**: a self-hosted reverse proxy that speaks each vendor's API dialect, detects sensitive spans, masks/tokenizes/blocks them before the request leaves your network, and (in reversible mode) restores real values in the response. It is the concrete realization of the **`ProxyEnforced`** disposition this document reserves throughout — today a label, made true by the gateway.
+
+**Why it wins:** every proxy-only incumbent (LiteLLM, Portkey, Cloudflare AI Gateway, Kong) can redact; **none publishes a measured recall number**. Air-Traffic's gateway is designed around a **flywheel** — a fast inline detector on the hot path plus a heavier self-hosted async monitor off it; the gap between them is the training signal, and a tokenization oracle turns every proven-sensitive value into a zero-false-positive leak label. The payoff is the metric competitors don't ship: *"v3 catches 96.2 % of held-out PHI spans, up from 91 %, at the same false-positive rate"* — surfaced on the existing Flight Deck as a first-class observation, on top of the dual `VendorNative` + `EnvManaged` control no incumbent attempts at all.
+
+**How it fits (and scales).** The gateway is a **separate, stateless data-plane service**, not a module of the control-plane process — it scales horizontally behind an L7 load balancer (token vault + budget counters externalized to KMS-encrypted Redis; a separately-scaled self-hosted detector tier), while raw PHI stays confined in-pod. It integrates through contracts that already exist: it **emits `ops-observation-batch/v1`** (§9.4) and leak findings upward into the normalized audit stream, and **pulls policy-as-code** (§9.1) downward — so a healthcare baseline (§9.2) automatically arms redaction on the gated routes. No new UI, no new contract.
+
+> **Scope note (honest by construction):** the gateway makes you latency-critical and a SPOF, and it owns a live PHI path and per-vendor request-shape upkeep — which is exactly why it is **opt-in and last**, never the foundation. Build it when a real in-request-enforcement requirement lands (e.g. a technically-enforced *"no PHI until ZDR"* pre-coverage gate), not by default. Until then it stays designed, costed, and on the shelf.
 
 ---
 
