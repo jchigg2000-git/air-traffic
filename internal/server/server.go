@@ -44,6 +44,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/audit", s.handleAudit)
 	mux.HandleFunc("/api/activity", s.handleActivity)
 	mux.HandleFunc("/api/drift", s.handleDrift)
+	mux.HandleFunc("/api/cost/facets", s.handleCostFacets)
 	mux.HandleFunc("/api/envconfig", s.handleEnvConfig)
 
 	mux.Handle("/synthetic/", s.synthetic)

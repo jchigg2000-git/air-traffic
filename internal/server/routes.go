@@ -211,6 +211,43 @@ func (s *Server) handleDrift(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"drift": s.store.ListDrift()})
 }
 
+// handleCostFacets exposes the per-vendor cost drill-down CONFIG: which dimensions each
+// vendor's real billing/usage API can break cost down by (supported) and which it cannot
+// (unsupported, with an honest reason). The Cost Explorer pairs this metadata with the
+// per-member VALUES carried in the ops-observation-batch/v1 stream (kind "cost_breakdown").
+func (s *Server) handleCostFacets(w http.ResponseWriter, r *http.Request) {
+	type facetMeta struct {
+		Dimension     string `json:"dimension"`
+		Label         string `json:"label"`
+		RealParam     string `json:"real_param,omitempty"`
+		Endpoint      string `json:"endpoint,omitempty"`
+		ResponseField string `json:"response_field,omitempty"`
+		Reason        string `json:"reason,omitempty"`
+	}
+	type vendorFacets struct {
+		Vendor      string      `json:"vendor"`
+		Supported   []facetMeta `json:"supported"`
+		Unsupported []facetMeta `json:"unsupported"`
+	}
+	out := map[string]vendorFacets{}
+	for _, def := range catalog.All() {
+		if len(def.CostFacets) == 0 {
+			continue
+		}
+		vf := vendorFacets{Vendor: def.DisplayName, Supported: []facetMeta{}, Unsupported: []facetMeta{}}
+		for _, f := range def.CostFacets {
+			m := facetMeta{Dimension: f.Dimension, Label: f.Label, RealParam: f.RealParam, Endpoint: f.Endpoint, ResponseField: f.ResponseField, Reason: f.Reason}
+			if f.Supported && len(f.Members) > 0 {
+				vf.Supported = append(vf.Supported, m)
+			} else {
+				vf.Unsupported = append(vf.Unsupported, m)
+			}
+		}
+		out[def.ID] = vf
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"facets": out})
+}
+
 func (s *Server) handleEnvConfig(w http.ResponseWriter, r *http.Request) {
 	platform := r.URL.Query().Get("platform")
 	var artifacts []model.ManagedArtifact

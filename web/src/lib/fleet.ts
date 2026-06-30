@@ -1,6 +1,18 @@
 import type { Adapter, ObservationRecord, DriftRecord } from './api.ts'
 import { ageSeconds, type Rag } from './format.ts'
 
+// FacetMemberRollup is one cost drill-down row (cost attributed to one user / model / repo
+// / project / …), derived from the emitter's kind:"cost_breakdown" observations.
+export interface FacetMemberRollup {
+  member: string
+  label: string
+  cost: number
+  tokensIn: number
+  requests: number
+  share: number // % of the vendor's drilled cost
+  series: number[]
+}
+
 export interface VendorRollup {
   adapter: Adapter
   latest?: ObservationRecord
@@ -15,6 +27,8 @@ export interface VendorRollup {
   capUtil: number
   proxyGaps: number
   envCount: number
+  // cost drill-down by dimension (user|model|repo|project|…) → ranked members.
+  facets: Record<string, FacetMemberRollup[]>
 }
 
 const RANK: Record<Rag, number> = { green: 0, amber: 1, red: 2 }
@@ -56,9 +70,12 @@ export function computeFleet(
     const recs = (byVendor.get(adapter.id) ?? []).slice().sort((a, b) => a.received_at.localeCompare(b.received_at))
     const latest = recs[recs.length - 1]
 
+    // aggregate metric series (cost_breakdown rows are drill-down attribution, not
+    // fleet-level metrics — skip them so they can't pollute cost_usd / totals).
     const series: Record<string, number[]> = {}
     for (const r of recs) {
       for (const ob of r.body?.observations ?? []) {
+        if (ob.kind === 'cost_breakdown') continue
         const v = ob.signal?.value
         if (typeof v === 'number') {
           ;(series[ob.signal.name] ??= []).push(v)
@@ -67,10 +84,13 @@ export function computeFleet(
     }
     for (const k of Object.keys(series)) series[k] = series[k].slice(-24)
 
+    const facets = buildFacets(recs)
+
     const planeRag: Record<string, Rag> = {}
     let worstRag: Rag = adapter.mode === 'disabled' ? 'amber' : 'green'
     if (latest?.error_count) worstRag = 'amber'
     for (const ob of latest?.body?.observations ?? []) {
+      if (ob.kind === 'cost_breakdown') continue
       const plane = String(ob.dimensions?.plane ?? 'other')
       const rag = asRag(ob.signal?.status)
       planeRag[plane] = planeRag[plane] ? worse(planeRag[plane], rag) : rag
@@ -104,6 +124,7 @@ export function computeFleet(
       capUtil: last('cap_utilization'),
       proxyGaps,
       envCount,
+      facets,
     }
   })
 
@@ -115,4 +136,44 @@ export function computeFleet(
     obsPerMin: recentBatches,
     tokensInTotal: vendors.reduce((s, v) => s + v.tokensInLatest, 0),
   }
+}
+
+// buildFacets turns a vendor's kind:"cost_breakdown" observations into ranked drill-down
+// members per dimension. Each member's `cost` is its latest tick; `series` is its recent
+// cost history (for the row sparkline); `share` is its % of the dimension's drilled total.
+function buildFacets(recs: ObservationRecord[]): Record<string, FacetMemberRollup[]> {
+  type Acc = { label: string; series: number[]; tokensIn: number; requests: number }
+  const byDim: Record<string, Record<string, Acc>> = {}
+  for (const r of recs) {
+    for (const ob of r.body?.observations ?? []) {
+      if (ob.kind !== 'cost_breakdown') continue
+      const dim = String(ob.dimensions?.cost_facet ?? '')
+      const member = String(ob.dimensions?.cost_facet_member ?? '')
+      if (!dim || !member) continue
+      const acc = (byDim[dim] ??= {})
+      const entry = (acc[member] ??= { label: String(ob.dimensions?.cost_facet_label ?? member), series: [], tokensIn: 0, requests: 0 })
+      const cost = typeof ob.signal?.value === 'number' ? ob.signal.value : 0
+      entry.series.push(cost)
+      entry.tokensIn = Number(ob.dimensions?.tokens_in ?? entry.tokensIn)
+      entry.requests = Number(ob.dimensions?.requests ?? entry.requests)
+    }
+  }
+
+  const out: Record<string, FacetMemberRollup[]> = {}
+  for (const [dim, members] of Object.entries(byDim)) {
+    const rows: FacetMemberRollup[] = Object.entries(members).map(([member, e]) => ({
+      member,
+      label: e.label,
+      cost: e.series[e.series.length - 1] ?? 0,
+      tokensIn: e.tokensIn,
+      requests: e.requests,
+      share: 0,
+      series: e.series.slice(-24),
+    }))
+    const total = rows.reduce((s, m) => s + m.cost, 0) || 1
+    for (const m of rows) m.share = (m.cost / total) * 100
+    rows.sort((a, b) => b.cost - a.cost)
+    out[dim] = rows
+  }
+  return out
 }

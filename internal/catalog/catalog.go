@@ -32,6 +32,31 @@ type EnvPlatform struct {
 	Enforcement model.Enforcement
 }
 
+// CostFacet declares ONE cost/usage drill-down dimension assessed against a vendor's
+// REAL admin/billing API. Supported facets (Supported && len(Members)>0) drive both the
+// byte-identical synthetic grouped responses AND the emitter's per-member cost breakdown,
+// from this single source of truth. Unsupported facets carry an honest Reason and are
+// surfaced (greyed) in the UI — Air-Traffic never fabricates a breakdown a vendor can't do.
+type CostFacet struct {
+	Dimension     string        `json:"dimension"`      // user|model|repo|project|workspace|api_key|team|region|service_tier|sku|language|deployment
+	Label         string        `json:"label"`          // "By User"
+	Supported     bool          `json:"supported"`      // does the REAL vendor API group cost/usage by this?
+	RealParam     string        `json:"real_param"`     // the real group-by mechanism (e.g. group_by=user_id)
+	Endpoint      string        `json:"endpoint"`       // the real endpoint/method that serves it
+	ResponseField string        `json:"response_field"` // the JSON field the grouped key appears under (byte-identical)
+	Reason        string        `json:"reason"`         // caveat (if supported) or why-not (if unsupported)
+	Members       []FacetMember `json:"members"`        // canonical members; empty if unsupported
+}
+
+// FacetMember is one breakdown row (e.g. user-42 / gpt-4o / acme-payments). Weight is the
+// member's relative share of the vendor's spend, normalized at read time so the breakdown
+// always sums to the vendor's aggregate cost.
+type FacetMember struct {
+	Key    string  `json:"key"`    // value as the vendor returns it (user-42, gpt-4o, acme/payments)
+	Label  string  `json:"label"`  // display label
+	Weight float64 `json:"weight"` // relative spend share
+}
+
 // Definition is the full static description of one vendor adapter.
 type Definition struct {
 	ID           string
@@ -44,6 +69,7 @@ type Definition struct {
 	Capabilities []model.Capability
 	Metrics      []MetricDef
 	EnvPlatforms []EnvPlatform
+	CostFacets   []CostFacet
 }
 
 // compact capability constructor
@@ -82,12 +108,16 @@ func stateMetric(key, name string, plane model.Plane, surface model.Disposition)
 	return MetricDef{Key: key, Name: name, Unit: "bool", Plane: plane, Surface: surface, Kind: "state", Baseline: 1, Min: 1, Max: 1, Step: 0, Green: 1, Amber: 0, Polarity: "higher", Decimals: 0}
 }
 
-// All returns every vendor definition (the surface collection).
+// All returns every vendor definition (the surface collection), with each vendor's
+// cost drill-down facets attached from the single registry in cost_facets.go.
 func All() []Definition {
 	defs := []Definition{
 		openAI(), anthropic(), bedrock(), azureOpenAI(), vertex(), githubCopilot(),
 		m365Copilot(), mistral(), databricks(), perplexity(), cohere(), together(),
 		groq(), xai(), amazonQ(), watsonx(),
+	}
+	for i := range defs {
+		defs[i].CostFacets = costFacetsByID[defs[i].ID]
 	}
 	return defs
 }

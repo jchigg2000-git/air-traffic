@@ -61,9 +61,19 @@ func openaiFixture(a model.Adapter, method, path string, q map[string][]string) 
 			map[string]any{"object": "organization.user", "id": "user-7", "name": "Sec Eng", "email": "sec@acme.com", "role": "member", "added_at": nowUnix() - 86400*60},
 		}), nil
 	case strings.Contains(path, "/costs"):
+		if field := requestedGroupField(q, "group_by"); field != "" {
+			if f, ok := facetFor("openai", field, "project_id", "api_key_id", "line_item"); ok {
+				return 200, openaiPage([]any{openaiCostsBucket(f)}), nil
+			}
+		}
 		return 200, openaiPage([]any{openaiBucket("organization.costs.result", map[string]any{
 			"amount": map[string]any{"value": 1182.44, "currency": "usd"}, "line_item": nil, "project_id": "proj_acme"})}), nil
 	case strings.Contains(path, "/usage"):
+		if field := requestedGroupField(q, "group_by"); field != "" {
+			if f, ok := facetFor("openai", field, "project_id", "model", "user_id", "api_key_id", "service_tier"); ok {
+				return 200, openaiPage([]any{openaiUsageBucket(f)}), nil
+			}
+		}
 		return 200, openaiPage([]any{openaiBucket("organization.usage.completions.result", map[string]any{
 			"input_tokens": 142500, "output_tokens": 58210, "input_cached_tokens": 38110, "num_model_requests": 9123, "project_id": "proj_acme", "model": "gpt-4o"})}), nil
 	default:
@@ -109,11 +119,21 @@ func anthropicFixture(a model.Adapter, method, path string, q map[string][]strin
 			map[string]any{"type": "rate_limit", "model_tier": "claude-opus", "requests_per_minute": 4000, "input_tokens_per_minute": 400000, "output_tokens_per_minute": 80000},
 		}), nil
 	case strings.Contains(path, "usage_report"):
+		if field := requestedGroupField(q, "group_by"); field != "" {
+			if f, ok := facetFor("anthropic", field, "model", "workspace_id", "api_key_id", "service_tier"); ok {
+				return 200, anthropicUsageGrouped(f), nil
+			}
+		}
 		return 200, map[string]any{"data": []any{map[string]any{
 			"starting_at": agoRFC(24 * time.Hour), "ending_at": nowRFC(),
 			"results": []any{map[string]any{"uncached_input_tokens": 142500, "cache_read_input_tokens": 38110, "output_tokens": 58210, "api_key_id": "apikey_01", "workspace_id": "wrkspc_prod", "model": "claude-opus-4-6", "service_tier": "standard"}},
 		}}, "has_more": false, "next_page": nil}, nil
 	case strings.Contains(path, "cost_report"):
+		if field := requestedGroupField(q, "group_by"); field != "" {
+			if f, ok := facetFor("anthropic", field, "workspace_id", "description"); ok {
+				return 200, anthropicCostGrouped(f), nil
+			}
+		}
 		return 200, map[string]any{"data": []any{map[string]any{
 			"starting_at": agoRFC(24 * time.Hour), "ending_at": nowRFC(),
 			"results": []any{map[string]any{"amount": "284.10", "currency": "USD", "workspace_id": "wrkspc_prod", "description": "Claude API usage"}},
@@ -208,21 +228,18 @@ func githubFixture(a model.Adapter, method, path string, q map[string][]string) 
 	case strings.Contains(path, "content_exclusion"):
 		return 200, map[string]any{"*": []any{".env", "secrets/**"}, "acme/payments": []any{"**/*.key"}}, nil
 	case strings.Contains(path, "billing/usage"):
-		return 200, map[string]any{"usageItems": []any{map[string]any{
-			"date": time.Now().UTC().Format("2006-01-02"), "product": "copilot", "sku": "copilot_premium_request", "quantity": 1830, "unitType": "AI Credit", "netAmount": 18.30, "organizationName": "acme"}}}, nil
+		// Enhanced Billing Platform returns one usageItems[] row per repo (real shape).
+		return 200, map[string]any{"usageItems": githubUsageItems()}, nil
 	case strings.Contains(path, "/metrics"):
-		return 200, []any{map[string]any{
-			"date": time.Now().UTC().Format("2006-01-02"), "total_active_users": 412, "total_engaged_users": 388,
-			"copilot_ide_code_completions": map[string]any{"total_engaged_users": 360, "languages": []any{map[string]any{"name": "go", "total_engaged_users": 120}}}}}, nil
+		// Copilot metrics nest languages[] and editors[].models[] (pre-broken-down).
+		return 200, githubMetrics(), nil
 	case strings.Contains(path, "audit") || strings.Contains(path, "audit-log"):
 		return 200, []any{
 			map[string]any{"action": "copilot.agent_session.start", "actor": "Copilot", "actor_is_agent": true, "created_at": nowUnix() * 1000, "user": "dev-one", "agent_session": map[string]any{"task": "implement-feature"}},
 			map[string]any{"action": "business.update_copilot_business_policy", "actor": "ada-admin", "actor_is_agent": false, "created_at": (nowUnix() - 7200) * 1000},
 		}, nil
-	default: // seats
-		return 200, map[string]any{"total_seats": 412, "seats": []any{map[string]any{
-			"created_at": agoRFC(2400 * time.Hour), "updated_at": nowRFC(), "last_activity_at": nowRFC(), "last_activity_editor": "vscode/1.99.0",
-			"assignee": map[string]any{"login": "dev-one", "id": 90210, "type": "User"}}}}, nil
+	default: // seats — one seats[] row per assignee
+		return 200, githubSeats(), nil
 	}
 }
 

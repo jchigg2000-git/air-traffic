@@ -70,15 +70,17 @@ func (e *Emitter) emitTick(ts time.Time) {
 		if !ok || len(def.Metrics) == 0 {
 			continue
 		}
-		e.emitSynthetic(a, def.Metrics, ts)
+		e.emitSynthetic(a, def, ts)
 	}
 	for _, h := range e.hooks {
 		h(ts)
 	}
 }
 
-func (e *Emitter) emitSynthetic(a model.Adapter, defs []catalog.MetricDef, ts time.Time) {
-	observations := make([]any, 0, len(defs))
+func (e *Emitter) emitSynthetic(a model.Adapter, def catalog.Definition, ts time.Time) {
+	defs := def.Metrics
+	observations := make([]any, 0, len(defs)+8)
+	agg := make(map[string]float64, len(defs))
 	for _, d := range defs {
 		key := a.ID + "|" + d.Key
 		cur, seen := e.state[key]
@@ -99,6 +101,7 @@ func (e *Emitter) emitSynthetic(a model.Adapter, defs []catalog.MetricDef, ts ti
 			}
 		}
 		e.state[key] = next
+		agg[d.Key] = next
 		value := roundTo(next, d.Decimals)
 		status, severity := rag(next, d.Green, d.Amber, d.Polarity)
 		dims := map[string]any{}
@@ -108,7 +111,49 @@ func (e *Emitter) emitSynthetic(a model.Adapter, defs []catalog.MetricDef, ts ti
 		dims["team"] = "platform-engineering"
 		observations = append(observations, model.Obs(d.Kind, d.Key, value, d.Unit, status, severity, d.Plane, a.ID, d.Surface, dims, string(d.Surface), d.SourceURL))
 	}
+	observations = append(observations, e.costBreakdowns(a, def, agg)...)
 	e.storeBatch(a, ts, observations, nil, true)
+}
+
+// costBreakdowns turns the vendor's current aggregate spend/usage into one
+// "cost_breakdown" observation per supported facet member (cost by user / model / repo /
+// project / …), so the drill-down rides the same ops-observation-batch/v1 contract every
+// screen already consumes. Per-member share is normalized so the breakdown always sums to
+// the vendor's aggregate cost_usd; per-member tokens & request counts ride as dimensions.
+// Reads the same catalog.CostFacets the byte-identical synthetic surface serves.
+func (e *Emitter) costBreakdowns(a model.Adapter, def catalog.Definition, agg map[string]float64) []any {
+	cost := agg["cost_usd"]
+	if cost <= 0 || len(def.CostFacets) == 0 {
+		return nil
+	}
+	tin, tout := agg["tokens_in"], agg["tokens_out"]
+	var out []any
+	for _, f := range def.CostFacets {
+		if !f.Supported || len(f.Members) == 0 {
+			continue
+		}
+		var total float64
+		for _, m := range f.Members {
+			total += m.Weight
+		}
+		if total <= 0 {
+			continue
+		}
+		for _, m := range f.Members {
+			share := m.Weight / total
+			dims := map[string]any{
+				"cost_facet":        f.Dimension,
+				"cost_facet_member": m.Key,
+				"cost_facet_label":  m.Label,
+				"tokens_in":         int64(tin*share + 0.5),
+				"tokens_out":        int64(tout*share + 0.5),
+				"requests":          int64(tin*share/150 + 0.5),
+			}
+			out = append(out, model.Obs("cost_breakdown", "cost_usd", roundTo(cost*share, 2), "usd", "green", "info",
+				model.PlaneBudget, a.ID, model.DispVendorNative, dims, "cost-facets", f.Endpoint))
+		}
+	}
+	return out
 }
 
 func (e *Emitter) emitProxyStub(a model.Adapter, ts time.Time) {

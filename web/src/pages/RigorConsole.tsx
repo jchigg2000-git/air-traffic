@@ -4,6 +4,68 @@ import { api, qk, type Adapter, type Baseline, type CoverageReport } from '../li
 import PageHeader from '../components/PageHeader.tsx'
 import { titleCase } from '../lib/format.ts'
 
+// Hand-written narrative for each preconfigured rigor profile. `posture` maps to the
+// three surface cards above it (Data Policy · Developer Workflow · Budget). Profiles
+// without an entry fall back to a field-derived narrative (see deriveNarrative).
+type Narrative = {
+  headline: string
+  body: string
+  posture: { data_policy: string; developer_workflow: string; budget: string }
+}
+
+const NARRATIVE: Record<string, Narrative> = {
+  general_saas: {
+    headline: 'Balanced defaults for everyday engineering velocity',
+    body: 'General SaaS keeps the guardrails light so teams move fast — any approved model is fair game, retention sits at a standard 30 days, and spend ceilings are generous. It is the right floor for internal tools and customer-facing SaaS where the data is not regulated. Tighten to Fintech or Healthcare the moment PII, PHI, or financial flows enter the picture.',
+    posture: {
+      data_policy: 'Training opt-out on, but ZDR and PII redaction stay off — standard 30-day retention.',
+      developer_workflow: 'Open model access; an agentic reviewer gates customer-facing code, not every change.',
+      budget: 'Roomy caps ($10K org · $200/user) — monitor-first, not hard-stop.',
+    },
+  },
+  fintech: {
+    headline: 'Elevated controls for regulated financial workloads',
+    body: 'Fintech assumes money movement and audited data paths. Model access narrows to production-tier only, PII redaction switches on, and retention drops to 7 days. A human signs off on financial flows, and per-user spend is capped tighter so a runaway agent loop never becomes a runaway invoice.',
+    posture: {
+      data_policy: 'PII redaction on, ZDR where the vendor supports it natively, 7-day retention, elevated content safety.',
+      developer_workflow: 'Restricted to prod-tier models; human-required review on financial flows.',
+      budget: 'Firm $50K org cap with a $500/user ceiling.',
+    },
+  },
+  healthcare: {
+    headline: 'Maximum rigor — BAA-only, zero retention',
+    body: 'Healthcare is the strictest data posture: only BAA-signed vendors make the allowlist, retention is zero, and PII handling extends to PHI. Every change is human-reviewed and content safety is maxed. Budgets are board-approved rather than self-served, reflecting that compliance — not cost — is the binding constraint.',
+    posture: {
+      data_policy: 'ZDR enforced, PHI-aware redaction, zero retention, maximum content safety.',
+      developer_workflow: 'BAA-only model allowlist; human-required review on everything.',
+      budget: 'Board-approved org budget; $100/user — compliance gates spend, not the reverse.',
+    },
+  },
+  gov_infra: {
+    headline: 'FedRAMP / on-prem only, audit-controlled',
+    body: 'Gov / Infra mirrors Healthcare’s rigor and adds a sovereignty constraint: models must run FedRAMP-authorized or on-prem, never on uncontrolled infrastructure. Retention is zero and audit-controlled, every action is human-reviewed, and spend is fully human-gated — there are no self-service caps because every dollar maps to an authorized program.',
+    posture: {
+      data_policy: 'ZDR enforced, on-prem / FedRAMP residency, zero audit-controlled retention.',
+      developer_workflow: 'FedRAMP / on-prem models only; human-required review on all changes.',
+      budget: 'Fully human-gated — no self-service spend.',
+    },
+  },
+}
+
+// Fallback for any preset shipped without hand-written copy (keeps the block honest
+// instead of blank). TODO: add curated NARRATIVE copy if new baselines are introduced.
+function deriveNarrative(b: Baseline): Narrative {
+  return {
+    headline: b.description,
+    body: `The ${b.name} profile applies ${b.rigor} rigor across all three control surfaces. The cards above show every resolved control; the posture notes below summarize how this profile leans on each plane.`,
+    posture: {
+      data_policy: `Training opt-out ${b.training_opt_out ? 'on' : 'off'}, ZDR ${titleCase(b.zdr)}, PII redaction ${titleCase(b.pii_redaction)}, ${b.retention_days === 0 ? 'zero retention' : `${b.retention_days}-day retention`}.`,
+      developer_workflow: `Model access ${titleCase(b.model_access)}; ${b.code_review}.`,
+      budget: `${b.org_cap_usd ? `$${b.org_cap_usd.toLocaleString()} org cap` : 'Board-approved org budget'}, ${b.user_cap_usd ? `$${b.user_cap_usd}/user` : 'human-required per-user spend'}.`,
+    },
+  }
+}
+
 const OUTCOME_META: Record<string, { label: string; color: string }> = {
   applied_native: { label: 'Native', color: 'var(--native)' },
   applied_env: { label: 'Env-Managed', color: 'var(--env)' },
@@ -128,6 +190,7 @@ export default function RigorConsole() {
 
       {/* control sections */}
       {baseline && (
+        <>
         <div className="grid gap-4 lg:grid-cols-3">
           {PLANES.map((p) => {
             const cov = planeCoverage[p.key] ?? {}
@@ -155,7 +218,38 @@ export default function RigorConsole() {
             )
           })}
         </div>
+
+        <NarrativeBlock baseline={baseline} />
+        </>
       )}
+    </div>
+  )
+}
+
+function NarrativeBlock({ baseline }: { baseline: Baseline }) {
+  const n = NARRATIVE[baseline.id] ?? deriveNarrative(baseline)
+  const surfaces: { key: keyof Narrative['posture']; title: string }[] = [
+    { key: 'data_policy', title: 'Data Policy' },
+    { key: 'developer_workflow', title: 'Developer Workflow' },
+    { key: 'budget', title: 'Budget' },
+  ]
+  return (
+    <div className="mt-4 panel p-5">
+      <div className="mb-2 flex items-baseline gap-2">
+        <h3 className="text-sm font-semibold">About the {baseline.name} profile</h3>
+        <span className="text-xs">{baseline.rigor}</span>
+        <span className="text-xs text-faint">preconfigured rigor baseline</span>
+      </div>
+      <div className="text-sm font-medium" style={{ color: 'var(--accent)' }}>{n.headline}</div>
+      <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-muted">{n.body}</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        {surfaces.map((s) => (
+          <div key={s.key} className="panel-2 p-3">
+            <div className="mb-1 text-[10px] uppercase tracking-wider text-faint">{s.title}</div>
+            <div className="text-xs leading-relaxed text-muted">{n.posture[s.key]}</div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

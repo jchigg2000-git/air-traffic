@@ -170,6 +170,24 @@ export interface EnvState {
   drift_message?: string
 }
 
+// Cost drill-down CONFIG (from /api/cost/facets): which dimensions each vendor's real
+// billing/usage API can attribute cost by, and which it cannot. The VALUES live in the
+// observation stream (kind "cost_breakdown"); this is the labelling + honest-gap layer.
+export interface CostFacetMeta {
+  dimension: string
+  label: string
+  real_param?: string
+  endpoint?: string
+  response_field?: string
+  reason?: string
+}
+
+export interface VendorCostFacets {
+  vendor: string
+  supported: CostFacetMeta[]
+  unsupported: CostFacetMeta[]
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message)
@@ -205,6 +223,7 @@ export const api = {
   audit: () => getJSON<{ audit: AuditEvent[] }>('/api/audit').then((d) => d.audit),
   siem: () => getJSON<{ records: Record<string, unknown>[] }>('/api/audit?format=siem').then((d) => d.records),
   drift: () => getJSON<{ drift: DriftRecord[] }>('/api/drift').then((d) => d.drift),
+  costFacets: () => getJSON<{ facets: Record<string, VendorCostFacets> }>('/api/cost/facets').then((d) => d.facets),
   envconfig: () => getJSON<{ artifacts: ManagedArtifact[]; states: EnvState[] }>('/api/envconfig'),
 
   patchAdapter: (id: string, patch: Partial<Pick<Adapter, 'mode' | 'scenario' | 'enabled' | 'emit' | 'upstream_url' | 'endpoint_config'>>) =>
@@ -224,5 +243,6 @@ export const qk = {
   audit: ['audit'] as const,
   siem: ['siem'] as const,
   drift: ['drift'] as const,
+  costFacets: ['costFacets'] as const,
   envconfig: ['envconfig'] as const,
 }

@@ -59,7 +59,7 @@ func TestEmitSynthetic_WalkWithinBounds(t *testing.T) {
 	def, _ := catalog.ByID("openai")
 	a, _ := st.GetAdapter("openai")
 	for i := 0; i < 200; i++ {
-		e.emitSynthetic(a, def.Metrics, time.Now().UTC())
+		e.emitSynthetic(a, def, time.Now().UTC())
 	}
 	for _, d := range def.Metrics {
 		v := e.state[a.ID+"|"+d.Key]
