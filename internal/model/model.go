@@ -70,31 +70,36 @@ type Status struct {
 
 // Adapter is one vendor control surface (data-driven, mirrors it-scorecard Connector).
 type Adapter struct {
-	ID           string       `json:"id"`
-	Vendor       string       `json:"vendor"`
-	DisplayName  string       `json:"display_name"`
-	Family       string       `json:"family"` // api-platform | hyperscaler | coding-assistant | productivity
-	APIVersion   string       `json:"api_version"`
-	Tier         int          `json:"tier"` // 1 deep | 2 core | 3 manifest-only
-	Mode         Mode         `json:"mode"`
-	Enabled      bool         `json:"enabled"`
-	Emit         bool         `json:"emit"`
-	BasePath     string       `json:"base_path"`
-	UpstreamURL  string       `json:"upstream_url"`
-	Scenario     string       `json:"scenario"`
-	BAASigned    bool         `json:"baa_signed"`
-	Capabilities []Capability `json:"capabilities"`
-	Status       Status       `json:"status"`
-	UpdatedAt    time.Time    `json:"updated_at"`
+	ID          string `json:"id"`
+	Vendor      string `json:"vendor"`
+	DisplayName string `json:"display_name"`
+	Family      string `json:"family"` // api-platform | hyperscaler | coding-assistant | productivity
+	APIVersion  string `json:"api_version"`
+	Tier        int    `json:"tier"` // 1 deep | 2 core | 3 manifest-only
+	Mode        Mode   `json:"mode"`
+	Enabled     bool   `json:"enabled"`
+	Emit        bool   `json:"emit"`
+	BasePath    string `json:"base_path"`
+	UpstreamURL string `json:"upstream_url"`
+	// EndpointConfig holds per-vendor proxy-mode config (non-secret params + secret
+	// *references*, never raw secrets): region, project, api_version, org_id, and
+	// *_ref keys pointing at a secret store. Captured for the (future) proxy impl.
+	EndpointConfig map[string]string `json:"endpoint_config,omitempty"`
+	Scenario       string            `json:"scenario"`
+	BAASigned      bool              `json:"baa_signed"`
+	Capabilities   []Capability      `json:"capabilities"`
+	Status         Status            `json:"status"`
+	UpdatedAt      time.Time         `json:"updated_at"`
 }
 
 // AdapterPatch is the mutable subset for PATCH /api/adapters/{id}.
 type AdapterPatch struct {
-	Enabled     *bool   `json:"enabled"`
-	Emit        *bool   `json:"emit"`
-	Mode        *Mode   `json:"mode"`
-	Scenario    *string `json:"scenario"`
-	UpstreamURL *string `json:"upstream_url"`
+	Enabled        *bool              `json:"enabled"`
+	Emit           *bool              `json:"emit"`
+	Mode           *Mode              `json:"mode"`
+	Scenario       *string            `json:"scenario"`
+	UpstreamURL    *string            `json:"upstream_url"`
+	EndpointConfig *map[string]string `json:"endpoint_config"`
 }
 
 // Signal accompanies every control-application result.

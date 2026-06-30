@@ -7,6 +7,7 @@ import DispositionChip from '../components/DispositionChip.tsx'
 import Modal from '../components/Modal.tsx'
 import { relativeTime, titleCase } from '../lib/format.ts'
 import { validateEndpoint, expectedFor, knownPrefixes } from '../lib/endpoints.ts'
+import { schemaFor, validateField, type ConfigField } from '../lib/authSchemas.ts'
 
 const MODES: Mode[] = ['synthetic', 'proxy', 'disabled']
 const SCENARIOS = ['healthy', '401', '403', '429-retry-after', '500', '503', 'timeout', 'invalid-json', 'empty']
@@ -31,13 +32,13 @@ export default function Vendors() {
   const adapters = useQuery({ queryKey: qk.adapters, queryFn: api.adapters })
   const [selId, setSelId] = useState<string | null>(null)
   const [epOpen, setEpOpen] = useState(false)
-  const [epValue, setEpValue] = useState('')
+  const [epValues, setEpValues] = useState<Record<string, string>>({})
 
   const list = adapters.data ?? []
   const sel = list.find((a) => a.id === selId) ?? list[0]
   const calls = useQuery({ queryKey: qk.calls(sel?.id ?? ''), queryFn: () => api.calls(sel!.id), enabled: !!sel })
 
-  async function patch(id: string, p: Partial<Pick<Adapter, 'mode' | 'scenario' | 'enabled' | 'emit' | 'upstream_url'>>) {
+  async function patch(id: string, p: Partial<Pick<Adapter, 'mode' | 'scenario' | 'enabled' | 'emit' | 'upstream_url' | 'endpoint_config'>>) {
     await api.patchAdapter(id, p)
     qc.invalidateQueries({ queryKey: qk.adapters })
   }
@@ -48,9 +49,26 @@ export default function Vendors() {
 
   function openEndpoint() {
     if (!sel) return
-    const exp = expectedFor(sel.id)
-    setEpValue(sel.upstream_url || (exp?.example ?? ''))
+    const schema = schemaFor(sel.id)
+    const init: Record<string, string> = {}
+    if (schema) {
+      for (const f of schema.fields) {
+        init[f.key] = f.key === 'upstream_url' ? sel.upstream_url || f.default || '' : sel.endpoint_config?.[f.key] ?? f.default ?? ''
+      }
+    } else {
+      init.upstream_url = sel.upstream_url || (expectedFor(sel.id)?.example ?? '')
+    }
+    setEpValues(init)
     setEpOpen(true)
+  }
+
+  async function saveEndpoint() {
+    if (!sel) return
+    const { upstream_url = '', ...rest } = epValues
+    const config: Record<string, string> = {}
+    for (const [k, v] of Object.entries(rest)) if (v.trim()) config[k] = v.trim()
+    await patch(sel.id, { upstream_url: upstream_url.trim(), endpoint_config: config, mode: 'proxy' })
+    setEpOpen(false)
   }
 
   const onCount = list.filter((a) => a.enabled).length
@@ -201,23 +219,34 @@ export default function Vendors() {
         )}
       </div>
 
-      {sel && <EndpointModal adapter={sel} open={epOpen} value={epValue} onChange={setEpValue} onClose={() => setEpOpen(false)} onSave={async () => { await patch(sel.id, { upstream_url: epValue.trim(), mode: 'proxy' }); setEpOpen(false) }} />}
+      {sel && (
+        <EndpointModal
+          adapter={sel}
+          open={epOpen}
+          values={epValues}
+          onField={(k, v) => setEpValues((s) => ({ ...s, [k]: v }))}
+          onClose={() => setEpOpen(false)}
+          onSave={saveEndpoint}
+        />
+      )}
     </div>
   )
 }
 
+const URL_FALLBACK: ConfigField = { key: 'upstream_url', label: 'Base URL', kind: 'url', required: true }
+
 function EndpointModal({
   adapter,
   open,
-  value,
-  onChange,
+  values,
+  onField,
   onClose,
   onSave,
 }: {
   adapter: Adapter
   open: boolean
-  value: string
-  onChange: (v: string) => void
+  values: Record<string, string>
+  onField: (key: string, value: string) => void
   onClose: () => void
   onSave: () => void
 }) {
@@ -226,69 +255,108 @@ function EndpointModal({
     if (open) setTouched(false)
   }, [open])
 
-  const v = validateEndpoint(adapter, value)
+  const schema = schemaFor(adapter.id)
+  const fields = schema?.fields ?? [URL_FALLBACK]
   const exp = expectedFor(adapter.id)
   const prefixes = knownPrefixes(adapter)
+
+  // per-field errors/warnings
+  const errors: Record<string, string> = {}
+  let urlWarning = ''
+  for (const f of fields) {
+    const val = values[f.key] ?? ''
+    if (f.kind === 'url') {
+      const r = validateEndpoint(adapter, val)
+      if (!r.ok) errors[f.key] = r.errors[0]
+      else if (r.warnings.length) urlWarning = r.warnings[0]
+    } else {
+      const e = validateField(f, val, values)
+      if (e) errors[f.key] = e
+    }
+  }
+  const ok = Object.keys(errors).length === 0
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title={`Configure endpoint — ${adapter.display_name}`}
+      title={`Configure ${adapter.display_name}`}
       footer={
         <>
           <button onClick={onClose} className="rounded-lg border border-line bg-panel2 px-3 py-1.5 text-sm text-muted transition hover:text-fg">
             Cancel
           </button>
           <button
-            onClick={onSave}
-            disabled={!v.ok}
+            onClick={() => ok && onSave()}
+            disabled={!ok}
             className="rounded-lg px-4 py-1.5 text-sm font-medium text-bg disabled:cursor-not-allowed disabled:opacity-40"
             style={{ background: 'var(--accent)' }}
           >
-            Save
+            Save & switch to proxy
           </button>
         </>
       }
     >
-      <p className="mb-3 text-xs text-muted">
-        Upstream admin-API base URL for <span className="text-fg">proxy</span> mode. Saving switches this adapter to <span className="text-fg">proxy</span> mode and routes through this URL. Validated against {adapter.vendor}'s real endpoint contract.
+      <p className="mb-1 text-xs text-muted">
+        {schema ? <><span className="text-fg">{schema.authType}</span>. </> : null}
+        Saving switches this adapter to <span className="text-fg">proxy</span> mode. Validated against {adapter.vendor}'s real endpoint contract.
       </p>
-      <label className="flex flex-col gap-1 text-xs text-muted">
-        Endpoint URL
-        <input
-          autoFocus
-          value={value}
-          onChange={(e) => {
-            onChange(e.target.value)
-            setTouched(true)
-          }}
-          placeholder={exp?.example ?? 'https://…'}
-          className="rounded-lg border bg-panel2 px-3 py-2 font-mono text-sm text-fg"
-          style={{ borderColor: touched && !v.ok ? 'var(--red)' : 'var(--line)' }}
-          spellCheck={false}
-        />
-      </label>
+      {schema?.note && <p className="mb-3 text-[11px] text-amber">{schema.note}</p>}
+      {!schema && (
+        <p className="mb-3 rounded-lg border border-line bg-panel2 p-2 text-[11px] text-muted">
+          Full per-vendor config for {adapter.vendor} isn't modeled yet — tracked in <span className="font-mono">docs/plans/TODO-vendor-auth.md</span>. You can set the base URL for now.
+        </p>
+      )}
 
-      {touched && v.errors.map((e) => (
-        <div key={e} className="mt-1.5 flex items-center gap-1.5 text-xs" style={{ color: 'var(--red)' }}>
-          <span>✕</span> {e}
-        </div>
-      ))}
-      {touched && v.ok && v.warnings.map((w) => (
-        <div key={w} className="mt-1.5 flex items-center gap-1.5 text-xs" style={{ color: 'var(--amber)' }}>
-          <span>⚠</span> {w}
-        </div>
-      ))}
-      {touched && v.ok && !v.warnings.length && (
-        <div className="mt-1.5 flex items-center gap-1.5 text-xs" style={{ color: 'var(--green)' }}>
-          <span>✓</span> Valid — matches the {adapter.vendor} endpoint contract.
-        </div>
+      <div className="flex max-h-[52vh] flex-col gap-3 overflow-y-auto pr-1">
+        {fields.map((f, i) => {
+          const val = values[f.key] ?? ''
+          const err = touched ? errors[f.key] : undefined
+          return (
+            <label key={f.key} className="flex flex-col gap-1 text-xs text-muted">
+              <span>
+                {f.label}
+                {(f.required || (f.requiredWhen && values[f.requiredWhen.key] === f.requiredWhen.value)) && <span className="text-red"> *</span>}
+              </span>
+              {f.kind === 'select' ? (
+                <select
+                  value={val}
+                  onChange={(e) => { onField(f.key, e.target.value); setTouched(true) }}
+                  className="rounded-lg border border-line bg-panel2 px-2 py-1.5 text-sm text-fg"
+                >
+                  {f.options?.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : (
+                <input
+                  autoFocus={i === 0}
+                  value={val}
+                  onChange={(e) => { onField(f.key, e.target.value); setTouched(true) }}
+                  placeholder={f.placeholder ?? (f.kind === 'url' ? exp?.example : '')}
+                  className="rounded-lg border bg-panel2 px-3 py-2 font-mono text-sm text-fg"
+                  style={{ borderColor: err ? 'var(--red)' : 'var(--line)' }}
+                  spellCheck={false}
+                />
+              )}
+              {err ? (
+                <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--red)' }}><span>✕</span> {err}</span>
+              ) : f.help ? (
+                <span className="text-[10px] text-faint">{f.help}</span>
+              ) : null}
+            </label>
+          )
+        })}
+      </div>
+
+      {touched && ok && urlWarning && (
+        <div className="mt-2 flex items-center gap-1.5 text-xs" style={{ color: 'var(--amber)' }}><span>⚠</span> {urlWarning}</div>
+      )}
+      {touched && ok && (
+        <div className="mt-2 flex items-center gap-1.5 text-xs" style={{ color: 'var(--green)' }}><span>✓</span> Valid — matches the {adapter.vendor} contract.</div>
       )}
 
       <div className="mt-4 rounded-lg border border-line bg-panel2 p-3 text-[11px] text-muted">
         <div className="mb-1 font-semibold uppercase tracking-wider text-faint">Contract</div>
-        <div>Host · <span className="font-mono text-fg">…{exp?.hostSuffix ?? 'n/a'}</span> · https only</div>
+        <div>Host · <span className="font-mono text-fg">…{exp?.hostSuffix ?? 'n/a'}</span> · https only · secrets by reference</div>
         {prefixes.length > 0 && (
           <div className="mt-1">Known admin paths · <span className="font-mono text-fg">{prefixes.slice(0, 4).join('  ')}</span></div>
         )}

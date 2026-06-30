@@ -49,6 +49,14 @@ func New() *Store {
 	return s
 }
 
+// defaultRoster is the set of vendors enabled at boot. Justin's choice: the six
+// Tier-1 deep adapters are on; the other ten ship disabled until their per-vendor
+// auth config is built (docs/plans/TODO-vendor-auth.md). Do NOT auto-toggle these.
+var defaultRoster = map[string]bool{
+	"openai": true, "anthropic": true, "bedrock": true,
+	"azure_openai": true, "vertex": true, "github_copilot": true,
+}
+
 func (s *Store) seed() {
 	now := time.Now().UTC()
 	for _, d := range catalog.All() {
@@ -60,7 +68,7 @@ func (s *Store) seed() {
 			APIVersion:   d.APIVersion,
 			Tier:         d.Tier,
 			Mode:         model.ModeSynthetic,
-			Enabled:      true,
+			Enabled:      defaultRoster[d.ID],
 			Emit:         true,
 			BasePath:     "/synthetic/" + d.ID,
 			Scenario:     "healthy",
@@ -120,6 +128,9 @@ func (s *Store) PatchAdapter(id string, p model.AdapterPatch) (model.Adapter, er
 	}
 	if p.UpstreamURL != nil {
 		a.UpstreamURL = *p.UpstreamURL
+	}
+	if p.EndpointConfig != nil {
+		a.EndpointConfig = *p.EndpointConfig
 	}
 	a.UpdatedAt = time.Now().UTC()
 	s.adapters[id] = a
