@@ -312,13 +312,30 @@ export interface CorpusEntry {
 export interface PatternProposal {
   id: string
   type: string
-  regex: string
-  confidence: number
+  kind?: 'regex' | 'deny_list' | 'threshold'
+  regex?: string
+  deny_list?: string[]
+  threshold?: number
+  context?: string[]
+  confidence?: number
   rationale: string
   sample_misses: number
-  status: 'proposed' | 'approved' | 'rejected' | 'manual'
+  status: 'proposed' | 'approved' | 'rejected' | 'manual' | 'superseded'
   source_run: string
   created_at: string
+}
+
+export interface SampleResult {
+  request_id: string
+  action: string
+  http_status: number
+  redactions?: GatewayRedaction[]
+  report_joined: boolean
+  upstream_text?: string
+  response_text?: string
+  latency_ms: number
+  pack_version: number
+  detector_chain: string
 }
 
 export class ApiError extends Error {
@@ -374,6 +391,7 @@ export const api = {
   harnessCorpus: () => getJSON<{ corpus: CorpusEntry[] }>('/api/harness/corpus').then((d) => d.corpus),
   harnessProposals: () => getJSON<{ proposals: PatternProposal[] }>('/api/harness/proposals').then((d) => d.proposals),
   startHarnessRun: (cfg: HarnessRunConfig) => send<{ run: HarnessRun }>('POST', '/api/harness/runs', cfg).then((d) => d.run),
+  runSample: (content: string) => send<{ sample: SampleResult }>('POST', '/api/harness/sample', { content }).then((d) => d.sample),
   approveProposal: (id: string) =>
     send<{ proposals: PatternProposal[] }>('POST', `/api/harness/proposals/${id}/approve`).then((d) => d.proposals),
   rejectProposal: (id: string) =>

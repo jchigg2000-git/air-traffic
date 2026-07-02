@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"net"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -43,7 +44,7 @@ func TestFullLoopFlywheelRatchet(t *testing.T) {
 	log := discard()
 
 	cp := server.New(st, log)
-	hr, err := harness.NewRunner(st, log, t.TempDir(), "gwk-test")
+	hr, err := harness.NewRunner(st, log, t.TempDir(), "gwk-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,6 +52,17 @@ func TestFullLoopFlywheelRatchet(t *testing.T) {
 	cpSrv := httptest.NewServer(cp.Routes())
 	defer cpSrv.Close()
 
+	// Bind the gateway's listener FIRST so its advertised URL (default:
+	// http://<listen addr>) is truthful and the runner discovers it via the
+	// real heartbeat path. The old seeded-override approach left the real
+	// heartbeat advertising the unbound default 127.0.0.1:8125 — freshest
+	// wins in freshGateway, so later traffic silently targeted whatever dev
+	// stack happened to be on that port and 401s scored as perfect recall.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GATEWAY_LISTEN_ADDR", ln.Addr().String())
 	t.Setenv("GATEWAY_UPSTREAMS", `{"anthropic":{"base_url":"`+cpSrv.URL+`/synthetic/anthropic","credential_ref":"env:UP_CRED"}}`)
 	t.Setenv("UP_CRED", "sk-ant-synthetic-test")
 	t.Setenv("GATEWAY_CLIENT_KEYS_REF", "env:GW_KEYS")
@@ -67,25 +79,30 @@ func TestFullLoopFlywheelRatchet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gwSrv := httptest.NewServer(gw.Routes())
+	gwSrv := httptest.NewUnstartedServer(gw.Routes())
+	gwSrv.Listener.Close()
+	gwSrv.Listener = ln
+	gwSrv.Start()
 	defer gwSrv.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go gw.RunSpine(ctx)
 	go gw.RunPolicyPull(ctx)
 
-	// The gateway heartbeats its configured listen addr, not the httptest
-	// port — override with the real URL so the runner targets the test server.
-	st.SetGatewayEnforcement(model.EnforcementReport{
-		GatewayID: "gw@test", BaseURL: gwSrv.URL, Action: "mask",
-		Detectors: []string{"regex"},
-		Vendors:   map[string][]string{"anthropic": {"pii_redaction"}},
-	})
-
+	// The first heartbeat fires immediately but asynchronously — wait for
+	// discovery instead of seeding an override.
 	runCfg := model.HarnessRunConfig{Count: 60, Concurrency: 4, Seed: 42, IncludeTraps: true, IncludeStraddle: true}
-	run1, err := hr.StartRun(runCfg)
-	if err != nil {
-		t.Fatal(err)
+	var run1 *model.HarnessRun
+	discovery := time.Now().Add(10 * time.Second)
+	for {
+		run1, err = hr.StartRun(runCfg)
+		if err == nil {
+			break
+		}
+		if time.Now().After(discovery) {
+			t.Fatal(err)
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 	done1 := waitDone(t, hr, run1.ID)
 	if done1.Status != "done" {
@@ -174,5 +191,29 @@ func TestFullLoopFlywheelRatchet(t *testing.T) {
 		if strings.Contains(string(reportsJSON), v) {
 			t.Errorf("gateway reports leaked seeded value %q", v)
 		}
+	}
+
+	// Try-a-prompt path: one ad-hoc sample through the same stack. It must
+	// join the gateway report, mask the SSN before upstream, carry a model
+	// reply — and leave the flywheel untouched (no run, no promotion).
+	corpusBefore := len(hr.Corpus())
+	sample, err := hr.RunSample("Reply to Jane, SSN 123-45-6789, at jane@example.org today.")
+	if err != nil {
+		t.Fatalf("RunSample: %v", err)
+	}
+	if sample.Action != "mask" || !sample.ReportJoined {
+		t.Errorf("sample = %+v, want joined mask verdict", sample)
+	}
+	if len(sample.Redactions) == 0 {
+		t.Error("sample carries no redactions")
+	}
+	if sample.UpstreamText == "" || strings.Contains(sample.UpstreamText, "123-45-6789") {
+		t.Errorf("upstream text = %q, want masked SSN", sample.UpstreamText)
+	}
+	if sample.ResponseText == "" {
+		t.Error("sample carries no model reply")
+	}
+	if len(hr.Corpus()) != corpusBefore {
+		t.Error("an ad-hoc sample must never promote to the corpus")
 	}
 }

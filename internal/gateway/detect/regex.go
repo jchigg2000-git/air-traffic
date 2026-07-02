@@ -20,12 +20,20 @@ type Regex struct {
 }
 
 // PatternRule is one flywheel-approved addition to the built-in recognizers.
+// Kind mirrors model.PatternRule: "" / "regex" compiles here; "deny_list"
+// and "threshold" are Presidio-side configuration this engine skips.
 type PatternRule struct {
-	ID         string  `json:"id"`
-	Type       string  `json:"type"`
-	Regex      string  `json:"regex"`
-	Confidence float64 `json:"confidence"`
+	ID         string   `json:"id"`
+	Type       string   `json:"type"`
+	Kind       string   `json:"kind,omitempty"`
+	Regex      string   `json:"regex,omitempty"`
+	DenyList   []string `json:"deny_list,omitempty"`
+	Threshold  float64  `json:"threshold,omitempty"`
+	Context    []string `json:"context,omitempty"`
+	Confidence float64  `json:"confidence,omitempty"`
 }
+
+func (r PatternRule) isRegex() bool { return r.Kind == "" || r.Kind == "regex" }
 
 type recognizer struct {
 	typ        string
@@ -74,10 +82,14 @@ func NewRegex() *Regex {
 func (r *Regex) Name() string { return "regex" }
 
 // SetPatternPack recompiles builtin + pack rules and atomically swaps the
-// recognizer set — the flywheel hot-reload path, no restart.
+// recognizer set — the flywheel hot-reload path, no restart. Non-regex kinds
+// (deny lists, thresholds) are Presidio configuration and are skipped here.
 func (r *Regex) SetPatternPack(rules []PatternRule) error {
 	next := builtinRecognizers()
 	for _, rule := range rules {
+		if !rule.isRegex() {
+			continue
+		}
 		re, err := regexp.Compile(rule.Regex)
 		if err != nil {
 			return fmt.Errorf("pattern %s (%s): %w", rule.ID, rule.Type, err)

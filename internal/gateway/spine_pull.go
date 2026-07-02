@@ -130,7 +130,11 @@ func (s *Server) pullPatterns(ctx context.Context) error {
 	}
 	rules := make([]detect.PatternRule, 0, len(payload.Pack.Rules))
 	for _, r := range payload.Pack.Rules {
-		rules = append(rules, detect.PatternRule{ID: r.ID, Type: r.Type, Regex: r.Regex, Confidence: r.Confidence})
+		rules = append(rules, detect.PatternRule{
+			ID: r.ID, Type: r.Type, Kind: r.Kind, Regex: r.Regex,
+			DenyList: r.DenyList, Threshold: r.Threshold, Context: r.Context,
+			Confidence: r.Confidence,
+		})
 	}
 	if s.regexDet != nil {
 		if err := s.regexDet.SetPatternPack(rules); err != nil {

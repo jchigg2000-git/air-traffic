@@ -1,44 +1,43 @@
-# Handoff — 2026-06-30 11:17 CDT
+# Handoff — 2026-07-02 (evening) — G6 config-knob slice
 
-> **Superseded 2026-07-02:** the gateway is no longer design-only. The MVP
-> slice (G0/G1/G2/partial-G6/G7 + harness tab + flywheel v0) is built —
-> see `plans/phase-3-inference-gateway.md` and `plans/TODO-gateway-deferred.md`.
-> The "no code yet" statements below are historical.
+## What was built (UNCOMMITTED — working tree, not yet shipped)
+The G6-full pull-forward: **config-shaped proposals** give the free-text miss classes an Approve button. Verified end-to-end (go test green, e2e 9/9 compose, live flywheel produced `deny-PERSON_NAME` from real misses). On top of `c08b260` (main).
 
-## What shipped
-- `6241d7a` — docs: add inference gateway design doc and pending deliverable pages — `docs/` (+ `BUILD_REPORT.md` at root). 5 files, +3770 lines, all additive/untracked-before. Now on `origin/main`.
-  - The session's real work: `docs/inference-gateway-design.md` (272 lines) — a vendor-neutral PII/PHI-filtering inference gateway design.
-  - Bundled along (pre-existing untracked from prior sessions, not authored this session): `BUILD_REPORT.md`, `docs/air-traffic-control-plane-spine.html`, `docs/air-traffic-enforcement-honesty.html`, `docs/air-traffic-nine-hour-build.html`. They rode the `git add -A` in `/shipit`.
+Three artifact kinds now flow propose→approve→hot-reload (`model.KindRegex/KindDenyList/KindThreshold`; empty kind = regex for persisted-state back-compat):
+- **`deny_list`** — exact terms from missed truth values; free-text types only (`PERSON_NAME`, `ADDRESS`); distributed as Presidio `ad_hoc_recognizers` `deny_list` (fires at score 1.0 — verified against live 2.2.359).
+- **`threshold`** — per-type score gate below the 0.40 default, proposed ONLY with probe evidence: the flywheel re-analyzes missed content at threshold 0 (`internal/harness/probe.go`) and proposes a gate one 0.05-step under the lowest seen score. No evidence → no proposal.
+- **`context`** — words on regex-kind rules (curated SSN/MRN candidates carry them); Presidio's context enhancer boosts the pattern score.
 
-## In-flight
-None. Working tree clean (`git status --short` empty); branch `docs-inference-gateway-design` was merged ff-only to `main` and deleted local + remote.
+Touched: `internal/model/{gateway,harness,presidio(new)}.go`, `internal/gateway/detect/{presidio,regex,detector}.go`, `internal/gateway/spine_pull.go`, `internal/harness/{flywheel,probe(new),sample(new),runner}.go`, `internal/server/{server,routes_harness}.go`, `cmd/air-traffic-server/main.go`, `docker-compose.yml` (control-plane gets `AIRTRAFFIC_PRESIDIO_URL`), `web/src/{lib/api.ts,pages/GatewayHarness.tsx}`, tests (`flywheel_test.go`, `pack_kinds_test.go` new), docs (ledger + build-plan status).
+
+**Also built (same batch): try-a-prompt box on the Gateway Harness tab.** `POST /api/harness/sample` (`internal/harness/sample.go`) fires one ad-hoc prompt through the freshest gateway exactly like run traffic (same key + request-id join), polls ≤8s for the gateway report, and returns verdict/redactions/upstream-capture/model-reply — the browser still never talks to the gateway port. Deliberately outside the run lifecycle: no scoring, no corpus promotion, no proposals (user-typed content has no ground truth), usable mid-run. UI panel renders redactions neutrally (never "false positive" — that judgment belongs to scored runs), converts Go byte offsets → UTF-16 for highlighting, and the copy warns samples aren't synthetic-by-construction (they land in the local capture ring). Live-verified: mask verdict, 4 redactions across both engines, masked upstream text, 44ms.
+
+## Also fixed en route (would have blocked anything else)
+- **Two live trap FPs** surfaced by the e2e run (latent holes, NOT caused by this diff — payload/gate semantics were byte-identical for the live pack): `US_ITIN` (unmapped Presidio built-in, bypassed guards) claimed the tail of an `ORD-` trap; `LOCATION→ADDRESS` claimed "ORD-970" as an airport code. Fixes: `US_ITIN→SSN` in the shared map (inherits hyphen guard), unmapped built-ins are now DROPPED unless the pack declares the type, `ADDRESS` joined `typeGuards` with `notHyphenAdjacent`. Regression test: `TestPresidioTrapShapesStaySilent`.
+- **Stale-pointer upsert bug** in the old `upsertProposals`: map of pointers into `r.proposals` + append realloc = lost updates. Rewritten index-based; guarded by `TestUpsertSurvivesSliceGrowth`.
+- **Full-loop test was silently lying**: it seeded a heartbeat override pointing at the httptest gateway, but the REAL gateway heartbeats every 15s advertising unbound-default `127.0.0.1:8125` — freshest wins in `freshGateway`, so run 2 (and anything late in the test) targeted whatever dev stack sat on 8125 (the live compose gateway → 401s), and 401s score as **perfect recall** (no captures = nothing leaked). Fixed: bind the listener first, `GATEWAY_LISTEN_ADDR` = its real addr, heartbeat now truthful, override deleted. Test went 27s → ~3s (was burning the 25s join timeout). The false-green pattern to watch for: recall 1.0 + joined_reports 0.
 
 ## Decisions (this session)
-All captured **inside the doc** (`docs/inference-gateway-design.md`) — no separate memory file written. The non-obvious ones the next session should know:
-- **Gateway is design-only, off-spine, build-on-demand.** No code exists (`internal/gateway` absent, by design). Verdict in §15: build *when a real in-request-enforcement requirement lands*, not by default. Consistent with the standing "optional gateway" decision in auto-memory `project-air-traffic.md`.
-- **Tee, don't gate the response** (§5, §11): response returns to caller directly; a split copy is teed to an async monitor. Detokenization is the one on-path exception (`tokenize` mode).
-- **Tokenization oracle + capture buffer** (§11): vault doubles as a zero-false-positive leak oracle for previously-tokenized values; a short in-memory FIFO buffer (TTL ≥ monitor p99) harvests novel misses; **surrogate-on-promotion** keeps the durable training corpus synthetic.
-- **Tokens are scoped+salted deterministic** (§7), e.g. `HMAC(conversation_salt, value)` — stable per entity within a conversation/tenant, never global (cross-session correlation risk).
-- **OpenClaw is out** — earlier drafts discussed Anthropic's OpenClaw enforcement; user had it removed entirely as not applicable. Don't re-add. The supported routing point (API-key auth, `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`, BAA+ZDR) stays in §12.
+- **Honesty model extended, not relaxed**: `manual` rows flip to `superseded` only when a config artifact provably covers the type. Probe-sees-it-above-gate misses (e.g. SSE straddle splits) stay manual — no artifact would fix them. Chain without `presidio` → everything stays manual (approving Presidio config a non-Presidio chain ignores would be a lie).
+- **G0 dependency isolation preserved**: harness does NOT import `internal/gateway/detect` (depisolation test enforces). Shared Presidio vocabulary (entity map, 0.40 gate, rune→byte offsets) moved to **`internal/model/presidio.go`** — update anything that says the map lives in `detect/presidio.go:40`.
+- **Rejected deny terms stay rejected** (tracked across all deny rows for the type); new terms after a settled row open `deny-<TYPE>-2` etc.
+- Live volume observation: pack is **v0** — ship-day `ssn-bare-context` approval never landed in the compose volume (it re-proposed today, correctly, alongside `deny-PERSON_NAME`). The user owns all approvals; nothing was approved this session.
 
 ## Don't break
-- **The doc must stay self-consistent across edits.** It was audited once for drift; the load-bearing couplings: §7 token binding ↔ §10 "token *stability*" test (not "uniqueness"); §11 "monitor scans egress *and* responses" ↔ §4 diagram's *two* tees (`fwd -. tee cleaned request`, `vendor -. tee raw response`) ↔ §5 flow; §8 config keys ↔ the prose that introduces each. Change one, reconcile the others.
-- **Mermaid diagrams** (two, in §4 and §11): validate via the Mermaid Chart MCP tool before committing — the render result is huge, so read only `{valid}` via `jq` from the saved tool-result file, don't inline it.
-- **Vendor-neutral / no air-traffic branding** is a hard constraint on this doc (user-set). Keep it portable; the air-traffic-specific mapping (if ever wanted) goes in a *separate* companion doc.
+- All items from the previous handoff still stand (`gatewayStaleAfter` ×2, heartbeat honesty, mock-upstream branch order, byte-faithful pass-through, ratchet `corpus_version`, compose images bake source).
+- **Shared vocabulary moved**: new engines/PII types join `model.PresidioEntityMap` (`internal/model/presidio.go`) + `typeGuards` (`internal/gateway/detect/detector.go:41`). Unmapped Presidio built-ins are silently dropped now — a new built-in type you WANT must be mapped explicitly.
+- **Probe and adapter must stay in step**: `internal/harness/probe.go` deliberately mirrors the detect adapter via the shared model vocabulary; if the adapter grows type-shaping logic beyond that map, mirror it or threshold evidence lies.
+- **`Detect`'s request threshold = min(all gates)** then re-filters per type — sending the default gate would starve lowered types of candidates.
+- **Deny terms are values by design** (synthetic here) — they live in proposals + pack + `/api/gateway/patterns`, but must NEVER enter audit events or gateway reports (leak-guard tests check audit/reports only).
 
 ## Next session: start here
-Nothing is mid-edit — the gateway work is a complete design doc, shipped. Two clean continuations, neither urgent:
-- **If a real requirement lands** (e.g. the pre-ZDR gate for a regulated health-plan org discussed this session — technically enforce "no PHI until ZDR"): build **M1** from §8 — a Go pass-through proxy (`net/http` + `httputil.ReverseProxy`), authenticate gateway key, swap upstream credential, forward, return, prove round-trip + streaming. New package `internal/gateway`, mounted only behind an `AIRTRAFFIC_GATEWAY` flag, nothing on the spine importing it.
-- **Else** pick from the roadmap (`docs/plans/TODO-cost-drilldown.md`, `docs/plans/TODO-vendor-auth.md`) — both pre-date this session.
-- First action either way: read `docs/inference-gateway-design.md` §8 (build plan) and §15 (should-we verdict).
-
-## Deferred / open
-- **M1–M6 gateway build** — design only; no code written this session. §8 sequences it; M6 (flywheel) is marked demand-driven.
-- **Optional synchronous response guard** for model-generated/RAG PII — flagged in §5/§11 as a threat-model choice, intentionally not specified.
-- **Cost drill-down byte-identical replicas** for Azure/Bedrock/Vertex/Tier-2/3 — pre-existing follow-up in `docs/plans/TODO-cost-drilldown.md` (untouched this session).
+1. **Ship it** — the working tree is verified but uncommitted (`/shipit` or manual). Then the demo moment is the user clicking Approve on `deny-PERSON_NAME` and re-running to watch the ratchet recover from the replay-amplified name misses.
+2. Browser click-through of the Gateway Harness tab (STILL never visually verified — new kind chips/deny-term/threshold rendering are build-verified only).
+3. Or any deferred-ledger item: `docs/plans/TODO-gateway-deferred.md` (G3 vault, G4 async monitor, managed DLP, per-route engine selection, YAML mount, auth on `/api/gateway/*` — now includes the pattern GET, since it distributes deny terms).
 
 ## How to verify
-- `git log --oneline -3` → top is `6241d7a docs: add inference gateway design doc...`
-- `git status --short` → empty (clean)
-- `git ls-files docs/inference-gateway-design.md` → tracked; `grep -c '^## ' docs/inference-gateway-design.md` → 15 sections
-- `ls internal/gateway 2>/dev/null || echo none` → `none` (design-only; confirms no code yet)
+- `git status --short` → ~24 modified/new files (uncommitted); `go test ./...` all ok (~15s)
+- `curl -X POST 127.0.0.1:8122/api/harness/sample -d '{"content":"SSN 123-45-6789"}' -H 'Content-Type: application/json'` → mask verdict + redactions + masked upstream text
+- `docker compose ps` → 3 healthy; stack serves this working tree (rebuilt twice this session)
+- `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` → 9/9, trap_fps=0 (NB mutates runtime state)
+- `curl -s 127.0.0.1:8122/api/harness/proposals` → `deny-PERSON_NAME` proposed (3 Diego-terms), `manual-PERSON_NAME` superseded, `manual-PHONE` still manual, `ssn-bare-context` proposed with context words

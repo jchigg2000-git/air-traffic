@@ -58,6 +58,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/gateway/status", s.handleGatewayStatus)
 	mux.HandleFunc("/api/harness/runs", s.handleHarnessRuns)
 	mux.HandleFunc("/api/harness/runs/", s.handleHarnessRun)
+	mux.HandleFunc("/api/harness/sample", s.handleHarnessSample)
 	mux.HandleFunc("/api/harness/ratchet", s.handleHarnessRatchet)
 	mux.HandleFunc("/api/harness/corpus", s.handleHarnessCorpus)
 	mux.HandleFunc("/api/harness/proposals", s.handleHarnessProposals)

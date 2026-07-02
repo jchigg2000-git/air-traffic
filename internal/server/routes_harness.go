@@ -86,6 +86,36 @@ func (s *Server) handleHarnessCorpus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"corpus": s.harness.Corpus()})
 }
 
+// handleHarnessSample fires one ad-hoc prompt through the gateway and waits
+// for the verdict — the UI's try-a-prompt box. The browser never talks to
+// the gateway port directly; this is its stand-in.
+func (s *Server) handleHarnessSample(w http.ResponseWriter, r *http.Request) {
+	if !s.requireHarness(w) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "use POST")
+		return
+	}
+	var body struct {
+		Content string `json:"content"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid sample: "+err.Error())
+		return
+	}
+	if strings.TrimSpace(body.Content) == "" {
+		writeError(w, http.StatusBadRequest, "content is empty")
+		return
+	}
+	sample, err := s.harness.RunSample(body.Content)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"sample": sample})
+}
+
 // handleHarnessProposals serves the list plus /{id}/approve and /{id}/reject.
 func (s *Server) handleHarnessProposals(w http.ResponseWriter, r *http.Request) {
 	if !s.requireHarness(w) {

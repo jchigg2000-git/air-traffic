@@ -112,16 +112,40 @@ type CorpusEntry struct {
 	AddedAt   time.Time   `json:"added_at"`
 }
 
+// SampleResult is one ad-hoc prompt sent through the gateway from the
+// harness UI's try-a-prompt box. Unlike run results it carries no ground
+// truth — redactions render neutrally, and nothing is scored, promoted to
+// the corpus, or fed to proposals.
+type SampleResult struct {
+	RequestID     string             `json:"request_id"`
+	Action        string             `json:"action"`
+	HTTPStatus    int                `json:"http_status"`
+	Redactions    []GatewayRedaction `json:"redactions,omitempty"`
+	ReportJoined  bool               `json:"report_joined"`
+	UpstreamText  string             `json:"upstream_text,omitempty"`
+	ResponseText  string             `json:"response_text,omitempty"`
+	LatencyMS     int64              `json:"latency_ms"`
+	PackVersion   int                `json:"pack_version"`
+	DetectorChain string             `json:"detector_chain"`
+}
+
 // PatternProposal is one flywheel-suggested detector addition awaiting human
-// review — v0 never auto-applies a pattern.
+// review — nothing ever auto-applies. Kind selects the artifact (see the
+// Kind* constants); "manual" rows carry no artifact and are unapprovable by
+// design, "superseded" rows were replaced by a config-shaped proposal for
+// the same type.
 type PatternProposal struct {
 	ID           string    `json:"id"`
 	Type         string    `json:"type"`
-	Regex        string    `json:"regex"`
-	Confidence   float64   `json:"confidence"`
+	Kind         string    `json:"kind,omitempty"` // "" = regex
+	Regex        string    `json:"regex,omitempty"`
+	DenyList     []string  `json:"deny_list,omitempty"`
+	Threshold    float64   `json:"threshold,omitempty"`
+	Context      []string  `json:"context,omitempty"`
+	Confidence   float64   `json:"confidence,omitempty"`
 	Rationale    string    `json:"rationale"`
 	SampleMisses int       `json:"sample_misses"`
-	Status       string    `json:"status"` // proposed | approved | rejected
+	Status       string    `json:"status"` // proposed | approved | rejected | manual | superseded
 	SourceRun    string    `json:"source_run"`
 	CreatedAt    time.Time `json:"created_at"`
 }

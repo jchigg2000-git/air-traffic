@@ -43,13 +43,27 @@ type EnforcementReport struct {
 	At        time.Time           `json:"at,omitempty"`
 }
 
+// Pattern kinds: what shape of detector artifact a rule or proposal carries.
+// An empty kind means regex (rules persisted before kinds existed).
+const (
+	KindRegex     = "regex"
+	KindDenyList  = "deny_list"
+	KindThreshold = "threshold"
+)
+
 // PatternRule is one flywheel-approved detector addition, distributed to
-// gateways via GET /api/gateway/patterns.
+// gateways via GET /api/gateway/patterns. Exactly one artifact is set,
+// selected by Kind: Regex (with optional Context words for Presidio's
+// context enhancer), DenyList terms, or a per-type score Threshold.
 type PatternRule struct {
 	ID         string    `json:"id"`
 	Type       string    `json:"type"`
-	Regex      string    `json:"regex"`
-	Confidence float64   `json:"confidence"`
+	Kind       string    `json:"kind,omitempty"` // "" = regex
+	Regex      string    `json:"regex,omitempty"`
+	DenyList   []string  `json:"deny_list,omitempty"`
+	Threshold  float64   `json:"threshold,omitempty"`
+	Context    []string  `json:"context,omitempty"`
+	Confidence float64   `json:"confidence,omitempty"`
 	Rationale  string    `json:"rationale,omitempty"`
 	AddedAt    time.Time `json:"added_at,omitempty"`
 }

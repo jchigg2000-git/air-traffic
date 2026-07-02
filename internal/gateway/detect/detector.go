@@ -43,6 +43,9 @@ var typeGuards = map[string]func(text string, start, end int) bool{
 	"CREDIT_CARD": luhnValid,
 	"IP":          validOctets,
 	"IBAN":        ibanMod97,
+	// spaCy reads "ORD-290" as the airport code → LOCATION → ADDRESS; a real
+	// address never sits glued to a hyphenated identifier.
+	"ADDRESS": notHyphenAdjacent,
 }
 
 // Run returns merged, guard-validated spans plus one error per failed engine.

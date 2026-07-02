@@ -28,10 +28,13 @@ func main() {
 
 	// The gateway harness engine: drives synthetic traffic through the
 	// gateway and feeds the flywheel. Durable state (ratchet, corpus,
-	// pattern pack) lives under AIRTRAFFIC_DATA_DIR.
+	// pattern pack) lives under AIRTRAFFIC_DATA_DIR. The Presidio URL feeds
+	// the flywheel's raw-score probe (threshold-proposal evidence); if the
+	// sidecar is down the probe degrades gracefully.
 	hr, err := harness.NewRunner(st, log,
 		env("AIRTRAFFIC_DATA_DIR", "data/harness"),
-		env("AIRTRAFFIC_GATEWAY_KEY", "gwk-demo"))
+		env("AIRTRAFFIC_GATEWAY_KEY", "gwk-demo"),
+		env("AIRTRAFFIC_PRESIDIO_URL", "http://127.0.0.1:8126"))
 	if err != nil {
 		log.Error("harness init failed", "error", err)
 		os.Exit(1)

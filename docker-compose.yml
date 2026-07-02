@@ -27,6 +27,8 @@ services:
       AIRTRAFFIC_ADDR: 0.0.0.0:8122
       AIRTRAFFIC_DATA_DIR: /app/data/harness
       AIRTRAFFIC_GATEWAY_KEY: ${GATEWAY_CLIENT_KEYS:-gwk-demo}
+      # flywheel probe: raw Presidio scores are the threshold-proposal evidence
+      AIRTRAFFIC_PRESIDIO_URL: http://presidio:3000
     volumes:
       - harness-data:/app/data
     healthcheck:

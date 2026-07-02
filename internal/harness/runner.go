@@ -31,6 +31,10 @@ type Runner struct {
 	persist    *persister
 	gatewayKey string
 	httpc      *http.Client
+	// probe asks Presidio for raw scores on missed content — evidence for
+	// threshold proposals. nil (or unreachable) degrades gracefully: the
+	// flywheel falls back to deny-list evidence for free-text types.
+	probe *presidioProbe
 
 	mu        sync.Mutex
 	runs      []*model.HarnessRun
@@ -43,15 +47,20 @@ type Runner struct {
 
 // NewRunner loads persisted flywheel state and republishes the persisted
 // pattern pack into the store so gateways pull it after a restart.
-func NewRunner(st *store.Store, log *slog.Logger, dataDir, gatewayKey string) (*Runner, error) {
+// presidioURL enables the flywheel's raw-score probe; "" disables it.
+func NewRunner(st *store.Store, log *slog.Logger, dataDir, gatewayKey, presidioURL string) (*Runner, error) {
 	p, err := newPersister(dataDir)
 	if err != nil {
 		return nil, err
 	}
 	pack, proposals := p.loadPatterns()
 	st.SetPatternPack(pack)
+	var probe *presidioProbe
+	if presidioURL != "" {
+		probe = newPresidioProbe(presidioURL)
+	}
 	return &Runner{
-		store: st, log: log, persist: p, gatewayKey: gatewayKey,
+		store: st, log: log, persist: p, gatewayKey: gatewayKey, probe: probe,
 		httpc:   &http.Client{Timeout: 60 * time.Second},
 		results: map[string][]model.HarnessResult{},
 		ratchet: p.loadRatchet(),
