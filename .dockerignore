@@ -1,0 +1,11 @@
+.git
+.claude
+data
+docs
+scripts
+deploy
+web/node_modules
+web/dist
+*.md
+.devlauncher.json
+.gitignore

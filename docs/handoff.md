@@ -1,5 +1,10 @@
 # Handoff — 2026-06-30 11:17 CDT
 
+> **Superseded 2026-07-02:** the gateway is no longer design-only. The MVP
+> slice (G0/G1/G2/partial-G6/G7 + harness tab + flywheel v0) is built —
+> see `plans/phase-3-inference-gateway.md` and `plans/TODO-gateway-deferred.md`.
+> The "no code yet" statements below are historical.
+
 ## What shipped
 - `6241d7a` — docs: add inference gateway design doc and pending deliverable pages — `docs/` (+ `BUILD_REPORT.md` at root). 5 files, +3770 lines, all additive/untracked-before. Now on `origin/main`.
   - The session's real work: `docs/inference-gateway-design.md` (272 lines) — a vendor-neutral PII/PHI-filtering inference gateway design.

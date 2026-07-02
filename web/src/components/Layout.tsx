@@ -9,6 +9,7 @@ const NAV = [
   { to: '/settings/vendors', label: 'Vendors', icon: '⛁', desc: 'Surfaces & modes' },
   { to: '/settings/observability', label: 'Observability', icon: '∿', desc: 'Raw batches' },
   { to: '/settings/audit', label: 'Audit', icon: '❏', desc: 'Audit stream' },
+  { to: '/settings/harness', label: 'Gateway Harness', icon: '⛨', desc: 'Redaction proof' },
 ]
 
 export default function Layout() {

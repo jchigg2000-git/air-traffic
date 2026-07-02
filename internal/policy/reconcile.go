@@ -10,9 +10,20 @@ import (
 // Apply resolves the policy (baseline ⊕ overrides), reconciles every adapter
 // capability across the vendor_native and env_managed surfaces, records audit
 // events, persists the policy, and returns the coverage report.
+// gatewayStaleAfter mirrors the server's window: 3× the default 15s
+// enforcement-heartbeat interval.
+const gatewayStaleAfter = 45 * time.Second
+
 func Apply(st *store.Store, p model.Policy) model.CoverageReport {
 	base, _ := BaselineByID(p.Baseline)
 	rep := model.CoverageReport{Baseline: p.Baseline, AppliedAt: time.Now().UTC(), Summary: map[string]int{}}
+
+	// proxy_enforced flips from label to truth only while a gateway heartbeat
+	// listing the capability is fresh (the honesty model, build plan §1).
+	enforcedBy := func(vendor, capKey string) (string, bool) {
+		id, fresh, _ := st.GatewayEnforcement(vendor, capKey, gatewayStaleAfter)
+		return id, fresh
+	}
 
 	for _, a := range st.ListAdapters() {
 		baaExcluded := base.BAAOnly && !a.BAASigned
@@ -28,11 +39,11 @@ func Apply(st *store.Store, p model.Policy) model.CoverageReport {
 				rep.Summary[row.Outcome]++
 				continue
 			}
-			row.Outcome, row.Signal = classify(a, c)
+			row.Outcome, row.Signal = classify(a, c, enforcedBy)
 			rep.Rows = append(rep.Rows, row)
 			rep.Summary[row.Outcome]++
 
-			if row.Outcome == "applied_native" || row.Outcome == "applied_env" {
+			if row.Outcome == "applied_native" || row.Outcome == "applied_env" || row.Outcome == "applied_proxy" {
 				st.AddAudit(model.AuditEvent{
 					Actor: "air-traffic:policy-engine", Action: "policy.apply." + c.Key,
 					Resource: a.Vendor, Plane: c.Plane, Vendor: a.ID, ControlSurface: c.Disposition,
@@ -53,13 +64,16 @@ func Apply(st *store.Store, p model.Policy) model.CoverageReport {
 	return rep
 }
 
-func classify(a model.Adapter, c model.Capability) (string, model.Signal) {
+func classify(a model.Adapter, c model.Capability, enforcedBy func(vendor, capKey string) (string, bool)) (string, model.Signal) {
 	switch c.Disposition {
 	case model.DispVendorNative:
 		return "applied_native", model.Signal{Disposition: c.Disposition, Code: "success", Message: "driven via vendor admin API (" + c.Mechanism + ")"}
 	case model.DispEnvManaged:
 		return "applied_env", model.Signal{Disposition: c.Disposition, Code: "success", Message: "managed config rendered + distributed (" + string(c.Enforcement) + ")"}
 	case model.DispProxyEnforced:
+		if id, ok := enforcedBy(a.ID, c.Key); ok {
+			return "applied_proxy", model.Signal{Disposition: c.Disposition, Code: "success", Message: "enforced inline by gateway " + id}
+		}
 		return "proxy_needed", model.Signal{Disposition: c.Disposition, Code: "proxy_required", Message: "requires the optional gateway (off by default); behaves as monitor_only"}
 	case model.DispMonitorOnly:
 		return "monitored", model.Signal{Disposition: c.Disposition, Code: "success", Message: "verified + alerting; no set mechanism"}

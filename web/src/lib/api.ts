@@ -188,6 +188,139 @@ export interface VendorCostFacets {
   unsupported: CostFacetMeta[]
 }
 
+// ---- Gateway harness (Phase 3: inference gateway + flywheel) ----
+
+export interface GatewayStatusEntry {
+  gateway_id: string
+  base_url: string
+  action: string
+  vendors: Record<string, string[]>
+  last_seen: string
+  fresh: boolean
+}
+
+export interface GatewayStatus {
+  gateways: GatewayStatusEntry[]
+  pattern_pack_version: number
+}
+
+export interface TruthSpan {
+  start: number
+  end: number
+  type: string
+  value: string
+}
+
+export interface GatewayRedaction {
+  path: string
+  type: string
+  start: number
+  end: number
+  detector: string
+  confidence: number
+}
+
+export interface HarnessRunConfig {
+  count: number
+  concurrency: number
+  seed?: number
+  include_traps: boolean
+  include_presidio_only: boolean
+  include_straddle: boolean
+  replay_percent: number
+}
+
+export interface TypeScore {
+  tp: number
+  fn: number
+  fp: number
+  behavioral_misses: number
+}
+
+export interface RunScore {
+  precision: number
+  recall_reported: number
+  recall_behavioral: number
+  trap_fps: number
+  response_leaks: number
+  by_type: Record<string, TypeScore>
+  by_engine: Record<string, number>
+  joined_reports: number
+  orphan_requests: number
+}
+
+export interface HarnessRun {
+  id: string
+  config: HarnessRunConfig
+  status: 'running' | 'done' | 'failed'
+  total: number
+  completed: number
+  masked: number
+  blocked: number
+  detect_only: number
+  passed: number
+  errors: number
+  pack_version: number
+  detector_chain: string
+  score?: RunScore
+  promoted_count: number
+  error?: string
+  started_at: string
+  finished_at?: string
+}
+
+export interface HarnessResult {
+  run_id: string
+  request_id: string
+  template: string
+  content: string
+  truth: TruthSpan[]
+  traps?: TruthSpan[]
+  straddle?: boolean
+  action: string
+  http_status: number
+  redactions?: GatewayRedaction[]
+  upstream_text?: string
+  missed_types?: string[]
+  response_leaks?: number
+  latency_ms: number
+  error?: string
+}
+
+export interface RatchetPoint {
+  run_id: string
+  at: string
+  corpus_version: string
+  pack_version: number
+  detector_chain: string
+  precision: number
+  recall_reported: number
+  recall_behavioral: number
+  request_count: number
+  seed: number
+}
+
+export interface CorpusEntry {
+  id: string
+  text: string
+  truth: TruthSpan[]
+  source_run: string
+  miss_types: string[]
+  added_at: string
+}
+
+export interface PatternProposal {
+  id: string
+  type: string
+  regex: string
+  confidence: number
+  rationale: string
+  sample_misses: number
+  status: 'proposed' | 'approved' | 'rejected' | 'manual'
+  source_run: string
+  created_at: string
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message)
@@ -231,6 +364,20 @@ export const api = {
   testAdapter: (id: string) => send<{ adapter: Adapter; status: Status }>('POST', `/api/adapters/${id}/test`),
   applyPolicy: (baseline: string, overrides: Record<string, unknown> = {}) =>
     send<{ coverage: CoverageReport }>('PUT', '/api/policies', { baseline, ...overrides }).then((d) => d.coverage),
+
+  gatewayStatus: () => getJSON<GatewayStatus>('/api/gateway/status'),
+  harnessRuns: () => getJSON<{ runs: HarnessRun[] }>('/api/harness/runs').then((d) => d.runs),
+  harnessRun: (id: string) => getJSON<{ run: HarnessRun }>(`/api/harness/runs/${id}`).then((d) => d.run),
+  harnessResults: (id: string, limit = 500) =>
+    getJSON<{ results: HarnessResult[] }>(`/api/harness/runs/${id}/results?limit=${limit}`).then((d) => d.results),
+  harnessRatchet: () => getJSON<{ ratchet: RatchetPoint[] }>('/api/harness/ratchet').then((d) => d.ratchet),
+  harnessCorpus: () => getJSON<{ corpus: CorpusEntry[] }>('/api/harness/corpus').then((d) => d.corpus),
+  harnessProposals: () => getJSON<{ proposals: PatternProposal[] }>('/api/harness/proposals').then((d) => d.proposals),
+  startHarnessRun: (cfg: HarnessRunConfig) => send<{ run: HarnessRun }>('POST', '/api/harness/runs', cfg).then((d) => d.run),
+  approveProposal: (id: string) =>
+    send<{ proposals: PatternProposal[] }>('POST', `/api/harness/proposals/${id}/approve`).then((d) => d.proposals),
+  rejectProposal: (id: string) =>
+    send<{ proposals: PatternProposal[] }>('POST', `/api/harness/proposals/${id}/reject`).then((d) => d.proposals),
 }
 
 export const qk = {
@@ -245,4 +392,10 @@ export const qk = {
   drift: ['drift'] as const,
   costFacets: ['costFacets'] as const,
   envconfig: ['envconfig'] as const,
+  gatewayStatus: ['gatewayStatus'] as const,
+  harnessRuns: ['harnessRuns'] as const,
+  harnessResults: (id: string) => ['harnessResults', id] as const,
+  harnessRatchet: ['harnessRatchet'] as const,
+  harnessCorpus: ['harnessCorpus'] as const,
+  harnessProposals: ['harnessProposals'] as const,
 }

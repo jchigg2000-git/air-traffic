@@ -2,7 +2,11 @@
 
 # Go build artifacts
 /air-traffic-server
+/air-traffic-gateway
 *.test
+
+# Harness durable state (ratchet series, promoted corpus, pattern pack)
+/data/
 
 # Phase 2 frontend
 web/node_modules/

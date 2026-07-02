@@ -1,0 +1,87 @@
+# Full Air-Traffic stack: control plane + inference gateway + Presidio.
+#
+#   docker compose up -d --build
+#   open http://127.0.0.1:8122/            (SPA baked into the server image)
+#
+# The gateway defaults to the SYNTHETIC upstream (self-contained demo). To
+# proxy real Anthropic traffic, override in a .env file or the environment:
+#   GATEWAY_UPSTREAM_BASE_URL=https://api.anthropic.com
+#   ANTHROPIC_UPSTREAM_KEY=<real key>      (never committed; env-injected)
+# then point Claude Code at ANTHROPIC_BASE_URL=http://127.0.0.1:8125 with
+# ANTHROPIC_AUTH_TOKEN=<a GATEWAY_CLIENT_KEYS entry>.
+#
+# NB: images bake built source — after a code change run
+#   docker compose up -d --build <service>
+# (a bare `docker compose restart` will NOT pick up code changes).
+# The standalone deploy/presidio/docker-compose.yml must be DOWN before this
+# stack starts (same host port 8126).
+
+services:
+  control-plane:
+    build:
+      context: .
+      target: server
+    ports:
+      - "127.0.0.1:8122:8122"
+    environment:
+      AIRTRAFFIC_ADDR: 0.0.0.0:8122
+      AIRTRAFFIC_DATA_DIR: /app/data/harness
+      AIRTRAFFIC_GATEWAY_KEY: ${GATEWAY_CLIENT_KEYS:-gwk-demo}
+    volumes:
+      - harness-data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8122/api/health >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: .
+      target: gateway
+    ports:
+      - "127.0.0.1:8125:8125"
+    environment:
+      GATEWAY_LISTEN_ADDR: 0.0.0.0:8125
+      # peers (harness, Claude Code inside the network) reach it by service name
+      GATEWAY_ADVERTISE_URL: http://gateway:8125
+      GATEWAY_UPSTREAMS: >-
+        {"anthropic":{"base_url":"${GATEWAY_UPSTREAM_BASE_URL:-http://control-plane:8122/synthetic/anthropic}","credential_ref":"env:ANTHROPIC_UPSTREAM_KEY"}}
+      ANTHROPIC_UPSTREAM_KEY: ${ANTHROPIC_UPSTREAM_KEY:-sk-ant-synthetic-dev}
+      GATEWAY_CLIENT_KEYS: ${GATEWAY_CLIENT_KEYS:-gwk-demo}
+      GATEWAY_DETECTORS: regex,presidio
+      GATEWAY_PRESIDIO_URL: http://presidio:3000
+      GATEWAY_REDACT_ACTION: per_policy
+      GATEWAY_CONTROL_PLANE_URL: http://control-plane:8122
+    depends_on:
+      control-plane:
+        condition: service_healthy
+      presidio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8125/readyz >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+    restart: unless-stopped
+
+  presidio:
+    image: mcr.microsoft.com/presidio-analyzer:2.2.359
+    ports:
+      - "127.0.0.1:8126:3000"
+    environment:
+      LOG_LEVEL: WARNING
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:3000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    restart: unless-stopped
+
+volumes:
+  harness-data:

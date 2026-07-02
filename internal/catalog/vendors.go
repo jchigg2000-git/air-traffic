@@ -64,6 +64,7 @@ func anthropic() Definition {
 		cap("zdr", "Zero Data Retention", dp, mo, "eligible orgs; not self-serve", ""),
 		cap("retention", "API Log Retention (7-day)", dp, mo, "30-day via DPA only", ""),
 		cap("content_safety", "Org Content-Safety Policy", dp, pe, "system prompt only", ""),
+		note(cap("pii_redaction", "PII/PHI Redaction (inline)", dp, pe, "inline gateway detector; mask/block pre-forward", "/v1/messages"), "realized by the air-traffic-gateway data plane"),
 	}
 	caps = append(caps, agenticEnvCaps()...)
 	m := budgetMetrics("anthropic", "https://api.anthropic.com/v1/organizations/usage_report/messages")

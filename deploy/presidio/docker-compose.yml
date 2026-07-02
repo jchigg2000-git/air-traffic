@@ -1,0 +1,25 @@
+# Self-hosted Presidio analyzer — the gateway's heavy NER detector tier.
+# Self-hosted deliberately: payloads never leave the local boundary
+# (inference-gateway-design.md §6, §11). Port 8126 is claimed in the global
+# port registry (~/Projects/portRegistry.md) for air-traffic-presidio.
+#
+#   docker compose -f deploy/presidio/docker-compose.yml up -d
+#
+# First start downloads ~1.5–2.5 GB (image bundles spaCy en_core_web_lg) and
+# needs 10–45 s of model load before the healthcheck goes green.
+services:
+  presidio-analyzer:
+    image: mcr.microsoft.com/presidio-analyzer:2.2.359
+    container_name: air-traffic-presidio
+    ports:
+      - "127.0.0.1:8126:3000"
+    environment:
+      - LOG_LEVEL=WARNING
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:3000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    restart: unless-stopped

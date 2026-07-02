@@ -32,10 +32,16 @@ type Store struct {
 	drift        []model.DriftRecord
 	policy       *model.Policy
 
+	inferCaptures []model.InferenceCapture
+	gwReports     []model.GatewayRequestReport
+	gwEnforce     map[string]model.EnforcementReport
+	patternPack   model.PatternPack
+
 	nextCallID  int64
 	nextObsID   int64
 	nextEventID int64
 	nextDriftID int64
+	nextInferID int64
 }
 
 // New builds a store seeded from the vendor catalog.
@@ -43,7 +49,8 @@ func New() *Store {
 	s := &Store{
 		adapters:    make(map[string]model.Adapter),
 		credentials: make(map[string]model.Credential),
-		nextCallID:  1, nextObsID: 1, nextEventID: 1, nextDriftID: 1,
+		gwEnforce:   make(map[string]model.EnforcementReport),
+		nextCallID:  1, nextObsID: 1, nextEventID: 1, nextDriftID: 1, nextInferID: 1,
 	}
 	s.seed()
 	return s

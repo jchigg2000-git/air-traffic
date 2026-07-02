@@ -65,6 +65,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The inference upstream sits before the mode/proxy checks so flipping
+	// adapter mode never breaks the gateway's mock target (it still honors
+	// scenario overrides internally). It needs the raw ResponseWriter for SSE.
+	if isInferencePath(a.ID, nativePath) {
+		h.handleInference(w, r, a, nativePath)
+		return
+	}
+
 	start := time.Now()
 	rec := &statusRecorder{ResponseWriter: w, code: http.StatusOK}
 	defer func() {
@@ -183,6 +191,8 @@ func (h *Handler) handleHarness(w http.ResponseWriter, r *http.Request, a model.
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	case strings.HasPrefix(nativePath, "/_harness/calls"):
 		writeJSON(w, http.StatusOK, map[string]any{"calls": h.store.ListCalls(a.ID, 200)})
+	case strings.HasPrefix(nativePath, "/_harness/inference"):
+		writeJSON(w, http.StatusOK, map[string]any{"captures": h.store.ListInferenceCaptures(a.ID, 200)})
 	default:
 		writeJSON(w, http.StatusNotFound, map[string]any{"error": "unknown harness path", "path": nativePath})
 	}

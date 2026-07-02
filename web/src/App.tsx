@@ -7,6 +7,7 @@ import CostExplorer from './pages/CostExplorer.tsx'
 import Vendors from './pages/Vendors.tsx'
 import Observability from './pages/Observability.tsx'
 import Audit from './pages/Audit.tsx'
+import GatewayHarness from './pages/GatewayHarness.tsx'
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="vendors" element={<Vendors />} />
         <Route path="observability" element={<Observability />} />
         <Route path="audit" element={<Audit />} />
+        <Route path="harness" element={<GatewayHarness />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"air-traffic/internal/audit"
+	"air-traffic/internal/harness"
 	"air-traffic/internal/store"
 	"air-traffic/internal/synthetic"
 )
@@ -20,6 +21,7 @@ type Server struct {
 	store     *store.Store
 	log       *slog.Logger
 	synthetic *synthetic.Handler
+	harness   *harness.Runner
 }
 
 // New constructs a Server and seeds the audit stream.
@@ -29,6 +31,10 @@ func New(st *store.Store, log *slog.Logger) *Server {
 	}
 	return &Server{store: st, log: log, synthetic: synthetic.New(st, log)}
 }
+
+// SetHarness attaches the optional harness engine (keeps New's signature for
+// existing callers; /api/harness/* 503s without it).
+func (s *Server) SetHarness(h *harness.Runner) { s.harness = h }
 
 // Routes returns the fully wired handler.
 func (s *Server) Routes() http.Handler {
@@ -46,6 +52,16 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/drift", s.handleDrift)
 	mux.HandleFunc("/api/cost/facets", s.handleCostFacets)
 	mux.HandleFunc("/api/envconfig", s.handleEnvConfig)
+	mux.HandleFunc("/api/gateway/leaks", s.handleGatewayLeaks)
+	mux.HandleFunc("/api/gateway/enforcement", s.handleGatewayEnforcement)
+	mux.HandleFunc("/api/gateway/patterns", s.handleGatewayPatterns)
+	mux.HandleFunc("/api/gateway/status", s.handleGatewayStatus)
+	mux.HandleFunc("/api/harness/runs", s.handleHarnessRuns)
+	mux.HandleFunc("/api/harness/runs/", s.handleHarnessRun)
+	mux.HandleFunc("/api/harness/ratchet", s.handleHarnessRatchet)
+	mux.HandleFunc("/api/harness/corpus", s.handleHarnessCorpus)
+	mux.HandleFunc("/api/harness/proposals", s.handleHarnessProposals)
+	mux.HandleFunc("/api/harness/proposals/", s.handleHarnessProposals)
 
 	mux.Handle("/synthetic/", s.synthetic)
 

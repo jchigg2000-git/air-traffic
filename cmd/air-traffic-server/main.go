@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"air-traffic/internal/emitter"
+	"air-traffic/internal/harness"
 	"air-traffic/internal/policy"
 	"air-traffic/internal/server"
 	"air-traffic/internal/store"
@@ -24,6 +25,18 @@ func main() {
 
 	st := store.New()
 	app := server.New(st, log)
+
+	// The gateway harness engine: drives synthetic traffic through the
+	// gateway and feeds the flywheel. Durable state (ratchet, corpus,
+	// pattern pack) lives under AIRTRAFFIC_DATA_DIR.
+	hr, err := harness.NewRunner(st, log,
+		env("AIRTRAFFIC_DATA_DIR", "data/harness"),
+		env("AIRTRAFFIC_GATEWAY_KEY", "gwk-demo"))
+	if err != nil {
+		log.Error("harness init failed", "error", err)
+		os.Exit(1)
+	}
+	app.SetHarness(hr)
 
 	emitCtx, stopEmit := context.WithCancel(context.Background())
 	defer stopEmit()

@@ -3,7 +3,7 @@
   "services": [
     {
       "role": "app",
-      "command": "AIRTRAFFIC_ADDR=127.0.0.1:{port} go run ./cmd/air-traffic-server",
+      "command": "docker compose up --build",
       "port": 8122
     }
   ]

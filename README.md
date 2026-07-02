@@ -4,8 +4,10 @@
 major AI vendor. Air-Traffic drives vendors' native admin APIs (`vendor_native`), pushes
 managed config into dev/agent environments and reads it back for drift (`env_managed`), and
 emits a normalized `ops-observation-batch/v1` signal across the developer-workflow, data-policy,
-and budget control planes. It is **not** an inline inference proxy (an optional gateway is the
-only thing that ever sits on the request path, and it is out of scope here).
+and budget control planes. It is **not** an inline inference proxy — the one thing that ever
+sits on the request path is the **optional inference gateway**, a separate data-plane binary
+(`cmd/air-traffic-gateway`, Phase 3 below) that redacts PII/PHI inline and is what makes the
+`proxy_enforced` disposition true.
 
 Sibling app: [`it-scorecard`](../it-scorecard) — Air-Traffic mirrors its Go + React,
 zero-external-deps, synthetic/proxy/disabled pattern.
@@ -105,3 +107,47 @@ SIEM export).
 
 To serve the SPA from the Go binary: `cd web && npm run build`, then run the server from the
 repo root and open <http://127.0.0.1:8122/>.
+
+## Phase 3 — inference gateway (data plane) + harness + flywheel v0
+
+A separate, stateless Go binary that proxies Anthropic Messages traffic, detects PII/PHI
+inline (RE2 regex floor + self-hosted [Presidio](https://microsoft.github.io/presidio/)
+sidecar), applies `mask`/`block`/detect-only per the pulled policy baseline, and reports back
+up the spine (observations, leak metadata, enforcement heartbeats → `proxy_enforced` flips
+truthfully, staleness raises drift). Design: `docs/inference-gateway-design.md`; sequencing:
+`docs/inference-gateway-build-plan.md`; what shipped vs deferred:
+`docs/plans/phase-3-inference-gateway.md` + `docs/plans/TODO-gateway-deferred.md`.
+
+**Run the whole stack (dockerized):**
+
+```bash
+docker compose up -d --build      # control plane :8122 (SPA baked in) + gateway :8125 + Presidio :8126
+open http://127.0.0.1:8122/settings/harness
+E2E_COMPOSE=1 ./scripts/e2e-gateway.sh   # assert the running stack end-to-end
+```
+
+Images bake built source — after a code change, `docker compose up -d --build <service>`
+(a bare `restart` won't pick it up). Harness state (ratchet series, promoted corpus, pattern
+pack) persists in the `harness-data` volume. The compose stack and the bare `go run` dev
+flow use the same ports — run one or the other.
+
+**Bare-process dev flow** (fast iteration, same behavior):
+
+```bash
+docker compose -f deploy/presidio/docker-compose.yml up -d   # NER tier only (port 8126)
+
+GATEWAY_UPSTREAMS='{"anthropic":{"base_url":"http://127.0.0.1:8122/synthetic/anthropic","credential_ref":"env:ANTHROPIC_UPSTREAM_KEY"}}' \
+ANTHROPIC_UPSTREAM_KEY=sk-ant-synthetic-dev GATEWAY_CLIENT_KEYS=gwk-demo \
+GATEWAY_DETECTORS=regex,presidio GATEWAY_REDACT_ACTION=per_policy \
+go run ./cmd/air-traffic-gateway                              # data plane (port 8125)
+
+./scripts/e2e-gateway.sh                                      # boots its own processes
+```
+
+The **Gateway Harness** tab (`/settings/harness`) drives seeded synthetic PII through the
+gateway, proves redaction *behaviorally* (did the raw value reach the upstream capture?),
+scores precision/recall against exact ground truth, and feeds the recall-ratchet flywheel:
+misses → promoted corpus → curated pattern proposals → human approval → hot-reload (no
+restart) → re-run → the ratchet climbs. Everything is local — synthetic traffic, self-hosted
+NER, no cloud inference or compute. Point real Claude Code at it with
+`ANTHROPIC_BASE_URL=http://127.0.0.1:8125` + `ANTHROPIC_AUTH_TOKEN=<gateway key>`.
