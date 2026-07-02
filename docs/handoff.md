@@ -1,7 +1,9 @@
 # Handoff — 2026-07-02 (evening) — G6 config-knob slice
 
-## What was built (UNCOMMITTED — working tree, not yet shipped)
-The G6-full pull-forward: **config-shaped proposals** give the free-text miss classes an Approve button. Verified end-to-end (go test green, e2e 9/9 compose, live flywheel produced `deny-PERSON_NAME` from real misses). On top of `c08b260` (main).
+## What shipped
+- `c00c975` — feat: G6 config-knob proposals + harness try-a-prompt box — 23 files, +1507/−185, ff-merged to `main`, on `origin/main`; branch `gateway-g6-config-knobs` deleted local+remote.
+
+The G6-full pull-forward: **config-shaped proposals** give the free-text miss classes an Approve button. Verified end-to-end (go test green, e2e 9/9 compose, live flywheel produced `deny-PERSON_NAME` from real misses).
 
 Three artifact kinds now flow propose→approve→hot-reload (`model.KindRegex/KindDenyList/KindThreshold`; empty kind = regex for persisted-state back-compat):
 - **`deny_list`** — exact terms from missed truth values; free-text types only (`PERSON_NAME`, `ADDRESS`); distributed as Presidio `ad_hoc_recognizers` `deny_list` (fires at score 1.0 — verified against live 2.2.359).
@@ -31,12 +33,12 @@ Touched: `internal/model/{gateway,harness,presidio(new)}.go`, `internal/gateway/
 - **Deny terms are values by design** (synthetic here) — they live in proposals + pack + `/api/gateway/patterns`, but must NEVER enter audit events or gateway reports (leak-guard tests check audit/reports only).
 
 ## Next session: start here
-1. **Ship it** — the working tree is verified but uncommitted (`/shipit` or manual). Then the demo moment is the user clicking Approve on `deny-PERSON_NAME` and re-running to watch the ratchet recover from the replay-amplified name misses.
-2. Browser click-through of the Gateway Harness tab (STILL never visually verified — new kind chips/deny-term/threshold rendering are build-verified only).
+1. The demo moment: the user clicks Approve on `deny-PERSON_NAME` and re-runs to watch the ratchet recover from the replay-amplified name misses.
+2. Browser click-through of the Gateway Harness tab (STILL never visually verified — kind chips, deny-term/threshold rendering, and the try-a-prompt panel are build/API-verified only).
 3. Or any deferred-ledger item: `docs/plans/TODO-gateway-deferred.md` (G3 vault, G4 async monitor, managed DLP, per-route engine selection, YAML mount, auth on `/api/gateway/*` — now includes the pattern GET, since it distributes deny terms).
 
 ## How to verify
-- `git status --short` → ~24 modified/new files (uncommitted); `go test ./...` all ok (~15s)
+- `git log --oneline -1` → `c00c975 feat: G6 config-knob proposals…`; `git status --short` → empty; `go test ./...` all ok (~15s)
 - `curl -X POST 127.0.0.1:8122/api/harness/sample -d '{"content":"SSN 123-45-6789"}' -H 'Content-Type: application/json'` → mask verdict + redactions + masked upstream text
 - `docker compose ps` → 3 healthy; stack serves this working tree (rebuilt twice this session)
 - `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` → 9/9, trap_fps=0 (NB mutates runtime state)
