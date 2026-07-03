@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -164,5 +165,8 @@ func (s *Server) getJSON(ctx context.Context, path string, v any) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("%s returned %d", path, resp.StatusCode)
 	}
-	return json.NewDecoder(resp.Body).Decode(v)
+	// Bound the control-plane read: every other read in this codebase is capped, but this one feeds
+	// enforcement action on a periodic loop — a misconfigured/compromised control plane returning an
+	// oversized or never-ending body must not let the gateway allocate unbounded memory.
+	return json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(v)
 }

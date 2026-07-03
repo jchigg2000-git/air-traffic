@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sync/atomic"
 
@@ -122,7 +123,8 @@ func (p *Presidio) Detect(ctx context.Context, text string) ([]Span, error) {
 		return nil, fmt.Errorf("presidio analyze returned %d", resp.StatusCode)
 	}
 	var results []presidioResult
-	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
+	// Bound the sidecar read (runs inline per proxied request); normal analyze responses are small.
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&results); err != nil {
 		return nil, fmt.Errorf("presidio response: %w", err)
 	}
 

@@ -13,6 +13,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"air-traffic/internal/model"
@@ -61,7 +62,8 @@ func (p *presidioProbe) analyzeRaw(ctx context.Context, text string) ([]probeSpa
 		End        int     `json:"end"`
 		Score      float64 `json:"score"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
+	// Bound the sidecar read, matching the enforcement-side Presidio client.
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&results); err != nil {
 		return nil, fmt.Errorf("presidio response: %w", err)
 	}
 
