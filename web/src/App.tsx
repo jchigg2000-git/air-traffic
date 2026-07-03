@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import FlightDeck from './pages/FlightDeck.tsx'
+import Welcome from './pages/Welcome.tsx'
 import Layout from './components/Layout.tsx'
 import RigorConsole from './pages/RigorConsole.tsx'
 import PolicyEditor from './pages/PolicyEditor.tsx'
@@ -13,6 +14,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<FlightDeck />} />
+      <Route path="/welcome" element={<Welcome />} />
       <Route path="/settings" element={<Layout />}>
         <Route index element={<Navigate to="/settings/rigor" replace />} />
         <Route path="rigor" element={<RigorConsole />} />
