@@ -75,8 +75,8 @@ when they diverge.
 
 > **Optional, not core:** an **inference gateway** (§11) can additionally sit in the request
 > path to enforce the residual runtime-only controls — hard per-user *cross-vendor* spend caps
-> and per-request PII redaction. It is a bounded add-on, off by default, and nothing in the
-> spine depends on it.
+> and per-request PII redaction. It is a bounded, separately-deployed add-on (its own
+> `air-traffic-gateway` binary), and nothing in the spine depends on it.
 
 **At a glance**
 
@@ -103,13 +103,12 @@ graph TD
   viewer["Viewer (browser)<br/>Flight Deck / Cost Explorer"] -->|"GET /api/observations (poll)"| spa
   spa -->|"/api/*"| go
 
-  subgraph go["Air-Traffic Go service"]
-    api["Control-plane API<br/>/api/*"]
+  subgraph go["Control plane — air-traffic-server"]
+    api["Control-plane API<br/>/api/* (incl. /api/gateway/*, /api/harness/*)"]
     env["Config distributor<br/>internal/envconfig"]
     pol["Policy engine<br/>reconcile + drift"]
     emit["Background emitter<br/>ops-observation-batch/v1"]
     store["In-memory store"]
-    gwopt["Inference gateway<br/>(OPTIONAL, off by default)"]
     api --> store
     env --> store
     pol --> store
@@ -118,49 +117,65 @@ graph TD
     pol --> env
   end
 
+  gwopt["Inference gateway<br/>air-traffic-gateway<br/>(OPTIONAL, separate binary)"]
+
   pol -. "drive native admin API (set + read)" .-> vadmin["Vendor Admin APIs<br/>OpenAI Admin, Bedrock, Azure ARM,<br/>Google IAM/Model Armor, GitHub policies"]
   env -. "push managed config + read state" .-> envt["Agentic Environments<br/>Claude Code managed settings,<br/>GitHub branch protection, Cursor, CI"]
   emit -. "pull usage/cost/audit" .-> vadmin
   dev["Developer / Agent"] -. "OPTIONAL inference path" .-> gwopt
-  gwopt -. "forward" .-> vinf["Vendor Inference APIs"]
+  gwopt -. "forward (real credential)" .-> vinf["Vendor Inference APIs"]
+  gwopt -. "spine push: leaks/enforcement/patterns" .-> api
+  api -. "policy + pattern pack" .-> gwopt
 ```
 
 ### 2.2 Module diagram
 
-The Go backend is the it-scorecard shape extended with `envconfig`, `policy`, and `audit`. The
-`gateway` + `budget` (hard-cap) packages are present but **optional**. The diagram below shows the
-single-process control-plane shape; the gateway has since been **promoted to a separate,
-horizontally-scaled data-plane service** (planned) — see the [§2.4 note](#24-planned-gateway-as-a-separate-data-plane-tier)
-and the [Inference Gateway Build Plan](./inference-gateway-build-plan.md).
+The Go backend is the it-scorecard shape extended with `envconfig`, `policy`, `audit`, and a
+first-class eval/ratchet `harness`. Vendor surfaces are exposed through `catalog` + `synthetic`
+rather than a single `adapter` package. The **inference gateway shipped 2026-07-02 as a separate
+binary** — `cmd/air-traffic-gateway` with its own `internal/gateway/*` closure — **not** a package
+compiled into the control plane; the control plane learns of it only through spine push/pull (see
+the [§2.4 note](#24-gateway-as-a-separate-data-plane-tier) and the
+[Inference Gateway Build Plan](./inference-gateway-build-plan.md)). The diagram below shows the
+control-plane process and the gateway as its own tier.
 
 ```mermaid
 graph LR
-  subgraph backend["Go backend (internal/)"]
+  subgraph cp["Control plane — cmd/air-traffic-server (internal/)"]
     main["cmd/air-traffic-server<br/>config + lifecycle"]
-    server["server<br/>HTTP mux, /api, static"]
-    adapter["adapter<br/>VendorAdapter + per-vendor impls"]
+    server["server<br/>HTTP mux, /api/*, /synthetic/*, static SPA"]
+    catalog["catalog + synthetic<br/>vendor/platform surfaces + manifests"]
     envconfig["envconfig<br/>render + push managed config; read state"]
-    policy["policy<br/>policy-as-code, reconcile, drift, baselines"]
+    policy["policy<br/>reconcile, drift, baselines"]
     emitter["emitter<br/>ops-observation-batch/v1 generator"]
     audit["audit<br/>normalized audit stream"]
+    harness["harness<br/>eval/ratchet: gen · runner · flywheel · score"]
     store["store<br/>in-memory state"]
     model["model<br/>domain types + contract"]
     redact["redact<br/>secret/PII redaction (log path)"]
-    gateway["gateway (OPTIONAL)<br/>inference proxy + budget caps"]
 
     main --> server
-    server --> adapter
+    server --> catalog
     server --> policy
-    policy --> adapter
+    server --> harness
     policy --> envconfig
-    emitter --> adapter
+    emitter --> catalog
     emitter --> envconfig
     emitter --> store
     audit --> store
-    adapter --> model
+    harness --> store
+    catalog --> model
     store --> model
-    server -. optional .-> gateway
   end
+
+  subgraph dp["Data plane — cmd/air-traffic-gateway (SHIPPED, optional)"]
+    gw["internal/gateway<br/>proxy · detect · redact · credbroker"]
+    gwspine["spine_emit / spine_pull<br/>observations↑ · policy+patterns↓"]
+    gw --> gwspine
+  end
+
+  gwspine -. "push leaks/enforcement/patterns" .-> server
+  server -. "policy + pattern pack" .-> gwspine
 
   subgraph frontend["React SPA (web/src)"]
     rigor["Rigor Console"]
@@ -203,13 +218,13 @@ stateDiagram-v2
   end note
 ```
 
-### 2.4 Planned: gateway as a separate data-plane tier
+### 2.4 Gateway as a separate data-plane tier
 
-The diagrams above show the gateway as a compiled-in package mounted at `/gw/*` inside the single
-`air-traffic-server` process — correct for an off-by-default demo, but it **does not survive the
-horizontal-scale requirement**. The planned topology promotes the gateway to its **own
-stateless data-plane service** (`cmd/air-traffic-gateway`, its own deploy unit + L7 load balancer),
-in the **same repo**, sharing `internal/model` contracts. Rationale (full decision table in the
+The gateway is **not** compiled into `air-traffic-server` and is **not** mounted at any in-process
+route. It shipped 2026-07-02 as its **own stateless data-plane binary** (`cmd/air-traffic-gateway`)
+with its own `config.Load()`, deploy unit, and — when scaled — L7 load balancer, in the **same
+repo**, sharing `internal/model` contracts. This was the design from the start, for reasons that
+also justify keeping it off the control-plane process (full decision table in the
 [Build Plan §2](./inference-gateway-build-plan.md#2-architectural-decision-separate-data-plane-service-vs-in-process)):
 
 - **Orthogonal scaling axes** — the control plane is low-QPS and read-mostly; the gateway scales
@@ -307,37 +322,41 @@ guaranteed enforcement; gate Tier-B controls behind an MDM-coverage check.
 > File paths are the proposed Air-Traffic layout. "Mirrors X" points at the it-scorecard file the
 > design is lifted from.
 
-### `cmd/air-traffic-server` — entrypoint
-- **Responsibility:** parse config, wire store + server + emitter + policy engine + config distributor, run HTTP with graceful shutdown.
-- **Config (env):** `AIRTRAFFIC_ADDR`, `AIRTRAFFIC_EMIT`, `AIRTRAFFIC_EMIT_INTERVAL_SECONDS`, `AIRTRAFFIC_STORE`, `AIRTRAFFIC_GATEWAY` (`off` by default).
-- **Mirrors:** `cmd/harness-server/main.go`.
+### `cmd/air-traffic-server` — control-plane entrypoint
+- **Responsibility:** parse config, wire store + server + emitter + policy drift + the harness engine, run HTTP with graceful shutdown.
+- **Config (env):** `AIRTRAFFIC_ADDR` (default `127.0.0.1:8122`), `AIRTRAFFIC_EMIT`, `AIRTRAFFIC_EMIT_INTERVAL_SECONDS`, `AIRTRAFFIC_DATA_DIR` (harness durable state), `AIRTRAFFIC_GATEWAY_KEY` (client key the harness uses to drive the gateway), `AIRTRAFFIC_PRESIDIO_URL`. The store is **in-memory only** — there is no store-backend switch and no in-process gateway toggle.
+- **Mirrors:** it-scorecard's `cmd/harness-server/main.go`.
 
 ### `internal/server` — HTTP layer
-- **Responsibility:** route registration for `/api/*` (control plane), static SPA serving, panic recovery. Mounts the optional `/gw/*` only when `AIRTRAFFIC_GATEWAY=on`.
-- **Routes:** `/api/adapters`, `/api/adapters/{id}`, `/api/policies`, `/api/baselines`, `/api/credentials`, `/api/observations`, `/api/audit`, `/api/drift`, `/api/envconfig` (rendered artifacts + read-back state).
-- **Mirrors:** `internal/server/server.go`, `routes.go`.
+- **Responsibility:** route registration for `/api/*` (control plane), the `/synthetic/*` vendor surfaces, static SPA serving, panic recovery. It **never** mounts the gateway in-process; instead it **always** serves `/api/gateway/{leaks,enforcement,patterns,status}` (`server.go:55–58`), which read data the separate gateway binary **pushes up the spine**.
+- **Routes** (`server.go:43–65`): `/api/health`, `/api/adapters(+/)`, `/api/baselines`, `/api/policies`, `/api/credentials`, `/api/observations`, `/api/audit`, `/api/activity`, `/api/drift`, `/api/cost/facets`, `/api/envconfig`, `/api/gateway/{leaks,enforcement,patterns,status}`, `/api/harness/{runs,runs/,sample,ratchet,corpus,proposals,proposals/}` (503 via `requireHarness` when the engine is absent), `/synthetic/`, and `/`.
+- **Mirrors:** it-scorecard's `internal/server/server.go`, `routes.go`.
 
-### `internal/adapter` — vendor + platform adapters ⭐
-- **Responsibility:** the `VendorAdapter` interface (§5) and one implementation per vendor/platform (`openai.go`, `anthropic.go`, `bedrock.go`, `azure.go`, `vertex.go`, `github_copilot.go`, `m365_copilot.go`, `cohere.go`, `mistral.go`, `claude_code.go`, …). Each ships an `AdapterManifest` of `CapabilityEntry` with dispositions — the machine-readable form of the analysis doc's vendor tables.
-- **Two halves per adapter:**
+### `internal/catalog` + `internal/synthetic` — vendor & platform surfaces ⭐
+- **Responsibility:** `catalog` (`catalog.go`, `vendors.go`, `cost_facets.go`) holds the vendor/platform registry, capability manifests, and cost facets — the machine-readable form of the analysis doc's vendor tables, each `CapabilityEntry` carrying a disposition. `synthetic` serves per-vendor native-shaped surfaces under `/synthetic/{vendor}/…` so the control plane is demoable with zero credentials.
+- **Two halves per capability:**
   - *Control half* — get/set policy by calling the vendor admin API (`vendor_native`).
-  - *Env half* — `RenderManagedConfig()` + `ReadEnvState()` for `env_managed` controls (the agentic-platform adapters lean on this half).
+  - *Env half* — render managed config + read effective state for `env_managed` controls (the agentic-platform surfaces lean on this half).
 
 ### `internal/envconfig` — config distributor ⭐
 - **Responsibility:** render platform-specific managed-config artifacts (Claude Code managed settings, GitHub branch-protection rules, etc.), distribute them through the configured channel (MDM endpoint, platform API, git commit), and read effective state back for drift.
-- **Key files:** `render.go` (policy → artifact per platform), `distribute.go` (push channels), `readback.go` (effective-state fetch).
+- **Key file:** `envconfig.go` (policy → artifact per platform, distribute, and effective-state read-back).
 - **New concept (no it-scorecard equivalent):** this is the agentic-governance heart of the product.
 
 ### `internal/policy` — policy engine ⭐
-- **Responsibility:** load policy-as-code (YAML/JSON), reconcile intent vs actual across **both** the vendor-API surface and the env-config surface, compute drift, and hold the **baseline profiles** library (General SaaS 🔒, Fintech 🔒🔒, Healthcare 🔒🔒🔒, Gov 🔒🔒🔒).
-- **Key files:** `policy.go`, `reconcile.go`, `drift.go`, `baselines.go`.
+- **Responsibility:** reconcile intent vs actual across **both** the vendor-API surface and the env-config surface, compute drift, and hold the **baseline profiles** library (General SaaS 🔒, Fintech 🔒🔒, Healthcare 🔒🔒🔒, Gov 🔒🔒🔒). Policy domain types live in `internal/model/policy.go`.
+- **Key files:** `reconcile.go`, `drift.go`, `baselines.go`.
 
 ### `internal/emitter` — background signal
 - **Responsibility:** per tick, emit one `ops-observation-batch/v1` per adapter. Synthetic = walk (reuse it-scorecard's `walk`/`metricDef`); proxy = pull vendor usage/cost/audit + read env-config state. Also emits drift observations from the policy engine.
-- **Mirrors:** `internal/emitter/emitter.go`, `catalog.go`; the proxy branch gains real vendor-API + env-state normalizers (the gap it-scorecard explicitly left open).
+- **Mirrors:** it-scorecard's `internal/emitter/emitter.go`; the proxy branch gains real vendor-API + env-state normalizers (the gap it-scorecard explicitly left open).
 
 ### `internal/audit` — normalized audit stream ⭐
 - **Responsibility:** ingest vendor-native audit events (OpenAI Audit Logs + ChatGPT Enterprise Compliance Logs, Azure Activity Log, GitHub Audit Log incl. 2026 agentic events, CloudTrail, M365 Purview, Google Reports API) + config-distribution events, normalize into one `ops-observation-batch/v1`-shaped stream (OTel GenAI semconv) with `plane`/`vendor`/`control_surface` dimensions; expose `/api/audit` + SIEM export.
+
+### `internal/harness` — eval / ratchet harness ⭐ (shipped, first-class)
+- **Responsibility:** a first-class subsystem that drives synthetic traffic through the gateway, scores detector performance, and ratchets it upward. Files: `gen.go` (corpus generation), `runner.go` (run orchestration), `streamscan.go`, `persist.go` (durable state under `AIRTRAFFIC_DATA_DIR`), `sample.go` (try-a-prompt), `probe.go` (Presidio raw-score probe), `flywheel.go` (the improvement loop feeding G6 config-knob proposals), `score.go`.
+- **Surfaces:** `/api/harness/{runs,sample,ratchet,corpus,proposals}` — try-a-prompt, the ratchet ledger, the corpus, and config-knob **proposals** — all guarded by `requireHarness` (503 when the engine is not attached).
 
 ### `internal/store` — state
 - **Responsibility:** in-memory store of adapters, credentials (by reference), policies, baselines, rendered env artifacts + read-back state, observation batches, audit events, activity log. Mirrors `internal/store/store.go`.
@@ -348,18 +367,26 @@ guaranteed enforcement; gate Tier-B controls behind an MDM-coverage check.
 ### `internal/redact` — safety
 - **Responsibility:** secret/PII redaction before any storage (reused from it-scorecard). *(Request-path PII redaction lives in the optional gateway, §11.)*
 
-### `internal/secrets`, `internal/identity` — stubs → real
-- **Responsibility:** resolve credential references (`secrets`), authenticate admins + distribution-channel auth (`identity`). Stubs initially (as in it-scorecard), wired to a KMS/IdP at the hardening phase.
+> **Not yet built:** there is no `internal/secrets` or `internal/identity` package. Credentials are
+> held **by reference** only; admin auth + KMS/IdP integration are a hardening-phase intent (§13).
 
-### `internal/gateway` — inference proxy (OPTIONAL, separate service)
-- See §11. The gateway's hot-path code lives here but ships as its **own binary**
-  (`cmd/air-traffic-gateway`), a separate stateless data-plane service — **not** mounted into
-  `air-traffic-server`. Nothing in the spine imports it, so the control-plane binary's dependency
-  closure stays stdlib-only while the gateway carries its own deps (Redis, OTel, detector clients).
-  Build sequence and package layout: [Inference Gateway Build Plan](./inference-gateway-build-plan.md).
+### `internal/gateway` — inference-gateway data plane (SHIPPED, separate binary)
+- See §11. The gateway's hot-path code lives here and ships as its **own binary**
+  (`cmd/air-traffic-gateway`, shipped 2026-07-02) with its own `config.Load()` — a separate,
+  independently-booting data-plane service, **never** mounted into `air-traffic-server`.
+- **Files:** `proxy.go` (reverse proxy + streaming), `adapter_anthropic.go` (Anthropic Messages
+  dialect), `server.go` (`POST /v1/messages`, `/healthz`, `/readyz`), `spine_emit.go`
+  (observations + leak findings + heartbeat up), `spine_pull.go` (policy + pattern pack down),
+  `metrics.go`, `audit.go`, `health.go`, `stream.go`.
+- **Subpackages:** `config/`, `credbroker/` (credential broker), `detect/` (regex + Presidio
+  detectors), `redact/` (mask / reversible tokenize).
+- Nothing in the control plane imports it, so `air-traffic-server`'s dependency closure stays
+  stdlib-only. Build sequence and package layout:
+  [Inference Gateway Build Plan](./inference-gateway-build-plan.md).
 
 ### `web/` — React SPA
-- **Responsibility:** the four control surfaces (Rigor Console, Policy Editor, Cost Explorer, Flight Deck) + the reused scorecard. Mirrors it-scorecard `web/`.
+- **Responsibility:** the **Flight Deck** at `/`, a public **`/welcome`** landing page (`pages/landing/*`: Hero, Planes, VendorWall, Dispositions, HowItWorks, CtaBand; added 2026-07-03), and the `/settings/*` control surfaces (Rigor Console, Policy Editor, Cost Explorer, Vendors, Observability, Audit, Gateway Harness). Mirrors it-scorecard `web/`.
+- **Tests:** a vitest suite (`package.json` → `"test": "vitest run"`; e.g. `pages/Welcome.test.tsx`), added 2026-07-03.
 
 ---
 
@@ -393,7 +420,7 @@ flowchart TD
   q1 -->|yes| native["vendor_native<br/>call admin API; read back to confirm"]
   q1 -->|no| q2{"lives in the dev/agent<br/>environment?"}
   q2 -->|yes| env["env_managed<br/>render managed config → distribute → read back<br/>(MCP, hooks, code-review, cron)"]
-  q2 -->|no, runtime-only| q3{"gateway enabled?<br/>(AIRTRAFFIC_GATEWAY=on)"}
+  q2 -->|no, runtime-only| q3{"inference gateway<br/>deployed?"}
   q3 -->|yes| proxy["proxy_enforced (optional §11)<br/>intercept request"]
   q3 -->|no| obs["observe + alert only<br/>(soft): meter from vendor usage API,<br/>flag breaches, no hard stop"]
 ```
@@ -401,7 +428,7 @@ flowchart TD
 The decisive design point: **only the bottom-right leaf needs the inference gateway.** Everything
 the user's core product targets — vendor controls and agentic primitives — resolves to
 `vendor_native` or `env_managed`, neither of which touches the request path. Where a runtime-only
-control (hard cross-vendor cap, per-request PII scrub) is in policy but the gateway is off,
+control (hard cross-vendor cap, per-request PII scrub) is in policy but the gateway is not deployed,
 Air-Traffic degrades **honestly** to observe-and-alert rather than silently claiming enforcement.
 
 ---
@@ -583,9 +610,9 @@ Langfuse via its OTLP endpoint** rather than rebuilt.
 | **Agentic environments** | HTTPS / MDM / git | outbound (proxy mode) | Claude Code managed settings, GitHub branch-protection + policy API, Cursor, CI | `env_managed` push + read-back |
 | SIEM (Splunk/Elastic/Datadog) | HTTP/webhook | outbound (opt-in) | audit export | normalized stream (OTel GenAI semconv) |
 | Langfuse (deep tracing) | OTLP | outbound (opt-in) | `/api/public/otel` | offload per-span tracing |
-| Secret manager / KMS | — | outbound (intended) | `internal/secrets` | resolves credential references |
-| IdP (SSO/SCIM) | — | outbound (intended) | `internal/identity` | admin auth + distribution-channel auth |
-| Vendor **inference** APIs | HTTPS | outbound (**optional gateway only**) | per-adapter | only when `AIRTRAFFIC_GATEWAY=on` |
+| Secret manager / KMS | — | outbound (intended) | credential references (`secret_ref`) | resolves credential references — not yet built |
+| IdP (SSO/SCIM) | — | outbound (intended) | admin auth (intended) | admin auth + distribution-channel auth — not yet built |
+| Vendor **inference** APIs | HTTPS | outbound (**optional gateway only**) | gateway upstreams (`GATEWAY_UPSTREAMS`) | served by the separate `air-traffic-gateway` binary, not the control plane |
 
 Synthetic mode keeps **all** outbound integrations opt-in — the service is fully functional and
 demoable with zero credentials, exactly like it-scorecard.
@@ -594,8 +621,8 @@ demoable with zero credentials, exactly like it-scorecard.
 
 ## 11. Optional Module: the Inference Gateway
 
-> **Status: optional, off by default (`AIRTRAFFIC_GATEWAY=off`). Not on the spine.** Build only if
-> the residual runtime-only controls below are a hard requirement. Full vendor-neutral design:
+> **Status: shipped 2026-07-02 as a separate, optional binary (`cmd/air-traffic-gateway`). Off the
+> spine.** Deploy it only if the residual runtime-only controls below are a hard requirement. Full vendor-neutral design:
 > [`inference-gateway-design.md`](./inference-gateway-design.md). Sequenced, horizontally-scalable
 > build: [`inference-gateway-build-plan.md`](./inference-gateway-build-plan.md). The gateway's
 > headline residual control is **per-request PII/PHI redaction**; the hard cross-vendor spend cap
@@ -611,12 +638,14 @@ being *in the request path* at call time. There are essentially two:
 Everything else — including *monitoring* spend, *setting* a vendor's native cap, *soft* alerts, and
 all agentic governance — needs no gateway.
 
-**If enabled**, the gateway is the standard AI-gateway pattern (validated against LiteLLM / Portkey
-/ Kong): an OpenAI-compatible ingress, **virtual keys** that map to real vendor credentials and a
-policy scope, a **Redis cross-pod spend counter with DB fail-closed**, ordered guardrail hooks
-(PII, content-safety), and **threshold actions** (alert / throttle / downgrade-model / block).
-Developers point their SDK `base_url` at Air-Traffic and authenticate with a virtual key; the
-gateway enforces, swaps in the real credential, meters, and audits.
+The gateway follows the standard AI-gateway pattern (validated against LiteLLM / Portkey / Kong):
+a vendor-dialect ingress (Anthropic Messages `POST /v1/messages` first), **client keys** that map to
+real vendor credentials and a policy scope via the credential broker, ordered guardrail hooks
+(PII detection + redaction), and **threshold actions** (mask / block / per-policy). The shipped MVP
+covers detect + redact + credential broker + spine push/pull; the **Redis cross-pod spend counter
+with DB fail-closed** and cross-vendor hard caps remain Build-Plan milestones. Developers point
+their SDK `base_url` at the gateway and authenticate with a client key; the gateway enforces, swaps
+in the real credential, meters, and audits.
 
 ```mermaid
 flowchart LR
@@ -634,11 +663,11 @@ SPOF, requires reissuing/rotating vendor keys so the gateway is the only path, a
 per-vendor request-shape + streaming handling. That cost is exactly why it is **opt-in**, not the
 foundation.
 
-### 11.1 Topology, horizontal scale, and how it fits the spine (planned)
+### 11.1 Topology, horizontal scale, and how it fits the spine
 
-The build plan refines the in-process sketch above into a **separate, stateless data-plane
-service** that scales out behind an L7 load balancer (§2.4). The pieces that make scale-out
-*correct* (not just possible):
+The gateway ships as a **separate, stateless data-plane service** (§2.4) that scales out behind an
+L7 load balancer. The pieces that make scale-out *correct* (not just possible) — some in the
+shipped MVP, some still Build-Plan milestones:
 
 - **Stateless pods.** All cross-request state is externalized — the **token vault** and per-caller
   **budget counters** live in **Redis** (scoped + salted, short TTL, KMS envelope-encrypted), so a
@@ -670,29 +699,38 @@ first-class metric in that observation stream — the differentiator no proxy-on
 ## 12. Deployment
 
 ### Runtime topology
-- **Control plane:** a **single Go process** (`air-traffic-server`) serving the control-plane API, config distributor, emitter, and static SPA. Off the request path; happily single-node.
-- **Gateway data plane (planned, optional):** a **separate, stateless service** (`cmd/air-traffic-gateway`) — `1 → N` replicas behind an L7 load balancer; shared **Redis** (token vault + budget counters, KMS-encrypted); a separately-scaled **detector tier** (self-hosted Presidio / managed DLP). Deployed and scaled independently of the control plane; integrates via the spine contracts (§11.1). Run a **single replica** for the low-volume pre-coverage-gate MVP; scale out when traffic demands. Full topology + sequence: [Build Plan §3](./inference-gateway-build-plan.md#3-target-architecture-fit--horizontal-scale).
+- **Control plane:** a **single Go process** (`air-traffic-server`) serving the control-plane API, config distributor, emitter, harness engine, and static SPA. Off the request path; happily single-node.
+- **Gateway data plane (shipped 2026-07-02, optional):** a **separate, stateless binary** (`cmd/air-traffic-gateway`, default listen `127.0.0.1:8125`) with an optional Presidio detector sidecar. The shipped MVP runs a **single replica**. The scale-out design — `1 → N` replicas behind an L7 load balancer, shared **Redis** (token vault + budget counters, KMS-encrypted), and a separately-scaled **detector tier** — is the target once traffic demands it. Deployed and scaled independently of the control plane; integrates via the spine contracts (§11.1). Full topology + sequence: [Build Plan §3](./inference-gateway-build-plan.md#3-target-architecture-fit--horizontal-scale).
 - **Frontend:** dev via Vite proxy; prod-style via `web/dist` served same-origin (mirrors it-scorecard).
 
 ### Configuration surfaces (env)
+Control-plane process (`cmd/air-traffic-server`):
+
 | Var | Default | Effect |
 |---|---|---|
-| `AIRTRAFFIC_ADDR` | `127.0.0.1:8120` | listen address |
+| `AIRTRAFFIC_ADDR` | `127.0.0.1:8122` | listen address |
 | `AIRTRAFFIC_EMIT` | `on` | background emitter on/off |
 | `AIRTRAFFIC_EMIT_INTERVAL_SECONDS` | `5` | emit tick cadence |
-| `AIRTRAFFIC_STORE` | `memory` | `memory` \| `postgres` |
-| `AIRTRAFFIC_GATEWAY` | `off` | enable spine-side gateway integration (accept the gateway's observation/finding push; render `proxy_enforced`) |
+| `AIRTRAFFIC_DATA_DIR` | `data/harness` | harness durable state (ratchet, corpus, pattern pack) |
+| `AIRTRAFFIC_GATEWAY_KEY` | `gwk-demo` | client key the harness uses to drive the gateway |
+| `AIRTRAFFIC_PRESIDIO_URL` | `http://127.0.0.1:8126` | Presidio sidecar for the harness raw-score probe |
 
-> The gateway **service** carries its own config surface (`GATEWAY_ENABLED`, `GATEWAY_LISTEN_ADDR`,
-> `UPSTREAMS`, `DETECTOR`, `REDACT_ACTION`, `REDIS_URL`, `VAULT_KMS_KEY_REF`, `FAIL_MODE`, …) — it is
-> a separate binary, not driven by the `AIRTRAFFIC_*` env of the control-plane process. See
+The store is **in-memory only** — there is no `AIRTRAFFIC_STORE`/Postgres switch and no in-process
+gateway toggle. The control plane's gateway panels (`/api/gateway/*`) are always live and simply
+render whatever the gateway binary has pushed up the spine.
+
+> The gateway **binary** carries its own config surface, read by its own `config.Load()` and **not**
+> driven by the `AIRTRAFFIC_*` env of the control-plane process: `GATEWAY_LISTEN_ADDR` (default
+> `127.0.0.1:8125`), `GATEWAY_UPSTREAMS`, `GATEWAY_CLIENT_KEYS_REF`, `GATEWAY_DETECTORS`
+> (`regex`,`presidio`), `GATEWAY_REDACT_ACTION` (`mask`/`block`/`per_policy`), `GATEWAY_FAIL_MODE`
+> (`open`/`closed`), `GATEWAY_CONTROL_PLANE_URL`, `GATEWAY_PRESIDIO_URL`, … See
 > [Build Plan §5](./inference-gateway-build-plan.md#5-build-milestones) for the per-milestone keys
 > and [design doc §8](./inference-gateway-design.md) for the full list. Secrets are stored
-> **by reference** (KMS/Vault), never inline, on both sides.
+> **by reference** (`env:NAME`), never inline, on both sides.
 
 ### Secrets handling
 - Credentials stored **by reference** (`secret_ref`); plaintext rejected on write (reuse `internal/redact.HasPlaintextSecretKey`).
-- Distribution-channel credentials (MDM, GitHub app, etc.) resolved through `internal/secrets`.
+- Distribution-channel credentials (MDM, GitHub app, etc.) held **by reference** (`env:NAME` / KMS/Vault), never inlined; a dedicated secrets resolver is a hardening-phase intent.
 - Recorded calls + observation bodies redacted before storage.
 
 ---
@@ -731,7 +769,7 @@ first-class metric in that observation stream — the differentiator no proxy-on
   hard caps need Redis cross-pod counters with a DB fail-closed mode — a hard cap that silently
   fails open is worse than no cap because it reads as enforced.
 
-- **Identity/secrets are stubs initially.** Same as it-scorecard; production needs a real IdP + KMS.
+- **Identity & secrets are not built yet.** There is no auth or KMS integration and no `internal/identity`/`internal/secrets` package; credentials are held by reference only. Production needs a real IdP + KMS at the hardening phase.
 
 ---
 
@@ -749,14 +787,14 @@ the differentiated work is Phase 2 (config distributor) and Phase 3 (real vendor
 | **4 — Policy + drift** ⭐ | Policy-as-code, reconcile across both surfaces, drift, baselines | `policy` engine, baselines library, drift observations | — |
 | **5 — Audit + observability** | One normalized audit stream (OTel GenAI) + SIEM export | `audit` package, audit normalizers per source, export | observation contract |
 | **6 — Hardening** | Durable, authenticated | Postgres store, real `identity`/`secrets` | — |
-| **7 — (Optional) Gateway** | Runtime enforcement of residual controls (per-request PII/PHI redaction + hard cross-vendor caps) | separate `cmd/air-traffic-gateway` data-plane service — see [Build Plan](./inference-gateway-build-plan.md) milestones **G0–G10** (skeleton → pass-through → detect/mask → tokenize+vault → monitor → oracle → external detectors → spine integration → observability+recall-ratchet → horizontal-scale hardening → flywheel) — only if required | — |
+| **7 — Gateway (MVP shipped 2026-07-02, optional)** | Runtime enforcement of residual controls (per-request PII/PHI redaction; hard cross-vendor caps still ahead) | separate `cmd/air-traffic-gateway` binary — **MVP shipped**: reverse proxy (`POST /v1/messages`, Anthropic dialect) + inline regex/Presidio detection + mask/tokenize redaction + credential broker + spine push/pull, driven by the `internal/harness` eval/ratchet loop. Remaining [Build Plan](./inference-gateway-build-plan.md) milestones (Redis token vault, cross-vendor hard caps, recall ratchet at scale, horizontal-scale hardening) are future | — |
 
 **Critical path:** Phases 2–4 are the differentiated core. The config distributor (Phase 2) is the
 highest-value milestone — it is what makes Air-Traffic an *agentic* control plane and not just a
-vendor-API dashboard. The gateway (Phase 7) is explicitly last and optional; when a real
-in-request-enforcement requirement lands (e.g. a technically-enforced "no PHI until ZDR"
-pre-coverage gate), its own MVP slice — Build Plan `G0→G1→G2(block)→G7` — ships first, as a single
-replica, before any of the recall/scale work.
+vendor-API dashboard. The gateway (Phase 7) is optional and off the spine; its MVP slice — Build
+Plan `G0→G1→G2→G7` — **shipped 2026-07-02** as a single-replica binary (proxy + detect/redact +
+credential broker + spine integration, exercised by the harness), ahead of any of the recall/scale
+work, which remains.
 
 ---
 
@@ -766,56 +804,55 @@ replica, before any of the recall/scale work.
 air-traffic/
 ├── cmd/
 │   ├── air-traffic-server/
-│   │   └── main.go                 # config + lifecycle (mirrors harness-server)
-│   └── air-traffic-gateway/        # OPTIONAL — separate stateless data-plane binary (§11.1)
-│       └── main.go                 #   own deploy unit; control-plane binary never imports gateway
+│   │   └── main.go                 # control plane: config + lifecycle + harness wiring
+│   └── air-traffic-gateway/        # SHIPPED 2026-07-02 — separate stateless data-plane binary (§11.1)
+│       └── main.go                 #   own config.Load(); control-plane binary never imports gateway
 ├── internal/
-│   ├── adapter/                    # ⭐ VendorAdapter + per-vendor/platform impls
-│   │   ├── adapter.go              #   interface, Signal, Manifest types
-│   │   ├── openai.go               #   control half (vendor API)
-│   │   ├── anthropic.go
-│   │   ├── bedrock.go
-│   │   ├── azure.go
-│   │   ├── vertex.go
-│   │   ├── github_copilot.go       #   control half + env half (policies, branch protection)
-│   │   ├── m365_copilot.go
-│   │   ├── cohere.go
-│   │   ├── mistral.go
-│   │   └── claude_code.go          #   env half (managed settings: MCP, hooks)
+│   ├── catalog/                    # ⭐ vendor/platform registry, manifests, cost facets
+│   │   ├── catalog.go
+│   │   ├── vendors.go
+│   │   └── cost_facets.go
+│   ├── synthetic/                  # per-vendor native-shaped surfaces under /synthetic/{vendor}/…
 │   ├── envconfig/                  # ⭐ render + distribute managed config; read state
-│   │   ├── render.go
-│   │   ├── distribute.go
-│   │   └── readback.go
-│   ├── policy/                     # ⭐ policy-as-code + reconcile + drift + baselines
-│   │   ├── policy.go
+│   │   └── envconfig.go
+│   ├── policy/                     # ⭐ reconcile + drift + baselines (types live in model/policy.go)
 │   │   ├── reconcile.go
 │   │   ├── drift.go
 │   │   └── baselines.go
+│   ├── harness/                    # ⭐ SHIPPED eval/ratchet harness (drives the gateway)
+│   │   ├── gen.go                  #   corpus generation
+│   │   ├── runner.go               #   run orchestration
+│   │   ├── streamscan.go
+│   │   ├── persist.go              #   durable state under AIRTRAFFIC_DATA_DIR
+│   │   ├── sample.go               #   try-a-prompt
+│   │   ├── probe.go                #   Presidio raw-score probe
+│   │   ├── flywheel.go             #   improvement loop → G6 config-knob proposals
+│   │   └── score.go
 │   ├── emitter/                    # ops-observation-batch/v1 generator (mirrors it-scorecard)
 │   ├── audit/                      # ⭐ normalized audit stream (OTel GenAI semconv)
-│   ├── store/                      # in-memory state (mirrors it-scorecard)
-│   ├── model/                      # domain types + contract (extends it-scorecard)
+│   ├── store/                      # in-memory state only (store.go, gateway.go)
+│   ├── model/                      # domain types + contract (contract.go, gateway.go, harness.go, policy.go, presidio.go, model.go)
 │   ├── redact/                     # secret/PII redaction (log path)
-│   ├── secrets/                    # credential + channel-auth resolution (stub → KMS)
-│   ├── identity/                   # admin auth + user mapping (stub → IdP)
-│   └── gateway/                    # OPTIONAL inference proxy (§11) — own binary, off by default
-│       ├── proxy.go                #   pass-through + credential broker + streaming (G1)
-│       ├── adapter_anthropic.go    #   protocol adapter (Anthropic Messages first; OpenAI-compat next)
-│       ├── detect/                 #   Detector iface + regex (G2) + presidio/dlp adapters (G6)
-│       ├── redact/                 #   mask + reversible tokenize (G2/G3)
-│       ├── vault/                  #   Redis token vault — scoped/salted, KMS-encrypted (G3)
-│       ├── monitor/                #   in-pod async leak monitor + capture buffer + surrogate (G4)
-│       ├── oracle/                 #   tokenization oracle — inline net + async (G5)
-│       ├── spine/                  #   observations↑ / policy↓ / proxy_enforced / drift (G7)
-│       ├── otel/                   #   traces + metrics + recall ratchet (G8)
-│       └── budget/                 #   cross-pod hard caps, fail-closed (G9)
+│   ├── server/                    # HTTP mux: /api/*, /api/gateway/*, /api/harness/*, /synthetic/*
+│   └── gateway/                    # SHIPPED inference-gateway data plane (§11) — its own binary
+│       ├── proxy.go                #   reverse proxy + streaming
+│       ├── adapter_anthropic.go    #   Anthropic Messages dialect
+│       ├── server.go               #   POST /v1/messages, /healthz, /readyz
+│       ├── spine_emit.go           #   observations + leak findings + heartbeat ↑
+│       ├── spine_pull.go           #   policy + pattern pack ↓
+│       ├── metrics.go              #   audit.go, health.go, stream.go alongside
+│       ├── config/                 #   config.Load() + validation (GATEWAY_* env)
+│       ├── credbroker/             #   credential broker (ref → real vendor key)
+│       ├── detect/                 #   Detector iface + regex + Presidio adapter
+│       └── redact/                 #   mask + reversible tokenize
 ├── schemas/
 │   └── ops-observation-batch-v1.schema.json   # reused verbatim
-├── web/                            # React SPA (scorecard reused + 4 new surfaces)
+├── web/                            # React SPA (Flight Deck + /welcome landing + /settings/* surfaces)
 │   └── src/
-│       ├── pages/{RigorConsole,PolicyEditor,CostExplorer,FlightDeck}.tsx
-│       ├── scorecard/              # reused verbatim
-│       └── lib/api.ts
+│       ├── pages/{FlightDeck,RigorConsole,PolicyEditor,CostExplorer,Vendors,Observability,Audit,GatewayHarness,Welcome}.tsx
+│       ├── pages/landing/          # Hero, Planes, VendorWall, Dispositions, HowItWorks, CtaBand
+│       ├── pages/Welcome.test.tsx  # vitest ("test": "vitest run")
+│       ├── components/  ·  lib/  ·  test/
 └── docs/
     ├── air-traffic-analysis.md           # research + product spec
     ├── air-traffic-system-design.md      # this document
@@ -827,4 +864,4 @@ air-traffic/
 
 *Companion to [`air-traffic-analysis.md`](./air-traffic-analysis.md). Spine = vendor-API control +
 environment config distribution + observability; inline inference gateway is an optional module.
-Architecture anchored on the `it-scorecard` connector/emitter pattern. June 2026.*
+Architecture anchored on the `it-scorecard` connector/emitter pattern. Revised July 2026 (gateway MVP + harness shipped).*
