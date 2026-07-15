@@ -17,6 +17,8 @@ export default function CostExplorer() {
   const costFacets = useQuery({ queryKey: qk.costFacets, queryFn: api.costFacets })
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
+  const error = adapters.error || observations.error
+
   const fleet = adapters.data && observations.data ? computeFleet(adapters.data, observations.data, [], now) : null
 
   const byVendor = (fleet?.vendors ?? []).filter((v) => v.costLatest > 0).sort((a, b) => b.costLatest - a.costLatest)
@@ -36,7 +38,14 @@ export default function CostExplorer() {
     <div>
       <PageHeader title="Cost & Usage Explorer" subtitle="Spend velocity, per-vendor attribution, and cap utilization — then drill into any vendor by user, model, repo, project, and more." />
 
-      {!fleet && <div className="h-64 animate-pulse panel" />}
+      {error && (
+        <div className="mt-8 panel p-6 text-center text-red">
+          Cannot reach the Air-Traffic API. Is the server running on :8122? <br />
+          <span className="text-xs text-muted">{String(error)}</span>
+        </div>
+      )}
+
+      {!fleet && !error && <div className="h-64 animate-pulse panel" />}
 
       {fleet && (
         <>
