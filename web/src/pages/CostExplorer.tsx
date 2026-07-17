@@ -4,6 +4,7 @@ import { api, qk, type VendorCostFacets } from '../lib/api.ts'
 import { computeFleet, type VendorRollup } from '../lib/fleet.ts'
 import { useClock } from '../lib/useClock.ts'
 import { fmtUSD, fmtNum, titleCase } from '../lib/format.ts'
+import { buildCostSnapshot, snapshotToCSV, snapshotToJSON, downloadBlob, exportFilename } from '../lib/costExport.ts'
 import PageHeader from '../components/PageHeader.tsx'
 import VendorGlyph, { vendorAccent } from '../components/VendorGlyph.tsx'
 import Sparkline from '../components/Sparkline.tsx'
@@ -34,9 +35,43 @@ export default function CostExplorer() {
     byVendor.find((v) => Object.keys(v.facets).length > 0) ??
     byVendor[0]
 
+  function exportSnapshot(format: 'csv' | 'json') {
+    if (!fleet) return
+    const snap = buildCostSnapshot(fleet, ORG_CAP, selected, selected ? costFacets.data?.[selected.adapter.id] : undefined, Date.now())
+    if (format === 'csv') {
+      downloadBlob(snapshotToCSV(snap), exportFilename('csv'), 'text/csv;charset=utf-8')
+    } else {
+      downloadBlob(snapshotToJSON(snap), exportFilename('json'), 'application/json')
+    }
+  }
+
   return (
     <div>
-      <PageHeader title="Cost & Usage Explorer" subtitle="Spend velocity, per-vendor attribution, and cap utilization — then drill into any vendor by user, model, repo, project, and more." />
+      <PageHeader
+        title="Cost & Usage Explorer"
+        subtitle="Spend velocity, per-vendor attribution, and cap utilization — then drill into any vendor by user, model, repo, project, and more."
+        actions={
+          <>
+            <button
+              onClick={() => exportSnapshot('csv')}
+              disabled={!fleet}
+              className="rounded-lg border border-line bg-panel2 px-3 py-1.5 text-sm font-medium text-fg transition hover:bg-panel disabled:opacity-40"
+              title="Download the current fleet rollup + selected drill-down as CSV (point-in-time snapshot)"
+            >
+              Export CSV
+            </button>
+            <button
+              onClick={() => exportSnapshot('json')}
+              disabled={!fleet}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-bg transition disabled:opacity-40"
+              style={{ background: 'var(--accent)' }}
+              title="Download the current fleet rollup + selected drill-down as JSON (point-in-time snapshot)"
+            >
+              Export JSON
+            </button>
+          </>
+        }
+      />
 
       {error && (
         <div className="mt-8 panel p-6 text-center text-red">
