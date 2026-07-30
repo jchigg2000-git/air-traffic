@@ -114,9 +114,9 @@ npm test             # Vitest unit tests (vitest run — e.g. src/pages/Welcome.
 Screens: **Flight Deck** (observability landing — live vendor status board, KPI strip, plane
 bands, drift, freshness) · **Rigor Console** (baseline + coverage marks) · **Policy Editor**
 (per-vendor control cards with truthful disposition/enforcement chips) · **Cost & Usage
-Explorer** (spend by vendor, velocity, cap alerts) · **Vendors** (mode/scenario/emitter +
-manifest + recorded calls) · **Observability** (raw batches) · **Audit** (normalized stream +
-SIEM export).
+Explorer** (spend by vendor, velocity, cap alerts, CSV/JSON export of the current fleet rollup +
+drill-down) · **Vendors** (mode/scenario/emitter + manifest + recorded calls) ·
+**Observability** (raw batches) · **Audit** (normalized stream + SIEM export).
 
 **Routing** (`web/src/App.tsx`): `/` renders the **Flight Deck** (the app); `/welcome` is a
 public marketing **Welcome** page assembled from `pages/landing/*` (Hero · Planes · VendorWall ·
