@@ -713,7 +713,19 @@ Control-plane process (`cmd/air-traffic-server`):
 | `AIRTRAFFIC_EMIT_INTERVAL_SECONDS` | `5` | emit tick cadence |
 | `AIRTRAFFIC_DATA_DIR` | `data/harness` | harness durable state (ratchet, corpus, pattern pack) |
 | `AIRTRAFFIC_GATEWAY_KEY` | `gwk-demo` | client key the harness uses to drive the gateway |
+| `AIRTRAFFIC_SPINE_KEY` | *(unset)* | shared key required on `/api/gateway/{leaks,enforcement,patterns}`; unset ⇒ those routes accept **loopback callers only** |
 | `AIRTRAFFIC_PRESIDIO_URL` | `http://127.0.0.1:8126` | Presidio sidecar for the harness raw-score probe |
+
+**Spine auth.** The three routes the gateway drives are not UI routes: two ingest enforcement
+evidence, and `GET /api/gateway/patterns` *distributes* the pattern pack — which since the G6
+config-knob slice carries deny-list **terms**. So the read side is gated too. With
+`AIRTRAFFIC_SPINE_KEY` set, callers present it as `Authorization: Bearer …` or
+`X-Air-Traffic-Key` (constant-time compared); with it unset, only loopback callers are accepted
+— a container-network peer is *not* loopback, which is why the compose stack sets the key on
+both services. `GET /api/gateway/status` stays open: it is the browser's liveness view, carries
+no terms, and reports the posture in effect (`spine_auth`, `spine_key_unrotated`). The
+compose defaults (`gwk-demo` / `spine-dev-insecure`) are throwaway values; both binaries log a
+warning while they are in use, and `scripts/dev-env.sh` mints random replacements into `.env`.
 
 The store is **in-memory only** — there is no `AIRTRAFFIC_STORE`/Postgres switch and no in-process
 gateway toggle. The control plane's gateway panels (`/api/gateway/*`) are always live and simply
@@ -721,7 +733,10 @@ render whatever the gateway binary has pushed up the spine.
 
 > The gateway **binary** carries its own config surface, read by its own `config.Load()` and **not**
 > driven by the `AIRTRAFFIC_*` env of the control-plane process: `GATEWAY_LISTEN_ADDR` (default
-> `127.0.0.1:8125`), `GATEWAY_UPSTREAMS`, `GATEWAY_CLIENT_KEYS_REF`, `GATEWAY_DETECTORS`
+> `127.0.0.1:8125`), `GATEWAY_UPSTREAMS`, `GATEWAY_CLIENT_KEYS_REF`,
+> `GATEWAY_CONTROL_PLANE_KEY_REF` (default `env:GATEWAY_CONTROL_PLANE_KEY`; the spine key,
+> optional — absent means this gateway can only reach a control plane over loopback),
+> `GATEWAY_DETECTORS`
 > (`regex`,`presidio`), `GATEWAY_REDACT_ACTION` (`mask`/`block`/`per_policy`), `GATEWAY_FAIL_MODE`
 > (`open`/`closed`), `GATEWAY_CONTROL_PLANE_URL`, `GATEWAY_PRESIDIO_URL`, … See
 > [Build Plan §5](./inference-gateway-build-plan.md#5-build-milestones) for the per-milestone keys

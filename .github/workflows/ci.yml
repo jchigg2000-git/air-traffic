@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    name: Go (build / vet / test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # The tree is stdlib-only and gofmt-clean; a drift here is a review
+      # nuisance, so it fails fast before the slower stages.
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt needed on:"; echo "$unformatted"; exit 1
+          fi
+
+      # Stdlib-only is a design constraint, not an accident: no go.sum means
+      # nothing outside the standard library ever entered the build.
+      - name: Verify no third-party dependencies
+        run: |
+          if [ -f go.sum ]; then
+            echo "::error::go.sum exists — this project is stdlib-only by design"; exit 1
+          fi
+
+      - run: go vet ./...
+      - run: go build ./...
+      - run: go test -race ./...
+
+  # The redaction guarantee is behavioural: a redacted value must never reach a
+  # log line or the audit stream. G8 asked for that guard to be its own signal
+  # rather than one line inside the full run.
+  log-leak-guard:
+    name: Log-leak guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test ./internal/gateway/ ./internal/harness/ -run 'TestNoRedactedValueInLogsOrAudit|TestFullLoopFlywheelRatchet' -v
+
+  web:
+    name: Web (typecheck / build / test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build # tsc --noEmit && vite build
+      - run: npm test
+
+  docker:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build control-plane image
+        run: docker build --target server -t air-traffic-server:ci .
+      - name: Build gateway image
+        run: docker build --target gateway -t air-traffic-gateway:ci .

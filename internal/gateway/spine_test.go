@@ -157,6 +157,64 @@ func TestPolicyPullDerivesPreCoverageGate(t *testing.T) {
 	}
 }
 
+// The control plane's spine routes are key-gated for non-loopback callers, so
+// a configured gateway must present the key on every push AND every pull.
+func TestSpineRequestsCarryTheSharedKey(t *testing.T) {
+	const key = "spine-test-key"
+	var mu sync.Mutex
+	seen := map[string]string{}
+	cp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		seen[r.URL.Path] = r.Header.Get("Authorization")
+		mu.Unlock()
+		switch r.URL.Path {
+		case "/api/gateway/patterns":
+			_, _ = io.WriteString(w, `{"pack":{"version":0,"rules":[]}}`)
+		case "/api/policies":
+			_, _ = io.WriteString(w, `{"policy":null}`)
+		default:
+			w.WriteHeader(http.StatusAccepted)
+		}
+	}))
+	defer cp.Close()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{}`)
+	}))
+	defer upstream.Close()
+
+	t.Setenv("GATEWAY_CONTROL_PLANE_URL", cp.URL)
+	t.Setenv("GATEWAY_CONTROL_PLANE_KEY_REF", "env:TEST_SPINE_KEY")
+	t.Setenv("TEST_SPINE_KEY", key)
+	gw := newTestGatewayServer(t, upstream.URL, discardLogger())
+
+	ctx := context.Background()
+	gw.pushHeartbeat(ctx)
+	gw.pullOnce(ctx)
+
+	mu.Lock()
+	defer mu.Unlock()
+	for _, path := range []string{"/api/gateway/enforcement", "/api/gateway/patterns"} {
+		if got := seen[path]; got != "Bearer "+key {
+			t.Errorf("%s Authorization = %q, want bearer spine key", path, got)
+		}
+	}
+}
+
+// No key configured is a supported (loopback-only) posture, not a boot error:
+// the gateway comes up and simply sends no credential.
+func TestSpineKeyOptional(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{}`)
+	}))
+	defer upstream.Close()
+	t.Setenv("GATEWAY_CONTROL_PLANE_KEY_REF", "env:TEST_ABSENT_SPINE_KEY")
+	gw := newTestGatewayServer(t, upstream.URL, discardLogger())
+	if gw.spineKey != "" {
+		t.Errorf("spineKey = %q, want empty", gw.spineKey)
+	}
+}
+
 func TestPatternPullHotReloads(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, `{}`)
@@ -181,4 +239,3 @@ func TestPatternPullHotReloads(t *testing.T) {
 		t.Errorf("packVersion = %d", gw.packVersion.Load())
 	}
 }
-

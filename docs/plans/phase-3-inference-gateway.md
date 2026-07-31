@@ -2,6 +2,10 @@
 
 **Status: built and verified 2026-07-02** — `go test ./...` green, `scripts/e2e-gateway.sh` 9/9 (recall_behavioral 0.997, precision 0.975, trap FPs 0 on the 120-request seeded run). Deferred items: [`TODO-gateway-deferred.md`](./TODO-gateway-deferred.md).
 
+*This document records the phases as they were built. Post-ship changes (spine auth, key
+rotation, the deeper multimodal/tool field walk, SSE usage extraction, CI) are logged in the
+ledger's "Closed" section — read that for current behaviour, this for build history.*
+
 *Implementation plan. Executes the MVP slice of [`../inference-gateway-build-plan.md`](../inference-gateway-build-plan.md) (G0 → G1 → G2 → partial-G6 → G7) plus a UI test harness tab and a flywheel v0 (recall ratchet). Deferred: G3 (tokenize/vault), G4 (async monitor), G5 (oracle), G8 (OTel depth), G9 (scale), G10-full — see `TODO-gateway-deferred.md`.*
 
 ## Context

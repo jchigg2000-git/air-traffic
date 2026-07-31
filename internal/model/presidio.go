@@ -16,19 +16,19 @@ const PresidioDefaultScoreGate = 0.4
 // the semver/order-number traps). New engines/PII types must join this map
 // — and add a validator guard in detect's typeGuards where checkable.
 var PresidioEntityMap = map[string]string{
-	"PERSON":        "PERSON_NAME",
-	"LOCATION":      "ADDRESS",
-	"EMAIL_ADDRESS": "EMAIL",
-	"PHONE_NUMBER":  "PHONE",
-	"US_SSN":        "SSN",
-	"US_ITIN":       "SSN", // SSN-shaped tax id; inherits the SSN hyphen guard
-	"CREDIT_CARD":   "CREDIT_CARD",
-	"IP_ADDRESS":    "IP",
-	"IBAN_CODE":     "IBAN",
+	"PERSON":          "PERSON_NAME",
+	"LOCATION":        "ADDRESS",
+	"EMAIL_ADDRESS":   "EMAIL",
+	"PHONE_NUMBER":    "PHONE",
+	"US_SSN":          "SSN",
+	"US_ITIN":         "SSN", // SSN-shaped tax id; inherits the SSN hyphen guard
+	"CREDIT_CARD":     "CREDIT_CARD",
+	"IP_ADDRESS":      "IP",
+	"IBAN_CODE":       "IBAN",
 	"MEDICAL_LICENSE": "MRN",
-	"DATE_TIME":     "",
-	"URL":           "",
-	"NRP":           "",
+	"DATE_TIME":       "",
+	"URL":             "",
+	"NRP":             "",
 }
 
 // RuneToByteOffsets maps each rune index (plus one past the end) to its byte

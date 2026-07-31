@@ -31,9 +31,14 @@ type Config struct {
 	// (heartbeats carry it; the harness sends traffic to it). Defaults to
 	// http://<ListenAddr>, which is wrong inside a container listening on
 	// 0.0.0.0 — set GATEWAY_ADVERTISE_URL there.
-	AdvertiseURL       string
-	Upstreams          map[string]Upstream
-	ClientKeysRef      string
+	AdvertiseURL  string
+	Upstreams     map[string]Upstream
+	ClientKeysRef string
+	// ControlPlaneKeyRef resolves the shared key this gateway presents on the
+	// control plane's spine routes. Optional: an unset secret leaves the
+	// gateway unauthenticated, which the control plane accepts only from
+	// loopback callers.
+	ControlPlaneKeyRef string
 	Detectors          []string
 	PresidioURL        string
 	DetectorTimeout    time.Duration
@@ -54,12 +59,13 @@ var (
 // Load reads and validates the gateway configuration from the environment.
 func Load() (Config, error) {
 	cfg := Config{
-		ListenAddr:      env("GATEWAY_LISTEN_ADDR", "127.0.0.1:8125"),
-		ClientKeysRef:   env("GATEWAY_CLIENT_KEYS_REF", "env:GATEWAY_CLIENT_KEYS"),
-		PresidioURL:     env("GATEWAY_PRESIDIO_URL", "http://127.0.0.1:8126"),
-		RedactAction:    env("GATEWAY_REDACT_ACTION", "mask"),
-		FailMode:        env("GATEWAY_FAIL_MODE", "closed"),
-		ControlPlaneURL: env("GATEWAY_CONTROL_PLANE_URL", "http://127.0.0.1:8122"),
+		ListenAddr:         env("GATEWAY_LISTEN_ADDR", "127.0.0.1:8125"),
+		ClientKeysRef:      env("GATEWAY_CLIENT_KEYS_REF", "env:GATEWAY_CLIENT_KEYS"),
+		ControlPlaneKeyRef: env("GATEWAY_CONTROL_PLANE_KEY_REF", "env:GATEWAY_CONTROL_PLANE_KEY"),
+		PresidioURL:        env("GATEWAY_PRESIDIO_URL", "http://127.0.0.1:8126"),
+		RedactAction:       env("GATEWAY_REDACT_ACTION", "mask"),
+		FailMode:           env("GATEWAY_FAIL_MODE", "closed"),
+		ControlPlaneURL:    env("GATEWAY_CONTROL_PLANE_URL", "http://127.0.0.1:8122"),
 	}
 
 	cfg.AdvertiseURL = env("GATEWAY_ADVERTISE_URL", "http://"+cfg.ListenAddr)
@@ -75,6 +81,9 @@ func Load() (Config, error) {
 
 	if !refScheme.MatchString(cfg.ClientKeysRef) {
 		return Config{}, fmt.Errorf("GATEWAY_CLIENT_KEYS_REF %q is not a secret reference (want env:NAME)", cfg.ClientKeysRef)
+	}
+	if !refScheme.MatchString(cfg.ControlPlaneKeyRef) {
+		return Config{}, fmt.Errorf("GATEWAY_CONTROL_PLANE_KEY_REF %q is not a secret reference (want env:NAME)", cfg.ControlPlaneKeyRef)
 	}
 
 	for _, d := range strings.Split(env("GATEWAY_DETECTORS", "regex"), ",") {

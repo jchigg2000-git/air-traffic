@@ -157,6 +157,7 @@ func (s *Server) getJSON(ctx context.Context, path string, v any) error {
 	if err != nil {
 		return err
 	}
+	s.authSpine(req)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err

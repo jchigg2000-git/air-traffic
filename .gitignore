@@ -11,3 +11,6 @@
 # Phase 2 frontend
 web/node_modules/
 web/dist/
+
+# Local secrets minted by scripts/dev-env.sh
+.env

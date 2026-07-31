@@ -24,6 +24,10 @@ type Server struct {
 	log        *slog.Logger
 	creds      credbroker.Resolver
 	clientKeys map[string]struct{}
+	// spineKey is presented to the control plane on push/pull. Empty when no
+	// secret is configured — the control plane then accepts this gateway only
+	// if it reaches it over loopback.
+	spineKey string
 
 	chain    *detect.Chain
 	regexDet *detect.Regex
@@ -56,7 +60,20 @@ func New(cfg config.Config, log *slog.Logger) (*Server, error) {
 		return nil, fmt.Errorf("GATEWAY_CLIENT_KEYS_REF resolved to zero client keys")
 	}
 
-	s := &Server{cfg: cfg, log: log, creds: creds, clientKeys: keys, metrics: newMetrics()}
+	// The spine key is optional: an env: ref that resolves to nothing means
+	// "unauthenticated spine", which only works against a loopback control
+	// plane. A vault:/kms: ref that fails is a real misconfiguration.
+	spineKey, err := creds.Resolve(cfg.ControlPlaneKeyRef)
+	if err != nil {
+		if !strings.HasPrefix(cfg.ControlPlaneKeyRef, "env:") {
+			return nil, fmt.Errorf("resolving GATEWAY_CONTROL_PLANE_KEY_REF: %w", err)
+		}
+		log.Warn("no control-plane spine key configured; the control plane will accept this gateway's pushes only over loopback",
+			"ref", cfg.ControlPlaneKeyRef)
+		spineKey = ""
+	}
+
+	s := &Server{cfg: cfg, log: log, creds: creds, clientKeys: keys, spineKey: spineKey, metrics: newMetrics()}
 	var detectors []detect.Detector
 	for _, name := range cfg.Detectors {
 		switch name {

@@ -142,6 +142,15 @@ func (s *Server) pushHeartbeat(ctx context.Context) error {
 	return nil
 }
 
+// authSpine stamps the shared spine key on a control-plane request. A gateway
+// with no key configured sends none and is accepted only over loopback.
+func (s *Server) authSpine(req *http.Request) {
+	if s.spineKey == "" {
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+s.spineKey)
+}
+
 func (s *Server) postJSON(ctx context.Context, path string, body any) error {
 	b, err := json.Marshal(body)
 	if err != nil {
@@ -154,6 +163,7 @@ func (s *Server) postJSON(ctx context.Context, path string, body any) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	s.authSpine(req)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err

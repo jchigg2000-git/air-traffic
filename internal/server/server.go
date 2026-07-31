@@ -22,6 +22,9 @@ type Server struct {
 	log       *slog.Logger
 	synthetic *synthetic.Handler
 	harness   *harness.Runner
+	// spineKey is the shared secret the gateway presents on /api/gateway/*
+	// ingest + pattern reads. Empty means loopback-only (see spine_auth.go).
+	spineKey string
 }
 
 // New constructs a Server and seeds the audit stream.
@@ -52,9 +55,11 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/drift", s.handleDrift)
 	mux.HandleFunc("/api/cost/facets", s.handleCostFacets)
 	mux.HandleFunc("/api/envconfig", s.handleEnvConfig)
-	mux.HandleFunc("/api/gateway/leaks", s.handleGatewayLeaks)
-	mux.HandleFunc("/api/gateway/enforcement", s.handleGatewayEnforcement)
-	mux.HandleFunc("/api/gateway/patterns", s.handleGatewayPatterns)
+	// Spine routes (gateway ↔ control plane), key- or loopback-gated. /status
+	// stays open: it is the browser's liveness view and carries no terms.
+	mux.HandleFunc("/api/gateway/leaks", s.requireSpineKey(s.handleGatewayLeaks))
+	mux.HandleFunc("/api/gateway/enforcement", s.requireSpineKey(s.handleGatewayEnforcement))
+	mux.HandleFunc("/api/gateway/patterns", s.requireSpineKey(s.handleGatewayPatterns))
 	mux.HandleFunc("/api/gateway/status", s.handleGatewayStatus)
 	mux.HandleFunc("/api/harness/runs", s.handleHarnessRuns)
 	mux.HandleFunc("/api/harness/runs/", s.handleHarnessRun)

@@ -26,6 +26,13 @@ func main() {
 	st := store.New()
 	app := server.New(st, log)
 
+	// Shared key for the gateway spine routes (/api/gateway/leaks,
+	// /enforcement, /patterns). Unset keeps the loopback-only dev posture.
+	gatewayKey := env("AIRTRAFFIC_GATEWAY_KEY", "gwk-demo")
+	spineKey := os.Getenv("AIRTRAFFIC_SPINE_KEY")
+	app.SetSpineKey(spineKey)
+	warnUnrotatedKeys(log, gatewayKey, spineKey)
+
 	// The gateway harness engine: drives synthetic traffic through the
 	// gateway and feeds the flywheel. Durable state (ratchet, corpus,
 	// pattern pack) lives under AIRTRAFFIC_DATA_DIR. The Presidio URL feeds
@@ -33,7 +40,7 @@ func main() {
 	// sidecar is down the probe degrades gracefully.
 	hr, err := harness.NewRunner(st, log,
 		env("AIRTRAFFIC_DATA_DIR", "data/harness"),
-		env("AIRTRAFFIC_GATEWAY_KEY", "gwk-demo"),
+		gatewayKey,
 		env("AIRTRAFFIC_PRESIDIO_URL", "http://127.0.0.1:8126"))
 	if err != nil {
 		log.Error("harness init failed", "error", err)
@@ -84,6 +91,23 @@ func main() {
 	if err := httpServer.Shutdown(ctx); err != nil {
 		log.Error("graceful shutdown failed", "error", err)
 		os.Exit(1)
+	}
+}
+
+// devDefaultKeys are the throwaway values docker-compose falls back to so the
+// demo comes up with one command. They are fine on a laptop and wrong
+// anywhere else, so a boot that still carries one says so out loud.
+var devDefaultKeys = map[string]bool{"gwk-demo": true, "spine-dev-insecure": true}
+
+func warnUnrotatedKeys(log *slog.Logger, gatewayKey, spineKey string) {
+	if devDefaultKeys[gatewayKey] {
+		log.Warn("AIRTRAFFIC_GATEWAY_KEY is the dev default; rotate before any shared deployment (scripts/dev-env.sh)")
+	}
+	switch {
+	case spineKey == "":
+		log.Warn("AIRTRAFFIC_SPINE_KEY unset: /api/gateway/{leaks,enforcement,patterns} accept loopback callers only")
+	case devDefaultKeys[spineKey]:
+		log.Warn("AIRTRAFFIC_SPINE_KEY is the dev default; rotate before any shared deployment (scripts/dev-env.sh)")
 	}
 }
 

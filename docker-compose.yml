@@ -3,6 +3,13 @@
 #   docker compose up -d --build
 #   open http://127.0.0.1:8122/            (SPA baked into the server image)
 #
+# The keys below fall back to throwaway dev values (gwk-demo /
+# spine-dev-insecure) so the stack comes up with one command. Both binaries
+# log a warning while those are in use. Before any shared deployment run
+#   ./scripts/dev-env.sh
+# which mints random GATEWAY_CLIENT_KEYS + AIRTRAFFIC_SPINE_KEY into .env
+# (compose reads it automatically).
+#
 # The gateway defaults to the SYNTHETIC upstream (self-contained demo). To
 # proxy real Anthropic traffic, override in a .env file or the environment:
 #   GATEWAY_UPSTREAM_BASE_URL=https://api.anthropic.com
@@ -27,6 +34,10 @@ services:
       AIRTRAFFIC_ADDR: 0.0.0.0:8122
       AIRTRAFFIC_DATA_DIR: /app/data/harness
       AIRTRAFFIC_GATEWAY_KEY: ${GATEWAY_CLIENT_KEYS:-gwk-demo}
+      # shared key for the gateway spine routes (/api/gateway/leaks,
+      # /enforcement, /patterns). Required here because the gateway reaches
+      # the control plane over the compose network, not loopback.
+      AIRTRAFFIC_SPINE_KEY: ${AIRTRAFFIC_SPINE_KEY:-spine-dev-insecure}
       # flywheel probe: raw Presidio scores are the threshold-proposal evidence
       AIRTRAFFIC_PRESIDIO_URL: http://presidio:3000
     volumes:
@@ -53,6 +64,7 @@ services:
         {"anthropic":{"base_url":"${GATEWAY_UPSTREAM_BASE_URL:-http://control-plane:8122/synthetic/anthropic}","credential_ref":"env:ANTHROPIC_UPSTREAM_KEY"}}
       ANTHROPIC_UPSTREAM_KEY: ${ANTHROPIC_UPSTREAM_KEY:-sk-ant-synthetic-dev}
       GATEWAY_CLIENT_KEYS: ${GATEWAY_CLIENT_KEYS:-gwk-demo}
+      GATEWAY_CONTROL_PLANE_KEY: ${AIRTRAFFIC_SPINE_KEY:-spine-dev-insecure}
       GATEWAY_DETECTORS: regex,presidio
       GATEWAY_PRESIDIO_URL: http://presidio:3000
       GATEWAY_REDACT_ACTION: per_policy

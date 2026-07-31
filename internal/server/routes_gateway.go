@@ -129,8 +129,13 @@ func (s *Server) handleGatewayStatus(w http.ResponseWriter, r *http.Request) {
 			Vendors: rep.Vendors, LastSeen: rep.At, Fresh: rep.At.After(cutoff),
 		})
 	}
+	// The auth posture is reported, not assumed: the honesty model applies to
+	// our own control surface too — a viewer should be able to see that the
+	// spine is loopback-gated or running an unrotated dev key.
 	writeJSON(w, http.StatusOK, map[string]any{
 		"gateways":             out,
 		"pattern_pack_version": s.store.GetPatternPack().Version,
+		"spine_auth":           s.spineAuthMode(),
+		"spine_key_unrotated":  devSpineKeys[s.spineKey],
 	})
 }

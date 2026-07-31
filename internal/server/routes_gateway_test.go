@@ -20,6 +20,16 @@ func newTestServer(t *testing.T) (*Server, *store.Store, http.Handler) {
 	return srv, st, srv.Routes()
 }
 
+// spineReq builds a request from a loopback caller — the default posture for
+// the gateway spine routes when no shared key is configured. httptest's
+// default RemoteAddr (192.0.2.1) is deliberately non-local, so spine tests
+// must say which side of that line they are on.
+func spineReq(method, path string, body io.Reader) *http.Request {
+	req := httptest.NewRequest(method, path, body)
+	req.RemoteAddr = "127.0.0.1:54321"
+	return req
+}
+
 func TestGatewayLeaksIngestAndAudit(t *testing.T) {
 	_, st, h := newTestServer(t)
 	body := `{"reports":[
@@ -30,7 +40,7 @@ func TestGatewayLeaksIngestAndAudit(t *testing.T) {
 		 "redactions":[{"path":"messages[0].content","type":"SSN","start":4,"end":15,"detector":"regex","confidence":0.9}],
 		 "latency_ms":3,"added_latency_ms":1,"at":"2026-07-02T12:00:01Z"}
 	]}`
-	req := httptest.NewRequest("POST", "/api/gateway/leaks", strings.NewReader(body))
+	req := spineReq("POST", "/api/gateway/leaks", strings.NewReader(body))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusAccepted {
@@ -65,7 +75,7 @@ func TestGatewayLeaksRejectsValueField(t *testing.T) {
 	body := `{"reports":[{"request_id":"gw-3","route":"anthropic","action":"mask",
 		"redactions":[{"path":"p","type":"SSN","start":0,"end":11,"detector":"regex","confidence":0.9,"value":"123-45-6789"}],
 		"latency_ms":1,"added_latency_ms":1,"at":"2026-07-02T12:00:00Z"}]}`
-	req := httptest.NewRequest("POST", "/api/gateway/leaks", strings.NewReader(body))
+	req := spineReq("POST", "/api/gateway/leaks", strings.NewReader(body))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
@@ -75,7 +85,7 @@ func TestGatewayLeaksRejectsValueField(t *testing.T) {
 
 func TestGatewayEnforcementAndStatus(t *testing.T) {
 	_, st, h := newTestServer(t)
-	req := httptest.NewRequest("POST", "/api/gateway/enforcement",
+	req := spineReq("POST", "/api/gateway/enforcement",
 		strings.NewReader(`{"gateway_id":"gw@test","base_url":"http://127.0.0.1:8125","action":"mask","vendors":{"anthropic":["pii_redaction"]}}`))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -99,7 +109,7 @@ func TestGatewayEnforcementAndStatus(t *testing.T) {
 func TestGatewayPatternsServesPack(t *testing.T) {
 	_, st, h := newTestServer(t)
 	st.SetPatternPack(model.PatternPack{Version: 3, Rules: []model.PatternRule{{ID: "r1", Type: "SSN", Regex: `\d{9}`, Confidence: 0.7}}})
-	req := httptest.NewRequest("GET", "/api/gateway/patterns", nil)
+	req := spineReq("GET", "/api/gateway/patterns", nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"version": 3`) {

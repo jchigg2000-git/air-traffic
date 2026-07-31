@@ -69,7 +69,7 @@ func gatewayDrift(st *store.Store, ts time.Time) []model.DriftRecord {
 				records = append(records, model.DriftRecord{
 					Vendor: a.ID, Capability: c.Key, Plane: c.Plane, Surface: c.Disposition,
 					Declared: "proxy_enforced", Actual: "unenforced (gateway stale)", Severity: "error",
-					Message: "gateway enforcement heartbeat for " + c.Key + " went stale; requests are no longer filtered",
+					Message:    "gateway enforcement heartbeat for " + c.Key + " went stale; requests are no longer filtered",
 					DetectedAt: ts,
 				})
 				emitGatewayDriftObs(st, a, c, "red", "error", ts)
@@ -77,7 +77,7 @@ func gatewayDrift(st *store.Store, ts time.Time) []model.DriftRecord {
 				records = append(records, model.DriftRecord{
 					Vendor: a.ID, Capability: c.Key, Plane: c.Plane, Surface: c.Disposition,
 					Declared: "proxy_enforced (policy intent)", Actual: "no gateway reporting", Severity: "warning",
-					Message: "applied baseline expects PII redaction but no gateway has reported enforcement",
+					Message:    "applied baseline expects PII redaction but no gateway has reported enforcement",
 					DetectedAt: ts,
 				})
 				emitGatewayDriftObs(st, a, c, "amber", "warning", ts)

@@ -25,6 +25,11 @@ go run ./cmd/air-traffic-server
 go test ./...
 ```
 
+CI (`.github/workflows/ci.yml`) runs on every push and PR: Go gofmt + vet + build +
+`test -race`, a stdlib-only guard (the build fails if a `go.sum` ever appears), the
+redaction log-leak guard as its own job, the web typecheck/build/vitest suite, and both
+Docker image targets.
+
 Env: `AIRTRAFFIC_ADDR` (default `127.0.0.1:8122`), `AIRTRAFFIC_EMIT` (`on`),
 `AIRTRAFFIC_EMIT_INTERVAL_SECONDS` (`5`).
 
@@ -138,10 +143,21 @@ truthfully, staleness raises drift). Design: `docs/inference-gateway-design.md`;
 **Run the whole stack (dockerized):**
 
 ```bash
+./scripts/dev-env.sh              # optional: mint real keys into .env (see Keys below)
 docker compose up -d --build      # control plane :8122 (SPA baked in) + gateway :8125 + Presidio :8126
 open http://127.0.0.1:8122/settings/harness
 E2E_COMPOSE=1 ./scripts/e2e-gateway.sh   # assert the running stack end-to-end
 ```
+
+**Keys.** Two shared secrets hold the stack together: `GATEWAY_CLIENT_KEYS` (the caller key for
+the gateway's `/v1/messages`, which the control plane's harness presents as
+`AIRTRAFFIC_GATEWAY_KEY`) and `AIRTRAFFIC_SPINE_KEY` (required on `/api/gateway/leaks`,
+`/enforcement`, and `/patterns` — the pattern pack distributes deny-list *terms*, so the read
+side is gated too). Compose falls back to throwaway values (`gwk-demo`, `spine-dev-insecure`)
+so the demo comes up in one command; both binaries log a warning while those are live and
+`/api/gateway/status` reports `spine_key_unrotated`. Run `./scripts/dev-env.sh` (add `--rotate`
+to replace existing keys) before anything shared. With no spine key set at all, those three
+routes accept **loopback callers only** — a container-network peer does not qualify.
 
 Images bake built source — after a code change, `docker compose up -d --build <service>`
 (a bare `restart` won't pick it up). Harness state (ratchet series, promoted corpus, pattern

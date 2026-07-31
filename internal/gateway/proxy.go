@@ -198,7 +198,7 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 	var tokensIn, tokensOut int64
 	if strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
 		audit.Stream = true
-		err = copyStream(w, resp.Body)
+		tokensIn, tokensOut, err = copyStream(w, resp.Body)
 	} else {
 		tokensIn, tokensOut, err = relayWithUsage(w, resp.Body)
 	}
@@ -211,8 +211,8 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 
 // relayWithUsage copies a JSON response to the caller byte-faithfully while
 // extracting usage token counts for the spine metrics. Bodies beyond 4 MB are
-// relayed without parsing. (SSE usage extraction is deferred — the
-// message_delta events carry it; see TODO-gateway-deferred.md.)
+// relayed without parsing. The streaming equivalent lives in stream.go, which
+// scans message_start / message_delta usage as the events go by.
 func relayWithUsage(w http.ResponseWriter, body io.Reader) (tokensIn, tokensOut int64, err error) {
 	buf, err := io.ReadAll(io.LimitReader(body, 4<<20))
 	if err != nil {

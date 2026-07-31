@@ -61,10 +61,10 @@ func NewRunner(st *store.Store, log *slog.Logger, dataDir, gatewayKey, presidioU
 	}
 	return &Runner{
 		store: st, log: log, persist: p, gatewayKey: gatewayKey, probe: probe,
-		httpc:   &http.Client{Timeout: 60 * time.Second},
-		results: map[string][]model.HarnessResult{},
-		ratchet: p.loadRatchet(),
-		corpus:  p.loadCorpus(),
+		httpc:     &http.Client{Timeout: 60 * time.Second},
+		results:   map[string][]model.HarnessResult{},
+		ratchet:   p.loadRatchet(),
+		corpus:    p.loadCorpus(),
 		proposals: proposals,
 	}, nil
 }
