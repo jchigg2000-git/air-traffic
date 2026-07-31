@@ -18,11 +18,11 @@ jobs:
     name: Go (build / vet / test)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false # stdlib-only: no go.sum to key a module cache on
 
       # The tree is stdlib-only and gofmt-clean; a drift here is a review
       # nuisance, so it fails fast before the slower stages.
@@ -52,11 +52,11 @@ jobs:
     name: Log-leak guard
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false # stdlib-only: no go.sum to key a module cache on
       - run: go test ./internal/gateway/ ./internal/harness/ -run 'TestNoRedactedValueInLogsOrAudit|TestFullLoopFlywheelRatchet' -v
 
   web:
@@ -66,8 +66,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -80,7 +80,7 @@ jobs:
     name: Docker images build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build control-plane image
         run: docker build --target server -t air-traffic-server:ci .
       - name: Build gateway image
