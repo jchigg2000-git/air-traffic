@@ -198,3 +198,66 @@ the champion. Filed as spec input for the next `/ratchet-up landing-page` run in
 Not taken, deliberately: the vendor brand-hue palette rework (`VendorGlyph.tsx` oranges collide
 with `--amber`), the `.panel-2` vs `bg-panel2` naming reconciliation, and propagating Gateway
 Traffic's Live/Pause toggle app-wide — the last is behaviour addition, not tightening.
+
+## 2026-08-15 — Gateway keystore: apps own the policy, keys carry the identity
+
+Driver: the owner asked for "a keystore that we can issue keys based on user ids or apps… a
+specific app should be allowed many keys." Reconnaissance reframed the problem before design
+started. `GATEWAY_CLIENT_KEYS` already **authenticates** — one comma-separated env var resolved
+once at boot into a `map[string]struct{}` (`internal/gateway/server.go:49`), checked by a bare map
+lookup (`proxy.go:74`). What it cannot do is say *who* called, or serve two callers different
+postures. So the keystore's justification is **attribution and scoping**, not authentication, and
+the design is judged on those.
+
+Both gaps were already costing something, in the repo's own record. `GatewayRequestReport` carried
+no principal, so the Gateway Traffic page shipped earlier the same day could not tell one client
+from another. And §0 of the roadmap records needing `general_saas`/`detect` for one app while a
+stricter client would want `mask` — impossible with one global dial.
+
+**Shape.** `App` is the parent and the unit policy attaches to; `APIKey` hangs off it with a
+free-form `Subject` (user id, agent instance, CI job). One app, many keys. The `Subject` field is
+also the deliberate OIDC on-ramp: a `sub` claim maps into it later, making federation a new
+issuance path rather than a new data model. No OIDC/Entra machinery was built.
+
+**Decisions worth naming, with their reasons:**
+
+- **SHA-256, no pepper, no KDF.** The secret is 192 bits of `crypto/rand`, not a password — there
+  is no dictionary to attack, so argon2/bcrypt would buy nothing while adding latency to a hot path
+  that advertises 12–23 ms of added overhead. A pepper would have to reach every gateway,
+  recreating the shared-secret problem it was meant to solve. (Go 1.26 has `crypto/pbkdf2` and
+  `crypto/hkdf` in stdlib; the constraint here is judgement, not availability.)
+- **Verification at the edge against a pulled snapshot**, on the same version-compare-and-swap
+  contract as `PatternPack`. Rejected: a per-request `/verify` call to the control plane — it would
+  add a network hop per request and break the property that the gateway keeps serving when the
+  control plane is down.
+- **Cache-and-continue, so revocation is eventual** (≤ `GATEWAY_POLICY_PULL_INTERVAL`, 15 s). A
+  failed pull leaves the last snapshot in place. Failing closed would take every client down on a
+  routine control-plane restart, and that store is in-memory so restarts are routine. Measured at
+  ~14 s live. Instant revocation is a push, not a pull; not built.
+- **The keystore persists; nothing else in the store does.** Observations and reports are
+  reconstructible, issued credentials are not. `keys.json` under `AIRTRAFFIC_DATA_DIR`, 0600,
+  temp-file + rename, digests only. A corrupt file is a **hard boot failure**: silently starting
+  with an empty keystore would present to clients as an unexplained 401 storm.
+- **Issuance is loopback-only, and explicitly NOT the spine key** (owner's choice when asked). The
+  gateway holds the spine key; a gateway able to mint its own credentials makes the keystore
+  pointless. Consequence, surfaced before the choice was ratified and confirmed live: compose
+  publishes the control plane behind a port, so a browser or host `curl` arrives from the Docker
+  bridge and gets 401. Hence **no keystore UI in this slice**, and `scripts/keystore.sh` routes
+  admin calls through the container's netns. The upgrade path is the two-tier ladder
+  `requireSpineKey` already implements, with an `AIRTRAFFIC_ADMIN_KEY`; not built.
+- **`GATEWAY_CLIENT_KEYS` stays required at boot** and keeps authenticating, reporting as app
+  `env`. The keystore is additive: README, compose, `dev-env.sh`, `e2e-gateway.sh` and the live
+  hf-sandbox integration all depend on that path, and `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh`
+  staying 9/9 is the compatibility proof.
+- **The heartbeat now accounts for scoped apps.** `pushHeartbeat` claims vendor enforcement only if
+  the default action enforces *and* every app carrying its own baseline also enforces. Without
+  this, one app scoped to monitor-only would have let the gateway overstate coverage — the same
+  honesty rule as the 2026-08-15 Flight Deck entry, applied to a surface that scoping had just made
+  able to lie.
+- **`Subject` is the first field in `GatewayRequestReport` that can hold a human identifier.** It
+  is admitted because the owner authors it at issuance — a deliberate label, not content extracted
+  from traffic — and it is kept out of log lines even though it rides the report.
+
+**Explicitly not in this slice:** per-app pattern-rule scoping (the `manual-person-m2m-interests`
+retraction hole in `docs/plans/TODO-gateway-deferred.md` stays open), per-key quotas (same
+stdlib-only blocker as G9), OIDC, and a keystore UI.

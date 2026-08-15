@@ -6,7 +6,7 @@ import ApiStateBanner from '../components/ApiStateBanner.tsx'
 import { relativeTime, fmtNum } from '../lib/format.ts'
 import { useClock } from '../lib/useClock.ts'
 
-const COLS = 'grid-cols-[0.7fr_0.6fr_1.3fr_0.7fr_1.4fr_0.8fr_0.6fr_0.8fr]'
+const COLS = 'grid-cols-[0.7fr_0.9fr_0.6fr_1.2fr_0.7fr_1.3fr_0.8fr_0.6fr_0.8fr]'
 
 // Action colours track what the gateway actually did to the request, not how
 // worried to be: mask and block both mean the filter fired.
@@ -41,6 +41,21 @@ function redactionSummary(r: GatewayRequest): string {
     .join(', ')
 }
 
+// Which app sent the request, and — when the app carries its own baseline —
+// which posture it was served under. Requests authenticated by the legacy
+// GATEWAY_CLIENT_KEYS env var report "env"; anything older than the keystore
+// carries no attribution at all.
+function appLabel(r: GatewayRequest): string {
+  return r.app_id || '—'
+}
+
+function attributionTitle(r: GatewayRequest): string {
+  const parts = [`key ${r.key_id || 'unknown'}`]
+  if (r.subject) parts.push(`subject ${r.subject}`)
+  if (r.baseline) parts.push(`baseline ${r.baseline}`)
+  return parts.join(' · ')
+}
+
 function statusColor(status: number | undefined): string {
   if (!status) return 'var(--faint)'
   if (status >= 500) return 'var(--red)'
@@ -64,7 +79,7 @@ export default function GatewayTraffic() {
     if (!filter.trim()) return all
     const q = filter.toLowerCase()
     return all.filter((r) =>
-      [r.route, r.model ?? '', r.action, r.request_id, redactionSummary(r)]
+      [r.route, r.model ?? '', r.action, r.request_id, r.app_id ?? '', r.subject ?? '', redactionSummary(r)]
         .join(' ')
         .toLowerCase()
         .includes(q),
@@ -76,17 +91,19 @@ export default function GatewayTraffic() {
     let blocked = 0
     let tokensIn = 0
     let tokensOut = 0
+    const apps = new Set<string>()
     const added: number[] = []
     for (const r of rows) {
       redactions += r.redactions?.length ?? 0
       if (r.action === 'block') blocked++
       tokensIn += r.tokens_in ?? 0
       tokensOut += r.tokens_out ?? 0
+      if (r.app_id) apps.add(r.app_id)
       added.push(r.added_latency_ms)
     }
     added.sort((a, b) => a - b)
     const p95 = added.length ? added[Math.min(added.length - 1, Math.floor(added.length * 0.95))] : 0
-    return { redactions, blocked, tokensIn, tokensOut, p95 }
+    return { redactions, blocked, tokensIn, tokensOut, p95, apps: apps.size }
   }, [rows])
 
   return (
@@ -99,7 +116,7 @@ export default function GatewayTraffic() {
             <input
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              placeholder="Filter route, model, action…"
+              placeholder="Filter app, route, model, action…"
               className="rounded-lg border border-line bg-panel2 px-3 py-1.5 text-sm text-fg placeholder:text-faint"
             />
             <button
@@ -120,9 +137,10 @@ export default function GatewayTraffic() {
       />
 
       <ApiStateBanner error={traffic.error} className="mb-4" />
-      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-6">
 
         <Tile label="Requests" value={fmtNum(rows.length)} />
+        <Tile label="Apps" value={fmtNum(totals.apps)} />
         <Tile label="Redactions" value={fmtNum(totals.redactions)} />
         <Tile label="Blocked" value={fmtNum(totals.blocked)} tone={totals.blocked ? 'var(--red)' : undefined} />
         <Tile label="Tokens in / out" value={`${fmtNum(totals.tokensIn)} / ${fmtNum(totals.tokensOut)}`} />
@@ -134,6 +152,7 @@ export default function GatewayTraffic() {
           className={`grid ${COLS} gap-2 border-b border-line px-5 py-2 text-[10px] font-semibold uppercase tracking-wider text-faint`}
         >
           <span>When</span>
+          <span>App</span>
           <span>Route</span>
           <span>Model</span>
           <span>Action</span>
@@ -150,6 +169,10 @@ export default function GatewayTraffic() {
             >
               <span className="text-xs text-faint" title={r.request_id}>
                 {relativeTime(r.at, now)}
+              </span>
+              <span className="truncate font-mono text-[11px] text-fg" title={attributionTitle(r)}>
+                {appLabel(r)}
+                {r.baseline && <span className="ml-1 text-[10px] text-faint">{r.baseline}</span>}
               </span>
               <span className="truncate text-xs text-muted">
                 {r.route}

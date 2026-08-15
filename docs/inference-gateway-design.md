@@ -237,6 +237,8 @@ flowchart TD
 - `ANTHROPIC_AUTH_TOKEN` → a key your gateway issues (sent as `Authorization: Bearer`); the gateway holds the real Anthropic API key server-side.
 - Set via `~/.claude/settings.json` `env` block or shell profile.
 
+"A key your gateway issues" is literal since the keystore landed (2026-08-15): register an app, issue a key against it tagged with a subject, optionally scoped to one route and an expiry, and revoke it independently of every other caller — `./scripts/keystore.sh`. The value of that is less the authentication (a shared secret already did that) than the two things a shared secret cannot do: every request is **attributed** to an app on the traffic feed, and an app can be served its **own baseline**, so one gateway can run a monitor-only client and a masking client side by side. Revocation is eventual, bounded by the policy-pull interval. See `DECISIONS.md` 2026-08-15 "Gateway keystore".
+
 Anthropic's docs describe routing Claude Code through **corporate proxies and custom LLM gateways** with exactly these variables — it's an intended deployment pattern. Authenticate the gateway to Anthropic with a **first-party API key** (Console, or Bedrock/Vertex under your commercial terms), not a consumer subscription login. Bonus: with a **BAA + Zero Data Retention** enabled on your org, the BAA extends to Claude Code's API traffic — a natural pairing with a PHI-redacting gateway.
 
 ## 13. Caveats & failure modes

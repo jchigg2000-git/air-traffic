@@ -166,6 +166,36 @@ so the demo comes up in one command; both binaries log a warning while those are
 to replace existing keys) before anything shared. With no spine key set at all, those three
 routes accept **loopback callers only** — a container-network peer does not qualify.
 
+**Keystore (issued keys, per-app policy).** `GATEWAY_CLIENT_KEYS` authenticates but says nothing
+about *who* is calling, and it gives every caller one posture. The keystore adds apps and keys
+issued against them, so a request carries a principal and an app can run its own baseline:
+
+```bash
+./scripts/keystore.sh add-app hf-sandbox            # optional 2nd arg: a baseline id
+./scripts/keystore.sh issue   hf-sandbox user-42    # optional: <route> <expires-in-days>
+#   → prints the key ONCE; only a SHA-256 digest is stored
+./scripts/keystore.sh set-baseline hf-sandbox fintech   # "" to go back to the global policy
+./scripts/keystore.sh revoke  <key-id>
+```
+
+One app may hold many keys, tagged by `subject` (a user id, agent instance, CI job) and optionally
+scoped to one route and an expiry. Requests then show up on the Gateway Traffic tab attributed to
+their app, and an app carrying a baseline is served under *that* posture while everyone else stays
+on the applied policy — the gateway's heartbeat stops claiming enforcement if any app is scoped to
+monitor-only, so per-app scoping cannot quietly overstate coverage.
+
+Two things to know about the trust boundary. The admin API is **loopback-only and deliberately not
+the spine key** — the gateway holds that key, and a gateway that can mint its own credentials makes
+the keystore pointless. Since compose publishes the control plane behind a port, a browser (or a
+plain host `curl`) reaches it over the Docker bridge and gets a 401; that is why `scripts/keystore.sh`
+routes the call through the container's netns, and why there is no keystore UI. And revocation is
+**eventual**: gateways verify against a pulled snapshot, so a revoked key stops working within one
+`GATEWAY_POLICY_PULL_INTERVAL` (15s by default), not instantly. `GATEWAY_CLIENT_KEYS` keeps working
+throughout and is still required at boot; keystore-issued keys are additive, and legacy callers
+report as app `env`. The keystore itself is the one part of the control plane's store that is **not**
+in-memory — it persists to `keys.json` in the `harness-data` volume, so issued keys survive a restart
+that wipes observations.
+
 Images bake built source — after a code change, `docker compose up -d --build <service>`
 (a bare `restart` won't pick it up). Harness state (ratchet series, promoted corpus, pattern
 pack) persists in the `harness-data` volume. The compose stack and the bare `go run` dev
@@ -202,9 +232,11 @@ positive is an owner judgement, authored via `POST /api/harness/proposals` and t
 any other.
 
 The **Gateway Traffic** tab (`/settings/traffic`) is the other half: not seeded harness runs but
-whatever real traffic actually went through the proxy, newest first — route, model, action,
-redaction types, tokens, upstream status, and how much latency the gateway itself added. Tokens
-are what the vendor reported; there is no cost column, deliberately.
+whatever real traffic actually went through the proxy, newest first — app, route, model, action,
+redaction types, tokens, upstream status, and how much latency the gateway itself added. The App
+column comes from the keystore (hover it for the key id, subject and baseline); requests
+authenticated by `GATEWAY_CLIENT_KEYS` show as `env`. Tokens are what the vendor reported; there is
+no cost column, deliberately.
 
 **Pointing real clients at it.** Claude Code speaks the Anthropic route as-is:
 

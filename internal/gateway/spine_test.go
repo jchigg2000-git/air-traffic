@@ -131,21 +131,24 @@ func TestPolicyPullDerivesPreCoverageGate(t *testing.T) {
 	// healthcare, ZDR not attested → block (the pre-coverage gate)
 	fcp.policyJSON = `{"policy":{"baseline":"healthcare","vendor_defaults":{},"vendors":{},"agentic":{},"budget":{}}}`
 	gw.pullOnce(ctx)
-	if got := gw.currentAction(); got != actionBlock {
+	got, _ := gw.actionFor(principal{})
+	if got != actionBlock {
 		t.Errorf("healthcare unattested action = %q, want block", got)
 	}
 
 	// attest ZDR → downgrade to mask, no restart
 	fcp.policyJSON = `{"policy":{"baseline":"healthcare","vendor_defaults":{},"vendors":{"anthropic":{"zdr_attested":true}},"agentic":{},"budget":{}}}`
 	gw.pullOnce(ctx)
-	if got := gw.currentAction(); got != actionMask {
+	got, _ = gw.actionFor(principal{})
+	if got != actionMask {
 		t.Errorf("healthcare attested action = %q, want mask", got)
 	}
 
 	// general_saas → detect-only (monitoring, not enforcement)
 	fcp.policyJSON = `{"policy":{"baseline":"general_saas","vendor_defaults":{},"vendors":{},"agentic":{},"budget":{}}}`
 	gw.pullOnce(ctx)
-	if got := gw.currentAction(); got != actionDetect {
+	got, _ = gw.actionFor(principal{})
+	if got != actionDetect {
 		t.Errorf("general_saas action = %q, want detect", got)
 	}
 	gw.pushHeartbeat(ctx)

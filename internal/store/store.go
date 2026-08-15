@@ -37,6 +37,15 @@ type Store struct {
 	gwEnforce     map[string]model.EnforcementReport
 	patternPack   model.PatternPack
 
+	// Keystore (keystore.go). Unlike the rings above this is write-through to
+	// disk when keyFile is set — credentials must survive a restart.
+	apps           map[string]model.App
+	keys           map[string]model.APIKey
+	keysVersion    int
+	keysUpdatedAt  time.Time
+	keyFile        keyPersister
+	keysPersistErr error
+
 	nextCallID  int64
 	nextObsID   int64
 	nextEventID int64
@@ -50,6 +59,8 @@ func New() *Store {
 		adapters:    make(map[string]model.Adapter),
 		credentials: make(map[string]model.Credential),
 		gwEnforce:   make(map[string]model.EnforcementReport),
+		apps:        make(map[string]model.App),
+		keys:        make(map[string]model.APIKey),
 		nextCallID:  1, nextObsID: 1, nextEventID: 1, nextDriftID: 1, nextInferID: 1,
 	}
 	s.seed()

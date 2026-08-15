@@ -37,7 +37,37 @@ auth schemas · §6 Open-decisions index · Appendix
 
 ## §0 Do next
 
-> ### ▶ RESUME HERE — session handoff 2026-08-15 (GATEWAY-5: OpenAI dialect + traffic feed)
+> ### ▶ RESUME HERE — session handoff 2026-08-15 (GATEWAY-7: the gateway keystore)
+>
+> **State:** working tree has **uncommitted** GATEWAY-7 work on top of the uncommitted GATEWAY-5/6
+> work below. Everything below was built and verified this pass: `go test -race ./...` green,
+> `npm run build` + 18 vitest green, `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` **9/9**
+> (recall_behavioral 1.000, precision 0.991, trap FPs 0), compose stack rebuilt and healthy.
+>
+> **What landed.** A keystore: apps, many keys per app tagged by `subject` (user id / agent
+> instance / CI job), route scoping, expiry, revocation — and, the actual payoff, **per-app
+> redaction policy**. `GATEWAY_CLIENT_KEYS` already authenticated; what it could not do was say
+> who called or serve two callers different postures. Proven live: `hf-sandbox` scoped to
+> `fintech` resolved to **mask** while a legacy `env` caller on the global `general_saas` resolved
+> to **detect**, same gateway, same instant. See §3 GATEWAY-7 and `DECISIONS.md` 2026-08-15
+> "Gateway keystore".
+>
+> **▶ NEXT ACTION: unchanged and unblocked** — §3's deferred G-blocks, §4's vendor cost facets,
+> §5's 10 vendor auth schemas. The one keystore follow-up (**GATEWAY-7a**, an
+> `AIRTRAFFIC_ADMIN_KEY` tier so the admin API is reachable from the browser) is an owner call,
+> not a blocker.
+>
+> **Owed / unverified from the keystore pass:**
+> - The Gateway Traffic page's new **App column is build-verified only** — the same
+>   nobody-opened-a-browser gap OWED-2 records. Its API and attribution are verified against real
+>   traffic.
+> - There is **no keystore UI**, by construction (see GATEWAY-7a). Administration is
+>   `scripts/keystore.sh`.
+> - Live stack state left behind: an app `hf-sandbox` is registered with **no baseline** (inherits
+>   the global policy) and **two revoked keys**. Inert, but it is real state in the `harness-data`
+>   volume, not a fixture.
+>
+> ### Session handoff 2026-08-15 (GATEWAY-5: OpenAI dialect + traffic feed) — HISTORY
 >
 > **State:** working tree has **uncommitted** GATEWAY-5 work (see §3). Toolchain present this pass
 > (go 1.26.5, node 24.14.1, docker 29.5.3), so unlike the 2026-08-07 pass everything below was
@@ -245,6 +275,35 @@ kept on disk, not deleted — see Appendix).
   (second pass)". Decisions: `DECISIONS.md` 2026-08-15 (two entries).
   **Marked 🔶 not ✅ because:** the new Gateway Harness chip rendering for `allow_list` is
   build-verified only, not browser-verified (same standing gap as OWED-2).
+- ✅ **GATEWAY-7** (2026-08-15) **Gateway keystore — apps, issued keys, per-app policy.** Before
+  this the gateway's whole notion of "who is calling" was `GATEWAY_CLIENT_KEYS`: one env var
+  resolved at boot into a `map[string]struct{}`, checked by a bare map lookup. It authenticated
+  and nothing more — no principal on any report, and one redaction posture for every caller.
+  - **What shipped.** `model.App` / `model.APIKey` / `model.KeySnapshot`
+    (`internal/model/keystore.go`); write-through persistence to `keys.json` under
+    `AIRTRAFFIC_DATA_DIR` (`internal/store/keystore*.go`); a loopback-gated admin API
+    (`internal/server/routes_keystore.go`: `/api/apps`, `/api/apps/{id}/keys`, `/api/keys/{kid}`)
+    plus `GET /api/gateway/keys` on the spine; edge verification against a pulled snapshot
+    (`internal/gateway/keystore.go`, `pullKeys` in `spine_pull.go`); `actionFor(principal)`
+    replacing `currentAction()`; `app_id`/`key_id`/`subject`/`baseline` on
+    `GatewayRequestReport`; an App column on the Gateway Traffic page; `scripts/keystore.sh`.
+  - **Proven live on the compose stack**, not merely built: app `hf-sandbox` scoped to `fintech`
+    resolved to **mask** at the same instant a legacy `env`-key caller on the global
+    `general_saas` resolved to **detect** — two postures, one gateway. Attribution
+    (`app_id`/`key_id`/`subject`) landed on the traffic feed; an `openai`-scoped key reached the
+    real Hugging Face router on `/v1/chat/completions` and was refused 401 on `/v1/messages`;
+    revocation took ~14 s (inside the 15 s pull window); the keystore survived a
+    `docker compose restart control-plane` that wipes everything else in that store.
+  - **Compatibility bar held:** `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` **9/9**
+    (recall_behavioral 1.000, precision 0.991, trap FPs 0) — it authenticates with env keys, so
+    green there is the proof. `go test -race ./...`, `npm run build`, 18 vitest all green.
+  - **Rationale, tradeoffs, and what was deliberately not built:** `DECISIONS.md` 2026-08-15
+    "Gateway keystore: apps own the policy, keys carry the identity".
+  - ⬜ **GATEWAY-7a** (follow-up, non-blocking) No keystore UI, because issuance is loopback-only
+    and compose publishes the control plane behind a port — a browser request arrives from the
+    Docker bridge, not loopback. Opening it to the UI means adding an `AIRTRAFFIC_ADMIN_KEY` tier
+    to `requireLocalAdmin`, the same two-tier ladder `requireSpineKey` already implements. Owner
+    call, ~30 lines, no data-model change.
 - ⬜ **GATEWAY-3** Deferred G-blocks — full detail lives in `docs/plans/TODO-gateway-deferred.md`
   (kept separate, code-referenced; not duplicated here). Summary pointer only:
   - G3 (reversible tokenize + Redis vault), G4 (async monitor + response-side enforcement),

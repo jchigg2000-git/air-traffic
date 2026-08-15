@@ -15,6 +15,7 @@ import (
 	"air-traffic/internal/gateway/config"
 	"air-traffic/internal/gateway/credbroker"
 	"air-traffic/internal/gateway/detect"
+	"air-traffic/internal/model"
 )
 
 // Server is one gateway instance. It holds no cross-request state; everything
@@ -34,9 +35,20 @@ type Server struct {
 	presidio *detect.Presidio // nil unless in the chain
 
 	// policyAction holds the action derived from the pulled control-plane
-	// policy when GATEWAY_REDACT_ACTION=per_policy.
-	policyAction atomic.Value
-	packVersion  atomic.Int64
+	// policy when GATEWAY_REDACT_ACTION=per_policy. policyBaseline names the
+	// baseline it came from, and zdrAttested is the input deriveAction needs
+	// to resolve a per-app baseline the same way.
+	policyAction   atomic.Value
+	policyBaseline atomic.Value
+	zdrAttested    atomic.Bool
+	packVersion    atomic.Int64
+
+	// baselines is every baseline the control plane publishes, by id, so a
+	// per-app baseline can be derived without a fetch per request.
+	baselines atomic.Pointer[map[string]model.Baseline]
+	// keys is the pulled keystore. nil until the first successful pull; the
+	// env key set carries authentication until then.
+	keys atomic.Pointer[keySnapshot]
 
 	audits  auditRing
 	metrics *metrics
@@ -94,8 +106,8 @@ func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
 	mux.HandleFunc("GET /readyz", s.handleReadyz)
-	mux.HandleFunc("POST /v1/messages", s.requireClientKey(writeVendorError, s.handleMessages))
-	mux.HandleFunc("POST /v1/chat/completions", s.requireClientKey(writeOpenAIError, s.handleChatCompletions))
+	mux.HandleFunc("POST /v1/messages", s.requireClientKey(anthropicDialect(), s.handleMessages))
+	mux.HandleFunc("POST /v1/chat/completions", s.requireClientKey(openAIDialect(), s.handleChatCompletions))
 	return s.recoverMiddleware(s.requestID(mux))
 }
 

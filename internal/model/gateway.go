@@ -18,10 +18,25 @@ type GatewayRedaction struct {
 // it, the control plane ingests it at POST /api/gateway/leaks, the harness
 // joins it against ground truth by RequestID.
 type GatewayRequestReport struct {
-	RequestID       string             `json:"request_id"`
-	Route           string             `json:"route"`
-	Action          string             `json:"action"` // pass | mask | block | detect
-	Model           string             `json:"model,omitempty"`
+	RequestID string `json:"request_id"`
+	Route     string `json:"route"`
+	Action    string `json:"action"` // pass | mask | block | detect
+	Model     string `json:"model,omitempty"`
+	// Principal attribution, from the keystore key that authenticated the
+	// request. Legacy GATEWAY_CLIENT_KEYS callers report app_id "env".
+	//
+	// Subject is the one field here that can hold a human identifier, and it
+	// is the first such field in this type — everything else is types,
+	// offsets and counts. It is safe in a different way than the rest: the
+	// owner authored it at issuance, so it is a deliberate label rather than
+	// content extracted from traffic. Treat it as such when choosing what to
+	// put in it.
+	AppID   string `json:"app_id,omitempty"`
+	KeyID   string `json:"key_id,omitempty"`
+	Subject string `json:"subject,omitempty"`
+	// Baseline names which baseline decided Action, so a per-app posture is
+	// visible in the feed rather than having to be inferred from app_id.
+	Baseline        string             `json:"baseline,omitempty"`
 	Redactions      []GatewayRedaction `json:"redactions,omitempty"`
 	DetectorErrors  []string           `json:"detector_errors,omitempty"`
 	FailModeTripped bool               `json:"fail_mode_tripped,omitempty"`

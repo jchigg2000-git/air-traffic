@@ -49,7 +49,40 @@ func (s *Server) pullOnce(ctx context.Context) error {
 			firstErr = err
 		}
 	}
+	if err := s.pullKeys(ctx); err != nil {
+		s.log.Warn("keystore pull failed", "error", err)
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
 	return firstErr
+}
+
+// pullKeys refreshes the keystore snapshot, on the same version-compare-and-
+// swap contract as the pattern pack.
+//
+// A failure here leaves the previous snapshot in place rather than clearing
+// it. Failing closed would take every keystore client down whenever the
+// control plane restarts — and its store is in-memory, so restarts are
+// routine. The cost of that choice, stated plainly: revocation is eventual,
+// bounded by GATEWAY_POLICY_PULL_INTERVAL (15s by default), and unbounded
+// while the control plane is unreachable.
+func (s *Server) pullKeys(ctx context.Context) error {
+	var payload struct {
+		Snapshot model.KeySnapshot `json:"snapshot"`
+	}
+	if err := s.getJSON(ctx, "/api/gateway/keys", &payload); err != nil {
+		return err
+	}
+	if prev := s.keys.Load(); prev != nil && prev.version == payload.Snapshot.Version {
+		return nil
+	}
+	s.keys.Store(newKeySnapshot(payload.Snapshot))
+	s.log.Info("keystore reloaded",
+		"version", payload.Snapshot.Version,
+		"apps", len(payload.Snapshot.Apps),
+		"keys", len(payload.Snapshot.Keys))
+	return nil
 }
 
 func (s *Server) pullPolicy(ctx context.Context) error {
@@ -65,22 +98,35 @@ func (s *Server) pullPolicy(ctx context.Context) error {
 	if err := s.getJSON(ctx, "/api/policies", &payload); err != nil {
 		return err
 	}
+	// Baselines are cached whole rather than resolved one at a time: an app
+	// with its own baseline needs to derive an action per request, and that
+	// cannot mean a fetch per request.
+	byID, err := s.fetchBaselines(ctx)
+	if err != nil {
+		return err
+	}
+	s.baselines.Store(&byID)
+
 	if payload.Policy == nil || payload.Policy.Baseline == "" {
 		return nil // no policy applied yet; keep the safe default (mask)
 	}
-	base, err := s.baselineByID(ctx, payload.Policy.Baseline)
-	if err != nil {
-		return err
+	base, ok := byID[payload.Policy.Baseline]
+	if !ok {
+		return fmt.Errorf("baseline %q not found", payload.Policy.Baseline)
 	}
 	zdrAttested := false
 	if v, ok := payload.Policy.Vendors["anthropic"]; ok {
 		zdrAttested, _ = v["zdr_attested"].(bool)
 	}
+	// ZDR attestation is a property of the vendor contract, not of the
+	// caller, so it stays global and feeds per-app derivation unchanged.
+	s.zdrAttested.Store(zdrAttested)
 	action := deriveAction(base, zdrAttested)
 	if prev := s.policyAction.Load(); prev == nil || prev.(string) != action {
 		s.log.Info("policy action changed", "baseline", payload.Policy.Baseline, "action", action, "zdr_attested", zdrAttested)
 	}
 	s.policyAction.Store(action)
+	s.policyBaseline.Store(payload.Policy.Baseline)
 	return nil
 }
 
@@ -104,19 +150,18 @@ func deriveAction(b model.Baseline, zdrAttested bool) string {
 	}
 }
 
-func (s *Server) baselineByID(ctx context.Context, id string) (model.Baseline, error) {
+func (s *Server) fetchBaselines(ctx context.Context) (map[string]model.Baseline, error) {
 	var payload struct {
 		Baselines []model.Baseline `json:"baselines"`
 	}
 	if err := s.getJSON(ctx, "/api/baselines", &payload); err != nil {
-		return model.Baseline{}, err
+		return nil, err
 	}
+	byID := make(map[string]model.Baseline, len(payload.Baselines))
 	for _, b := range payload.Baselines {
-		if b.ID == id {
-			return b, nil
-		}
+		byID[b.ID] = b
 	}
-	return model.Baseline{}, fmt.Errorf("baseline %q not found", id)
+	return byID, nil
 }
 
 func (s *Server) pullPatterns(ctx context.Context) error {

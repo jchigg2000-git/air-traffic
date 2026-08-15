@@ -26,6 +26,15 @@ func main() {
 	st := store.New()
 	app := server.New(st, log)
 
+	// The keystore is the one part of the store that may not be lost to a
+	// restart: observations and reports are reconstructible, issued
+	// credentials are not. Load it before anything can serve a request.
+	dataDir := env("AIRTRAFFIC_DATA_DIR", "data/harness")
+	if err := st.EnableKeystorePersistence(dataDir); err != nil {
+		log.Error("keystore load failed", "error", err)
+		os.Exit(1)
+	}
+
 	// Shared key for the gateway spine routes (/api/gateway/leaks,
 	// /enforcement, /patterns). Unset keeps the loopback-only dev posture.
 	gatewayKey := env("AIRTRAFFIC_GATEWAY_KEY", "gwk-demo")
@@ -39,7 +48,7 @@ func main() {
 	// the flywheel's raw-score probe (threshold-proposal evidence); if the
 	// sidecar is down the probe degrades gracefully.
 	hr, err := harness.NewRunner(st, log,
-		env("AIRTRAFFIC_DATA_DIR", "data/harness"),
+		dataDir,
 		gatewayKey,
 		env("AIRTRAFFIC_PRESIDIO_URL", "http://127.0.0.1:8126"))
 	if err != nil {

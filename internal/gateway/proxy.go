@@ -69,19 +69,27 @@ func openAIDialect() dialect {
 }
 
 // requireClientKey authenticates the caller's gateway key (Bearer or
-// x-api-key) against the resolved client-key set. The rejection is written in
-// the caller's own dialect, so a client SDK can parse the 401 it gets back.
-func (s *Server) requireClientKey(writeErr func(http.ResponseWriter, int, string, string), next http.HandlerFunc) http.HandlerFunc {
+// x-api-key) against the keystore snapshot, falling back to the boot-time env
+// key set. The resolved principal rides the request context from here, which
+// is what makes per-app attribution and per-app policy possible downstream.
+//
+// The rejection is written in the caller's own dialect, so a client SDK can
+// parse the 401 it gets back. It is deliberately the same message for an
+// unknown, expired, revoked, out-of-scope and disabled-app key: telling a
+// caller which of those it hit is telling them something about keys they do
+// not hold.
+func (s *Server) requireClientKey(d dialect, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		key := r.Header.Get("x-api-key")
 		if key == "" {
 			key = strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		}
-		if _, ok := s.clientKeys[key]; !ok || key == "" {
-			writeErr(w, http.StatusUnauthorized, "authentication_error", "invalid gateway key")
+		p, ok := s.authenticate(key, d.route)
+		if !ok {
+			d.writeErr(w, http.StatusUnauthorized, "authentication_error", "invalid gateway key")
 			return
 		}
-		next(w, r)
+		next(w, r.WithContext(withPrincipal(r.Context(), p)))
 	}
 }
 
@@ -94,18 +102,55 @@ const (
 	actionPass   = "pass"
 )
 
-// currentAction resolves the effective redaction action: the static config
-// value, or the policy-derived one when per_policy (masking until the first
-// policy pull lands — safe default).
-func (s *Server) currentAction() string {
-	if s.cfg.RedactAction != "per_policy" {
-		return s.cfg.RedactAction
+// actionFor resolves the effective redaction action for one caller, and names
+// the baseline that decided it.
+//
+// Precedence, strictest source first:
+//
+//	GATEWAY_REDACT_ACTION pinned  → that value, for everyone (unchanged)
+//	the caller's app names a baseline → derived from THAT baseline
+//	otherwise                     → the globally applied policy (unchanged)
+//
+// The middle case is the whole point of the keystore: before it, one gateway
+// served one posture, so a client that needed monitor-only and a client that
+// needed masking could not share a deployment. An app that sets no baseline
+// resolves exactly as it did before — that is the compatibility bar.
+func (s *Server) actionFor(p principal) (action, baseline string) {
+	action, baseline, missing := s.resolveAction(p)
+	if missing {
+		// The app names a baseline this gateway has not pulled. We fall
+		// through to the global action rather than inventing one — guessing
+		// would silently apply the wrong posture to a scoped app.
+		s.log.Warn("app baseline not in the pulled set; using the global action",
+			"app_id", p.AppID, "baseline", p.Baseline)
 	}
-	if v := s.policyAction.Load(); v != nil {
-		return v.(string)
-	}
-	return actionMask
+	return action, baseline
 }
+
+// resolveAction is actionFor without the logging, so the heartbeat can survey
+// every app's posture without emitting a warning per app per beat.
+func (s *Server) resolveAction(p principal) (action, baseline string, missingBaseline bool) {
+	if s.cfg.RedactAction != "per_policy" {
+		return s.cfg.RedactAction, "", false
+	}
+	if p.Baseline != "" {
+		if bs := s.baselines.Load(); bs != nil {
+			if b, ok := (*bs)[p.Baseline]; ok {
+				return deriveAction(b, s.zdrAttested.Load()), b.ID, false
+			}
+		}
+		missingBaseline = true
+	}
+	global, _ := s.policyBaseline.Load().(string)
+	if v := s.policyAction.Load(); v != nil {
+		return v.(string), global, missingBaseline
+	}
+	return actionMask, global, missingBaseline
+}
+
+// enforces reports whether an action actually gates traffic. detect and pass
+// are monitoring, not enforcement.
+func enforces(action string) bool { return action == actionMask || action == actionBlock }
 
 // handleMessages is the Anthropic Messages proxy route.
 func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
@@ -134,15 +179,21 @@ func (s *Server) proxyRequest(w http.ResponseWriter, r *http.Request, d dialect)
 		return
 	}
 
+	p := principalFrom(r.Context())
+	action, baseline := s.actionFor(p)
+
 	audit := RequestAudit{
 		RequestID: r.Header.Get("X-Gateway-Request-Id"),
 		Route:     d.route,
 		Action:    actionPass,
+		AppID:     p.AppID,
+		KeyID:     p.KeyID,
+		Subject:   p.Subject,
+		Baseline:  baseline,
 		At:        time.Now().UTC(),
 	}
 
 	outBody := body
-	action := s.currentAction()
 	if action == actionPass {
 		// The pass path never decodes the body, so attribution comes from a
 		// minimal peek rather than a full parse. A body that will not parse

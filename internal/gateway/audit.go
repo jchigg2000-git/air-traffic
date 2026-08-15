@@ -65,11 +65,17 @@ func (s *Server) record(a RequestAudit, tokensIn, tokensOut int64) {
 	a.TokensIn, a.TokensOut = tokensIn, tokensOut
 	s.audits.add(a)
 	s.metrics.observe(a, tokensIn, tokensOut)
+	// app_id and key_id identify the caller; subject is deliberately NOT
+	// logged. It is the one attribution field that can hold a human
+	// identifier, and a log line is a wider surface than the report ring.
 	s.log.Info("gateway.request",
 		"request_id", a.RequestID,
 		"route", a.Route,
 		"action", a.Action,
 		"model", a.Model,
+		"app_id", a.AppID,
+		"key_id", a.KeyID,
+		"baseline", a.Baseline,
 		"tokens_in", tokensIn,
 		"tokens_out", tokensOut,
 		"redactions", len(a.Redactions),

@@ -5,7 +5,8 @@
 /air-traffic-gateway
 *.test
 
-# Harness durable state (ratchet series, promoted corpus, pattern pack)
+# Durable local state: harness (ratchet series, promoted corpus, pattern pack)
+# and the keystore (keys.json — digests, but still not ours to commit)
 /data/
 
 # Phase 2 frontend

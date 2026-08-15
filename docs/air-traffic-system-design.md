@@ -711,7 +711,7 @@ Control-plane process (`cmd/air-traffic-server`):
 | `AIRTRAFFIC_ADDR` | `127.0.0.1:8122` | listen address |
 | `AIRTRAFFIC_EMIT` | `on` | background emitter on/off |
 | `AIRTRAFFIC_EMIT_INTERVAL_SECONDS` | `5` | emit tick cadence |
-| `AIRTRAFFIC_DATA_DIR` | `data/harness` | harness durable state (ratchet, corpus, pattern pack) |
+| `AIRTRAFFIC_DATA_DIR` | `data/harness` | harness durable state (ratchet, corpus, pattern pack) **and the keystore** (`keys.json`) |
 | `AIRTRAFFIC_GATEWAY_KEY` | `gwk-demo` | client key the harness uses to drive the gateway |
 | `AIRTRAFFIC_SPINE_KEY` | *(unset)* | shared key required on `/api/gateway/{leaks,enforcement,patterns}`; unset ⇒ those routes accept **loopback callers only** |
 | `AIRTRAFFIC_PRESIDIO_URL` | `http://127.0.0.1:8126` | Presidio sidecar for the harness raw-score probe |
@@ -727,9 +727,26 @@ no terms, and reports the posture in effect (`spine_auth`, `spine_key_unrotated`
 compose defaults (`gwk-demo` / `spine-dev-insecure`) are throwaway values; both binaries log a
 warning while they are in use, and `scripts/dev-env.sh` mints random replacements into `.env`.
 
-The store is **in-memory only** — there is no `AIRTRAFFIC_STORE`/Postgres switch and no in-process
-gateway toggle. The control plane's gateway panels (`/api/gateway/*`) are always live and simply
-render whatever the gateway binary has pushed up the spine.
+**Keystore auth.** `/api/apps`, `/api/apps/{id}/keys` and `/api/keys/{kid}` mint and revoke
+gateway credentials, which makes them the most dangerous surface here, so they accept **loopback
+callers only** and deliberately do *not* honour `AIRTRAFFIC_SPINE_KEY`: the gateway holds that
+key, and a gateway able to mint its own credentials would defeat the point of issuing keys at
+all. The distribution half, `GET /api/gateway/keys`, does ride the spine key — it ships digests
+and metadata, never a secret. Because compose publishes the control plane behind a port, a
+browser or host `curl` arrives from the Docker bridge rather than loopback and is refused; that
+is why administration goes through `scripts/keystore.sh` (which routes the call into the
+container's network namespace) and why there is no keystore UI. Opening one means adding an
+`AIRTRAFFIC_ADMIN_KEY` tier, the same two-tier ladder the spine already uses.
+
+The store is **in-memory only, with one exception** — there is no `AIRTRAFFIC_STORE`/Postgres
+switch and no in-process gateway toggle. The exception is the keystore: observations and reports
+are reconstructible and a container recreate is allowed to lose them, but an issued credential is
+not, so apps and keys write through to `keys.json` (mode 0600, digests only, temp-file + rename)
+under `AIRTRAFFIC_DATA_DIR` and reload at boot. A keystore file that will not parse is a hard boot
+failure rather than an empty keystore — starting clean would silently invalidate every issued key
+and present to clients as an unexplained 401 storm. The control plane's gateway panels
+(`/api/gateway/*`) are always live and simply render whatever the gateway binary has pushed up the
+spine.
 
 > The gateway **binary** carries its own config surface, read by its own `config.Load()` and **not**
 > driven by the `AIRTRAFFIC_*` env of the control-plane process: `GATEWAY_LISTEN_ADDR` (default

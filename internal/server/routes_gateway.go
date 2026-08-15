@@ -170,10 +170,19 @@ func (s *Server) handleGatewayStatus(w http.ResponseWriter, r *http.Request) {
 	// The auth posture is reported, not assumed: the honesty model applies to
 	// our own control surface too — a viewer should be able to see that the
 	// spine is loopback-gated or running an unrotated dev key.
+	// A keystore that has silently stopped persisting looks healthy right up
+	// until a restart drops every issued key, so its durability is reported
+	// alongside the auth posture rather than left to be discovered.
+	keystoreErr := ""
+	if err := s.store.KeystorePersistError(); err != nil {
+		keystoreErr = err.Error()
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"gateways":             out,
 		"pattern_pack_version": s.store.GetPatternPack().Version,
 		"spine_auth":           s.spineAuthMode(),
 		"spine_key_unrotated":  devSpineKeys[s.spineKey],
+		"keystore_version":     s.store.KeySnapshot().Version,
+		"keystore_error":       keystoreErr,
 	})
 }

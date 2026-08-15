@@ -60,8 +60,15 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/gateway/leaks", s.requireSpineKey(s.handleGatewayLeaks))
 	mux.HandleFunc("/api/gateway/enforcement", s.requireSpineKey(s.handleGatewayEnforcement))
 	mux.HandleFunc("/api/gateway/patterns", s.requireSpineKey(s.handleGatewayPatterns))
+	mux.HandleFunc("/api/gateway/keys", s.requireSpineKey(s.handleGatewayKeys))
 	mux.HandleFunc("/api/gateway/status", s.handleGatewayStatus)
 	mux.HandleFunc("/api/gateway/requests", s.handleGatewayRequests)
+	// Keystore administration — the only credential-minting surface here, so
+	// it is loopback-gated rather than sharing the spine key (routes_keystore.go).
+	mux.HandleFunc("/api/apps", s.requireLocalAdmin(s.handleApps))
+	mux.HandleFunc("/api/apps/{id}", s.requireLocalAdmin(s.handleApp))
+	mux.HandleFunc("/api/apps/{id}/keys", s.requireLocalAdmin(s.handleAppKeys))
+	mux.HandleFunc("/api/keys/{kid}", s.requireLocalAdmin(s.handleKey))
 	mux.HandleFunc("/api/harness/runs", s.handleHarnessRuns)
 	mux.HandleFunc("/api/harness/runs/", s.handleHarnessRun)
 	mux.HandleFunc("/api/harness/sample", s.handleHarnessSample)

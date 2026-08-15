@@ -121,11 +121,15 @@ func (s *Server) pushReports(ctx context.Context) {
 }
 
 func (s *Server) pushHeartbeat(ctx context.Context) error {
-	action := s.currentAction()
+	// The default posture — what a caller with no app-scoped baseline gets.
+	action, _ := s.actionFor(principal{})
 	vendors := map[string][]string{}
 	// detect-only is monitoring, not enforcement — the honesty model demands
-	// the heartbeat only claim capabilities that actually gate traffic.
-	if action == actionMask || action == actionBlock {
+	// the heartbeat only claim capabilities that actually gate traffic. Since
+	// baselines can now be scoped per app, the default action is no longer the
+	// whole story: one app on monitor-only means this gateway is not enforcing
+	// for everyone, and claiming otherwise would overstate coverage.
+	if enforces(action) && s.allAppsEnforce() {
 		vendors["anthropic"] = []string{"pii_redaction"}
 	}
 	rep := model.EnforcementReport{

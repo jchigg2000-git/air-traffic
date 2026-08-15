@@ -229,6 +229,12 @@ export interface GatewayRequest {
   route: string
   action: string
   model?: string
+  /** Keystore attribution. Legacy GATEWAY_CLIENT_KEYS callers report app_id "env". */
+  app_id?: string
+  key_id?: string
+  subject?: string
+  /** Which baseline decided `action` — an app-scoped one, or the global policy. */
+  baseline?: string
   redactions?: GatewayRedaction[]
   detector_errors?: string[]
   fail_mode_tripped?: boolean
