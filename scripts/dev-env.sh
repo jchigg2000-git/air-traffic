@@ -2,16 +2,18 @@
 # Mint the stack's shared secrets into ./.env — the rotation path off the
 # throwaway compose defaults (gwk-demo / spine-dev-insecure).
 #
-#   GATEWAY_CLIENT_KEYS   caller key for the gateway's /v1/messages route; the
-#                         control plane's harness presents it as
-#                         AIRTRAFFIC_GATEWAY_KEY, so the two must match.
+#   GATEWAY_CLIENT_KEYS   caller key for BOTH client routes (/v1/messages and
+#                         /v1/chat/completions); the control plane's harness
+#                         presents it as AIRTRAFFIC_GATEWAY_KEY, so the two
+#                         must match.
 #   AIRTRAFFIC_SPINE_KEY  shared key on the control plane's gateway spine
 #                         routes (leaks / enforcement / patterns).
 #
 # docker compose reads .env automatically. Idempotent: an existing key is kept
 # unless --rotate is passed. No real vendor credential is ever written here —
-# ANTHROPIC_UPSTREAM_KEY stays the synthetic dev value until you set it
-# yourself.
+# ANTHROPIC_UPSTREAM_KEY stays the synthetic dev value, and HF_UPSTREAM_TOKEN
+# stays unset (its route 502s rather than sending a placeholder to a real
+# vendor), until you set them yourself.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

@@ -6,6 +6,7 @@ package server
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"air-traffic/internal/model"
@@ -108,6 +109,43 @@ func (s *Server) handleGatewayPatterns(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"pack": s.store.GetPatternPack()})
+}
+
+// maxGatewayRequestPage bounds one page of the traffic feed. The ring itself
+// holds more; a caller that wants everything pages for it.
+const maxGatewayRequestPage = 1000
+
+// handleGatewayRequests is the per-request traffic feed: what actually went
+// through the proxy, newest first. Until this existed the reports the gateway
+// pushed were only ever read by the harness scorer, so real application
+// traffic left no visible trace anywhere in the UI.
+//
+// Metadata only, by construction — the reports carry redaction types, field
+// paths, offsets and counts, never a redacted value. There is deliberately no
+// cost field: the gateway reports the tokens the vendor billed and stops
+// there (docs/plans/TODO-gateway-deferred.md).
+func (s *Server) handleGatewayRequests(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "use GET")
+		return
+	}
+	limit := 100
+	if v := r.URL.Query().Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n <= 0 {
+			writeError(w, http.StatusBadRequest, "limit must be a positive integer")
+			return
+		}
+		limit = min(n, maxGatewayRequestPage)
+	}
+	reports := s.store.ListGatewayReports(limit)
+	if reports == nil {
+		reports = []model.GatewayRequestReport{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"requests": reports,
+		"limit":    limit,
+	})
 }
 
 // handleGatewayStatus is the UI's gateway liveness view — the browser never

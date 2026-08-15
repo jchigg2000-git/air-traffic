@@ -124,7 +124,30 @@ func (s *Server) handleHarnessProposals(w http.ResponseWriter, r *http.Request) 
 	suffix := strings.TrimPrefix(r.URL.Path, "/api/harness/proposals")
 	suffix = strings.TrimPrefix(suffix, "/")
 	if suffix == "" {
-		writeJSON(w, http.StatusOK, map[string]any{"proposals": s.harness.Proposals()})
+		switch r.Method {
+		case http.MethodGet:
+			writeJSON(w, http.StatusOK, map[string]any{"proposals": s.harness.Proposals()})
+		case http.MethodPost:
+			// Owner-authored proposal. The flywheel infers additions from
+			// harness misses; it has no ground truth for real traffic, so a
+			// false positive observed in production can only be a human call.
+			// This routes that call through the same review path.
+			var p model.PatternProposal
+			if err := decodeJSON(r, &p); err != nil {
+				writeError(w, http.StatusBadRequest, "invalid proposal: "+err.Error())
+				return
+			}
+			created, err := s.harness.AddProposal(p)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			writeJSON(w, http.StatusCreated, map[string]any{
+				"proposal": created, "proposals": s.harness.Proposals(),
+			})
+		default:
+			writeError(w, http.StatusMethodNotAllowed, "use GET or POST")
+		}
 		return
 	}
 	if r.Method != http.MethodPost {

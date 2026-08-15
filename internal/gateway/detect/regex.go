@@ -28,6 +28,7 @@ type PatternRule struct {
 	Kind       string   `json:"kind,omitempty"`
 	Regex      string   `json:"regex,omitempty"`
 	DenyList   []string `json:"deny_list,omitempty"`
+	AllowList  []string `json:"allow_list,omitempty"`
 	Threshold  float64  `json:"threshold,omitempty"`
 	Context    []string `json:"context,omitempty"`
 	Confidence float64  `json:"confidence,omitempty"`

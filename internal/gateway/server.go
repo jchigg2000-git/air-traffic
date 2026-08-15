@@ -94,7 +94,8 @@ func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
 	mux.HandleFunc("GET /readyz", s.handleReadyz)
-	mux.HandleFunc("POST /v1/messages", s.requireClientKey(s.handleMessages))
+	mux.HandleFunc("POST /v1/messages", s.requireClientKey(writeVendorError, s.handleMessages))
+	mux.HandleFunc("POST /v1/chat/completions", s.requireClientKey(writeOpenAIError, s.handleChatCompletions))
 	return s.recoverMiddleware(s.requestID(mux))
 }
 

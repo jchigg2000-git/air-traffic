@@ -133,10 +133,15 @@ func (s *Server) pullPatterns(ctx context.Context) error {
 	for _, r := range payload.Pack.Rules {
 		rules = append(rules, detect.PatternRule{
 			ID: r.ID, Type: r.Type, Kind: r.Kind, Regex: r.Regex,
-			DenyList: r.DenyList, Threshold: r.Threshold, Context: r.Context,
+			DenyList: r.DenyList, AllowList: r.AllowList,
+			Threshold: r.Threshold, Context: r.Context,
 			Confidence: r.Confidence,
 		})
 	}
+	// Chain first: allow-list suppression is engine-independent, and applying
+	// it before the engines reload means a pack that both adds a recognizer
+	// and suppresses a term can never briefly enforce the addition alone.
+	s.chain.SetPatternPack(rules)
 	if s.regexDet != nil {
 		if err := s.regexDet.SetPatternPack(rules); err != nil {
 			return fmt.Errorf("pattern pack v%d rejected: %w", payload.Pack.Version, err)

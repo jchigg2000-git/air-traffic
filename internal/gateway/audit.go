@@ -60,12 +60,18 @@ func (a *auditRing) requeue(reports []RequestAudit) {
 // record stores the audit, feeds the metrics window, and emits the
 // redaction-safe structured log line.
 func (s *Server) record(a RequestAudit, tokensIn, tokensOut int64) {
+	// Attach the counts here rather than at each call site, so the ring the
+	// spine drains and the metrics window can never disagree about a request.
+	a.TokensIn, a.TokensOut = tokensIn, tokensOut
 	s.audits.add(a)
 	s.metrics.observe(a, tokensIn, tokensOut)
 	s.log.Info("gateway.request",
 		"request_id", a.RequestID,
 		"route", a.Route,
 		"action", a.Action,
+		"model", a.Model,
+		"tokens_in", tokensIn,
+		"tokens_out", tokensOut,
 		"redactions", len(a.Redactions),
 		"types", typeSummary(a.Redactions),
 		"detector_errors", len(a.DetectorErrors),

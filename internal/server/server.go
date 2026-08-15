@@ -61,6 +61,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/gateway/enforcement", s.requireSpineKey(s.handleGatewayEnforcement))
 	mux.HandleFunc("/api/gateway/patterns", s.requireSpineKey(s.handleGatewayPatterns))
 	mux.HandleFunc("/api/gateway/status", s.handleGatewayStatus)
+	mux.HandleFunc("/api/gateway/requests", s.handleGatewayRequests)
 	mux.HandleFunc("/api/harness/runs", s.handleHarnessRuns)
 	mux.HandleFunc("/api/harness/runs/", s.handleHarnessRun)
 	mux.HandleFunc("/api/harness/sample", s.handleHarnessSample)

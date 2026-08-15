@@ -21,14 +21,21 @@ type GatewayRequestReport struct {
 	RequestID       string             `json:"request_id"`
 	Route           string             `json:"route"`
 	Action          string             `json:"action"` // pass | mask | block | detect
+	Model           string             `json:"model,omitempty"`
 	Redactions      []GatewayRedaction `json:"redactions,omitempty"`
 	DetectorErrors  []string           `json:"detector_errors,omitempty"`
 	FailModeTripped bool               `json:"fail_mode_tripped,omitempty"`
 	Stream          bool               `json:"stream,omitempty"`
 	UpstreamStatus  int                `json:"upstream_status,omitempty"`
-	LatencyMS       int64              `json:"latency_ms"`
-	AddedLatencyMS  int64              `json:"added_latency_ms"`
-	At              time.Time          `json:"at"`
+	// TokensIn/TokensOut are what the vendor reported for THIS request, not a
+	// gateway estimate: absent usage stays zero rather than being guessed at.
+	// There is deliberately no cost field — see docs/plans/TODO-gateway-deferred.md;
+	// pricing belongs to whoever owns the contract, not to the proxy.
+	TokensIn       int64     `json:"tokens_in,omitempty"`
+	TokensOut      int64     `json:"tokens_out,omitempty"`
+	LatencyMS      int64     `json:"latency_ms"`
+	AddedLatencyMS int64     `json:"added_latency_ms"`
+	At             time.Time `json:"at"`
 }
 
 // EnforcementReport is the gateway's periodic heartbeat: which vendor
@@ -49,6 +56,13 @@ const (
 	KindRegex     = "regex"
 	KindDenyList  = "deny_list"
 	KindThreshold = "threshold"
+	// KindAllowList suppresses a span whose exact text is a known false
+	// positive for that type. It is the only kind that REMOVES a detection —
+	// every other kind adds one — and it exists because score thresholds
+	// cannot separate a real hit from a false one when the NER model returns
+	// the same confidence for both (spaCy returns 0.85 for every PERSON and
+	// LOCATION it finds, true or not).
+	KindAllowList = "allow_list"
 )
 
 // PatternRule is one flywheel-approved detector addition, distributed to
@@ -61,6 +75,7 @@ type PatternRule struct {
 	Kind       string    `json:"kind,omitempty"` // "" = regex
 	Regex      string    `json:"regex,omitempty"`
 	DenyList   []string  `json:"deny_list,omitempty"`
+	AllowList  []string  `json:"allow_list,omitempty"`
 	Threshold  float64   `json:"threshold,omitempty"`
 	Context    []string  `json:"context,omitempty"`
 	Confidence float64   `json:"confidence,omitempty"`

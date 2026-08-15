@@ -64,7 +64,8 @@ a seed-only control as "enforced."
 | `GET /api/cost/facets` | per-vendor cost drill-down facets — backs the **Cost & Usage Explorer** screen |
 | `POST /api/gateway/leaks` · `/enforcement` | gateway pushes per-request redaction metadata + enforcement heartbeats up the spine |
 | `GET /api/gateway/patterns` · `/status` | active pattern pack (the gateway pulls it) · gateway liveness for the UI |
-| `GET/POST /api/harness/runs` · `GET /runs/{id}` · `POST /sample` · `GET /ratchet` · `/corpus` · `GET/POST /proposals[/{id}/approve\|reject]` | flywheel harness — **503s without the harness engine** (`requireHarness`) |
+| `GET /api/gateway/requests` | per-request proxy traffic, newest first — backs the **Gateway Traffic** screen. Metadata only (types, field paths, offsets, counts, tokens); never a value, never a dollar figure |
+| `GET/POST /api/harness/runs` · `GET /runs/{id}` · `POST /sample` · `GET /ratchet` · `/corpus` · `GET/POST /proposals[/{id}/approve\|reject]` | flywheel harness — **503s without the harness engine** (`requireHarness`). `POST /proposals` authors an owner proposal (the flywheel infers additions from harness misses; it has no ground truth for real traffic, so retiring a false positive is a human call) |
 | `ANY /synthetic/{vendor}/{native-path}` | **byte-identical** vendor surface + `/_harness/*` control |
 
 ### Synthetic surface example
@@ -94,7 +95,8 @@ internal/model           domain types + ops-observation-batch/v1 contract
 
 # Phase 3 — inference gateway (data plane) + flywheel harness
 cmd/air-traffic-gateway  the inline redaction-proxy binary (port 8125)
-internal/gateway         proxy · adapter_anthropic · spine_emit · spine_pull · metrics · audit
+internal/gateway         proxy · adapter_anthropic · adapter_openai · stream · spine_emit
+                         · spine_pull · metrics · audit
                          + config · credbroker · detect · redact
 internal/harness         gen · runner · streamscan · persist · sample · probe · flywheel · score
 ```
@@ -132,11 +134,16 @@ repo root and open <http://127.0.0.1:8122/>.
 
 ## Phase 3 — inference gateway (data plane) + harness + flywheel v0
 
-A separate, stateless Go binary that proxies Anthropic Messages traffic, detects PII/PHI
-inline (RE2 regex floor + self-hosted [Presidio](https://microsoft.github.io/presidio/)
+A separate, stateless Go binary that proxies inference traffic in two client dialects —
+`POST /v1/messages` (Anthropic Messages) and `POST /v1/chat/completions` (OpenAI-compatible,
+which is what the Hugging Face router and most "OpenAI-compatible" endpoints speak) — detects
+PII/PHI inline (RE2 regex floor + self-hosted [Presidio](https://microsoft.github.io/presidio/)
 sidecar), applies `mask`/`block`/detect-only per the pulled policy baseline, and reports back
 up the spine (observations, leak metadata, enforcement heartbeats → `proxy_enforced` flips
-truthfully, staleness raises drift). Design: `docs/inference-gateway-design.md`; sequencing:
+truthfully, staleness raises drift). Both routes run the same pipeline behind a `dialect`
+descriptor, so a policy or detector change lands on both at once. Request-side only: responses
+are relayed byte-faithfully (response-side enforcement is G4, deferred).
+Design: `docs/inference-gateway-design.md`; sequencing:
 `docs/inference-gateway-build-plan.md`; what shipped vs deferred:
 `docs/plans/phase-3-inference-gateway.md` + `docs/plans/TODO-gateway-deferred.md`.
 
@@ -150,7 +157,7 @@ E2E_COMPOSE=1 ./scripts/e2e-gateway.sh   # assert the running stack end-to-end
 ```
 
 **Keys.** Two shared secrets hold the stack together: `GATEWAY_CLIENT_KEYS` (the caller key for
-the gateway's `/v1/messages`, which the control plane's harness presents as
+both client routes, which the control plane's harness presents as
 `AIRTRAFFIC_GATEWAY_KEY`) and `AIRTRAFFIC_SPINE_KEY` (required on `/api/gateway/leaks`,
 `/enforcement`, and `/patterns` — the pattern pack distributes deny-list *terms*, so the read
 side is gated too). Compose falls back to throwaway values (`gwk-demo`, `spine-dev-insecure`)
@@ -182,5 +189,36 @@ gateway, proves redaction *behaviorally* (did the raw value reach the upstream c
 scores precision/recall against exact ground truth, and feeds the recall-ratchet flywheel:
 misses → promoted corpus → curated pattern proposals → human approval → hot-reload (no
 restart) → re-run → the ratchet climbs. Everything is local — synthetic traffic, self-hosted
-NER, no cloud inference or compute. Point real Claude Code at it with
-`ANTHROPIC_BASE_URL=http://127.0.0.1:8125` + `ANTHROPIC_AUTH_TOKEN=<gateway key>`.
+NER, no cloud inference or compute.
+
+Rules come in four kinds. Three of them **add** enforcement (`regex`, `deny_list`) or gate it by
+score (`threshold`); `allow_list` is the only one that **removes** a detection, and it exists
+because a score gate cannot tell a false positive from a real hit — Presidio's spaCy layer returns
+0.85 for every PERSON and LOCATION it emits either way. Suppression is applied in the detector
+chain beside the type guards, so it overrules whichever engine made the claim, and it suppresses a
+*term*, never a region: an allow-listed word sitting next to real PII does not shield it. The
+flywheel cannot propose one itself — it has no ground truth for real traffic, so retiring a false
+positive is an owner judgement, authored via `POST /api/harness/proposals` and then approved like
+any other.
+
+The **Gateway Traffic** tab (`/settings/traffic`) is the other half: not seeded harness runs but
+whatever real traffic actually went through the proxy, newest first — route, model, action,
+redaction types, tokens, upstream status, and how much latency the gateway itself added. Tokens
+are what the vendor reported; there is no cost column, deliberately.
+
+**Pointing real clients at it.** Claude Code speaks the Anthropic route as-is:
+
+```bash
+GATEWAY_UPSTREAM_BASE_URL=https://api.anthropic.com ANTHROPIC_UPSTREAM_KEY=<real key> \
+  docker compose up -d --build gateway
+ANTHROPIC_BASE_URL=http://127.0.0.1:8125 ANTHROPIC_AUTH_TOKEN=<gateway key> \
+CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 claude
+```
+
+`POST /v1/messages/count_tokens` and `HEAD /api/hello` are unrouted and will 404 — both are
+documented as optional, and Claude Code falls back cleanly. Anything speaking the OpenAI wire
+format (the `openai` SDK, `@huggingface/inference` with `endpointUrl`, LangChain) uses the other
+route: set the client's base URL to `http://127.0.0.1:8125/v1`, pass a `GATEWAY_CLIENT_KEYS` entry
+as the bearer token, and set `HF_UPSTREAM_TOKEN` (or point `OPENAI_UPSTREAM_BASE_URL` elsewhere and
+supply that vendor's key). That upstream credential has **no compose fallback on purpose** — unset,
+the route returns 502 locally rather than sending a placeholder to a real vendor.

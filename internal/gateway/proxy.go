@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"air-traffic/internal/gateway/config"
 	"air-traffic/internal/gateway/redact"
 )
 
@@ -22,16 +23,62 @@ var hopByHop = map[string]bool{
 // client credential headers are stripped before the upstream credential is set.
 var clientAuthHeaders = map[string]bool{"Authorization": true, "X-Api-Key": true}
 
+// dialect is one vendor wire format the gateway proxies. Everything that
+// differs between the supported dialects lives here; the request pipeline in
+// proxyRequest is shared, so a detector or policy change lands on every route
+// at once and the two can't drift.
+type dialect struct {
+	// route is the key looked up in GATEWAY_UPSTREAMS, and the label the audit
+	// record carries.
+	route string
+	// path is appended to the upstream base URL. The two ecosystems put the
+	// version segment on different sides of that seam and we follow each one's
+	// convention rather than inventing a third: an Anthropic base_url is the
+	// bare host (…anthropic.com + /v1/messages), while an OpenAI-compatible
+	// base_url already ends in /v1 (…huggingface.co/v1 + /chat/completions).
+	path        string
+	walk        func(map[string]any) []textField
+	jsonUsage   func([]byte) (tokensIn, tokensOut int64)
+	newScanner  func() usageScanner
+	writeErr    func(w http.ResponseWriter, status int, errType, msg string)
+	defaultAuth string
+}
+
+func anthropicDialect() dialect {
+	return dialect{
+		route:       "anthropic",
+		path:        "/v1/messages",
+		walk:        walkAnthropicBody,
+		jsonUsage:   anthropicJSONUsage,
+		newScanner:  func() usageScanner { return newAnthropicUsageScanner() },
+		writeErr:    writeVendorError,
+		defaultAuth: config.AuthAPIKey,
+	}
+}
+
+func openAIDialect() dialect {
+	return dialect{
+		route:       "openai",
+		path:        "/chat/completions",
+		walk:        walkOpenAIBody,
+		jsonUsage:   openAIJSONUsage,
+		newScanner:  func() usageScanner { return newOpenAIUsageScanner() },
+		writeErr:    writeOpenAIError,
+		defaultAuth: config.AuthBearer,
+	}
+}
+
 // requireClientKey authenticates the caller's gateway key (Bearer or
-// x-api-key) against the resolved client-key set.
-func (s *Server) requireClientKey(next http.HandlerFunc) http.HandlerFunc {
+// x-api-key) against the resolved client-key set. The rejection is written in
+// the caller's own dialect, so a client SDK can parse the 401 it gets back.
+func (s *Server) requireClientKey(writeErr func(http.ResponseWriter, int, string, string), next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		key := r.Header.Get("x-api-key")
 		if key == "" {
 			key = strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		}
 		if _, ok := s.clientKeys[key]; !ok || key == "" {
-			writeVendorError(w, http.StatusUnauthorized, "authentication_error", "invalid gateway key")
+			writeErr(w, http.StatusUnauthorized, "authentication_error", "invalid gateway key")
 			return
 		}
 		next(w, r)
@@ -60,43 +107,61 @@ func (s *Server) currentAction() string {
 	return actionMask
 }
 
-// handleMessages is the Anthropic Messages proxy route: read → detect →
+// handleMessages is the Anthropic Messages proxy route.
+func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
+	s.proxyRequest(w, r, anthropicDialect())
+}
+
+// handleChatCompletions is the OpenAI-compatible chat-completions proxy route.
+func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
+	s.proxyRequest(w, r, openAIDialect())
+}
+
+// proxyRequest runs one request through the pipeline: read → detect →
 // redact/block → swap credential → forward → return (byte-faithful when
 // nothing was redacted).
-func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
+func (s *Server) proxyRequest(w http.ResponseWriter, r *http.Request, d dialect) {
 	start := time.Now()
-	up, ok := s.cfg.Upstreams["anthropic"]
+	up, ok := s.cfg.Upstreams[d.route]
 	if !ok {
-		writeVendorError(w, http.StatusBadGateway, "api_error", "no upstream configured for route anthropic")
+		d.writeErr(w, http.StatusBadGateway, "api_error", "no upstream configured for route "+d.route)
 		return
 	}
 
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, s.cfg.MaxBodyBytes))
 	if err != nil {
-		writeVendorError(w, http.StatusRequestEntityTooLarge, "invalid_request_error", "body too large or unreadable")
+		d.writeErr(w, http.StatusRequestEntityTooLarge, "invalid_request_error", "body too large or unreadable")
 		return
 	}
 
 	audit := RequestAudit{
 		RequestID: r.Header.Get("X-Gateway-Request-Id"),
-		Route:     "anthropic",
+		Route:     d.route,
 		Action:    actionPass,
 		At:        time.Now().UTC(),
 	}
 
 	outBody := body
 	action := s.currentAction()
-	if action != actionPass {
+	if action == actionPass {
+		// The pass path never decodes the body, so attribution comes from a
+		// minimal peek rather than a full parse. A body that will not parse
+		// still forwards — pass means pass.
+		audit.Model = peekModel(body)
+	} else {
 		detectStart := time.Now()
 		var doc map[string]any
 		if err := json.Unmarshal(body, &doc); err != nil {
-			writeVendorError(w, http.StatusBadRequest, "invalid_request_error", "body is not valid JSON")
+			d.writeErr(w, http.StatusBadRequest, "invalid_request_error", "body is not valid JSON")
 			return
+		}
+		if m, ok := doc["model"].(string); ok {
+			audit.Model = m
 		}
 		var redactions []Redaction
 		var detErrs []string
 		mutated := false
-		for _, f := range walkAnthropicBody(doc) {
+		for _, f := range d.walk(doc) {
 			spans, errs := s.chain.Run(r.Context(), f.text)
 			for _, e := range errs {
 				detErrs = append(detErrs, e.Error())
@@ -127,7 +192,7 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 			audit.Action = actionBlock
 			audit.LatencyMS = time.Since(start).Milliseconds()
 			s.record(audit, 0, 0)
-			writeVendorError(w, http.StatusServiceUnavailable, "api_error",
+			d.writeErr(w, http.StatusServiceUnavailable, "api_error",
 				"detector unavailable and GATEWAY_FAIL_MODE=closed")
 			return
 		}
@@ -138,7 +203,7 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 				audit.Action = actionBlock
 				audit.LatencyMS = time.Since(start).Milliseconds()
 				s.record(audit, 0, 0)
-				writeVendorError(w, http.StatusBadRequest, "invalid_request_error",
+				d.writeErr(w, http.StatusBadRequest, "invalid_request_error",
 					"request blocked by gateway policy: detected "+typeSummary(redactions))
 				return
 			case actionMask:
@@ -146,7 +211,7 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 				if mutated {
 					rewritten, err := json.Marshal(doc)
 					if err != nil {
-						writeVendorError(w, http.StatusInternalServerError, "api_error", "rewrite failed")
+						d.writeErr(w, http.StatusInternalServerError, "api_error", "rewrite failed")
 						return
 					}
 					outBody = rewritten
@@ -159,27 +224,27 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 
 	cred, err := s.creds.Resolve(up.CredentialRef)
 	if err != nil {
-		s.log.Error("credential resolution failed", "route", "anthropic", "ref", up.CredentialRef, "error", err)
-		writeVendorError(w, http.StatusBadGateway, "api_error", "upstream credential unavailable")
+		s.log.Error("credential resolution failed", "route", d.route, "ref", up.CredentialRef, "error", err)
+		d.writeErr(w, http.StatusBadGateway, "api_error", "upstream credential unavailable")
 		return
 	}
 
 	outReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost,
-		strings.TrimSuffix(up.BaseURL, "/")+"/v1/messages", bytes.NewReader(outBody))
+		strings.TrimSuffix(up.BaseURL, "/")+d.path, bytes.NewReader(outBody))
 	if err != nil {
-		writeVendorError(w, http.StatusBadGateway, "api_error", "building upstream request failed")
+		d.writeErr(w, http.StatusBadGateway, "api_error", "building upstream request failed")
 		return
 	}
 	copyHeaders(outReq.Header, r.Header)
-	outReq.Header.Set("x-api-key", cred)
+	setUpstreamCredential(outReq, up, d, cred)
 	if len(outBody) != len(body) {
 		outReq.ContentLength = int64(len(outBody))
 	}
 
 	resp, err := s.httpClient().Do(outReq)
 	if err != nil {
-		s.log.Error("upstream request failed", "route", "anthropic", "error", err)
-		writeVendorError(w, http.StatusBadGateway, "api_error", "upstream unreachable")
+		s.log.Error("upstream request failed", "route", d.route, "error", err)
+		d.writeErr(w, http.StatusBadGateway, "api_error", "upstream unreachable")
 		return
 	}
 	defer resp.Body.Close()
@@ -198,9 +263,9 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 	var tokensIn, tokensOut int64
 	if strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
 		audit.Stream = true
-		tokensIn, tokensOut, err = copyStream(w, resp.Body)
+		tokensIn, tokensOut, err = copyStreamWith(w, resp.Body, d.newScanner())
 	} else {
-		tokensIn, tokensOut, err = relayWithUsage(w, resp.Body)
+		tokensIn, tokensOut, err = relayWithUsage(w, resp.Body, d.jsonUsage)
 	}
 	if err != nil {
 		s.log.Warn("response relay interrupted", "error", err)
@@ -209,11 +274,58 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 	s.record(audit, tokensIn, tokensOut)
 }
 
+// setUpstreamCredential presents the resolved credential the way this upstream
+// expects it. The route's dialect supplies the default so single-route configs
+// written before auth existed keep working unchanged.
+func setUpstreamCredential(req *http.Request, up config.Upstream, d dialect, cred string) {
+	auth := up.Auth
+	if auth == "" {
+		auth = d.defaultAuth
+	}
+	if auth == config.AuthBearer {
+		req.Header.Set("Authorization", "Bearer "+cred)
+		return
+	}
+	req.Header.Set("x-api-key", cred)
+}
+
+// peekModel reads just the model field off an undecoded body, for attribution
+// on paths that never parse the document. An unparseable body yields "".
+func peekModel(body []byte) string {
+	var doc struct {
+		Model string `json:"model"`
+	}
+	if json.Unmarshal(body, &doc) != nil {
+		return ""
+	}
+	return doc.Model
+}
+
+func anthropicJSONUsage(buf []byte) (tokensIn, tokensOut int64) {
+	var parsed struct {
+		Usage anthropicUsage `json:"usage"`
+	}
+	if json.Unmarshal(buf, &parsed) != nil {
+		return 0, 0
+	}
+	return parsed.Usage.InputTokens, parsed.Usage.OutputTokens
+}
+
+func openAIJSONUsage(buf []byte) (tokensIn, tokensOut int64) {
+	var parsed struct {
+		Usage openAIUsage `json:"usage"`
+	}
+	if json.Unmarshal(buf, &parsed) != nil {
+		return 0, 0
+	}
+	return parsed.Usage.PromptTokens, parsed.Usage.CompletionTokens
+}
+
 // relayWithUsage copies a JSON response to the caller byte-faithfully while
 // extracting usage token counts for the spine metrics. Bodies beyond 4 MB are
 // relayed without parsing. The streaming equivalent lives in stream.go, which
-// scans message_start / message_delta usage as the events go by.
-func relayWithUsage(w http.ResponseWriter, body io.Reader) (tokensIn, tokensOut int64, err error) {
+// scans usage events as they go by.
+func relayWithUsage(w http.ResponseWriter, body io.Reader, extract func([]byte) (int64, int64)) (tokensIn, tokensOut int64, err error) {
 	buf, err := io.ReadAll(io.LimitReader(body, 4<<20))
 	if err != nil {
 		return 0, 0, err
@@ -225,15 +337,7 @@ func relayWithUsage(w http.ResponseWriter, body io.Reader) (tokensIn, tokensOut 
 	if _, derr := io.Copy(w, body); derr != nil {
 		return 0, 0, derr
 	}
-	var parsed struct {
-		Usage struct {
-			InputTokens  int64 `json:"input_tokens"`
-			OutputTokens int64 `json:"output_tokens"`
-		} `json:"usage"`
-	}
-	if json.Unmarshal(buf, &parsed) == nil {
-		tokensIn, tokensOut = parsed.Usage.InputTokens, parsed.Usage.OutputTokens
-	}
+	tokensIn, tokensOut = extract(buf)
 	return tokensIn, tokensOut, nil
 }
 
@@ -259,8 +363,19 @@ func (s *Server) httpClient() *http.Client {
 	return http.DefaultClient
 }
 
+// writeVendorError renders an Anthropic-shaped error. Callers on that route
+// parse this envelope, so its shape is part of the contract.
 func writeVendorError(w http.ResponseWriter, status int, errType, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	fmt.Fprintf(w, `{"type":"error","error":{"type":%q,"message":%q}}`+"\n", errType, msg)
+}
+
+// writeOpenAIError renders the same failure in the OpenAI error envelope, so
+// an OpenAI-compatible SDK surfaces the gateway's own rejections as errors
+// rather than as an unparseable body.
+func writeOpenAIError(w http.ResponseWriter, status int, errType, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	fmt.Fprintf(w, `{"error":{"message":%q,"type":%q,"param":null,"code":null}}`+"\n", msg, errType)
 }

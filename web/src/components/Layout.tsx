@@ -10,6 +10,7 @@ const NAV = [
   { to: '/settings/observability', label: 'Observability', icon: '∿', desc: 'Raw batches' },
   { to: '/settings/audit', label: 'Audit', icon: '❏', desc: 'Audit stream' },
   { to: '/settings/harness', label: 'Gateway Harness', icon: '⛨', desc: 'Redaction proof' },
+  { to: '/settings/traffic', label: 'Gateway Traffic', icon: '⇄', desc: 'Live proxied requests' },
 ]
 
 export default function Layout() {

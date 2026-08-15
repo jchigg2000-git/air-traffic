@@ -220,6 +220,27 @@ export interface GatewayRedaction {
   confidence: number
 }
 
+// One real request that went through the proxy. Metadata only — redactions
+// carry types, field paths and offsets, never a value. There is no cost field
+// on purpose: the gateway reports the tokens the vendor billed and leaves
+// pricing to whoever owns the contract.
+export interface GatewayRequest {
+  request_id: string
+  route: string
+  action: string
+  model?: string
+  redactions?: GatewayRedaction[]
+  detector_errors?: string[]
+  fail_mode_tripped?: boolean
+  stream?: boolean
+  upstream_status?: number
+  tokens_in?: number
+  tokens_out?: number
+  latency_ms: number
+  added_latency_ms: number
+  at: string
+}
+
 export interface HarnessRunConfig {
   count: number
   concurrency: number
@@ -312,9 +333,10 @@ export interface CorpusEntry {
 export interface PatternProposal {
   id: string
   type: string
-  kind?: 'regex' | 'deny_list' | 'threshold'
+  kind?: 'regex' | 'deny_list' | 'threshold' | 'allow_list'
   regex?: string
   deny_list?: string[]
+  allow_list?: string[]
   threshold?: number
   context?: string[]
   confidence?: number
@@ -383,6 +405,8 @@ export const api = {
     send<{ coverage: CoverageReport }>('PUT', '/api/policies', { baseline, ...overrides }).then((d) => d.coverage),
 
   gatewayStatus: () => getJSON<GatewayStatus>('/api/gateway/status'),
+  gatewayRequests: (limit = 200) =>
+    getJSON<{ requests: GatewayRequest[] }>(`/api/gateway/requests?limit=${limit}`).then((d) => d.requests),
   harnessRuns: () => getJSON<{ runs: HarnessRun[] }>('/api/harness/runs').then((d) => d.runs),
   harnessRun: (id: string) => getJSON<{ run: HarnessRun }>(`/api/harness/runs/${id}`).then((d) => d.run),
   harnessResults: (id: string, limit = 500) =>
@@ -411,6 +435,7 @@ export const qk = {
   costFacets: ['costFacets'] as const,
   envconfig: ['envconfig'] as const,
   gatewayStatus: ['gatewayStatus'] as const,
+  gatewayRequests: ['gatewayRequests'] as const,
   harnessRuns: ['harnessRuns'] as const,
   harnessResults: (id: string) => ['harnessResults', id] as const,
   harnessRatchet: ['harnessRatchet'] as const,

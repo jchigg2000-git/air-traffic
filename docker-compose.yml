@@ -10,12 +10,24 @@
 # which mints random GATEWAY_CLIENT_KEYS + AIRTRAFFIC_SPINE_KEY into .env
 # (compose reads it automatically).
 #
-# The gateway defaults to the SYNTHETIC upstream (self-contained demo). To
-# proxy real Anthropic traffic, override in a .env file or the environment:
+# The gateway serves two client dialects:
+#   POST /v1/messages          Anthropic Messages  → the "anthropic" upstream
+#   POST /v1/chat/completions  OpenAI-compatible   → the "openai" upstream
+#
+# The Anthropic route defaults to the SYNTHETIC upstream (self-contained demo).
+# To proxy real Anthropic traffic, override in a .env file or the environment:
 #   GATEWAY_UPSTREAM_BASE_URL=https://api.anthropic.com
 #   ANTHROPIC_UPSTREAM_KEY=<real key>      (never committed; env-injected)
 # then point Claude Code at ANTHROPIC_BASE_URL=http://127.0.0.1:8125 with
 # ANTHROPIC_AUTH_TOKEN=<a GATEWAY_CLIENT_KEYS entry>.
+#
+# The OpenAI route points at the Hugging Face router by default but has NO
+# default credential, so it 502s until you set one:
+#   HF_UPSTREAM_TOKEN=<hf token>           (never committed; env-injected)
+# then point an app's OpenAI-compatible client at
+# http://127.0.0.1:8125/v1/chat/completions with a GATEWAY_CLIENT_KEYS entry as
+# its bearer token. Set OPENAI_UPSTREAM_BASE_URL to front api.openai.com or any
+# other OpenAI-compatible endpoint instead.
 #
 # NB: images bake built source — after a code change run
 #   docker compose up -d --build <service>
@@ -60,14 +72,28 @@ services:
       GATEWAY_LISTEN_ADDR: 0.0.0.0:8125
       # peers (harness, Claude Code inside the network) reach it by service name
       GATEWAY_ADVERTISE_URL: http://gateway:8125
+      # Two client dialects, two upstreams. The version segment sits on
+      # different sides of the seam by ecosystem convention: an Anthropic
+      # base_url is the bare host, an OpenAI-compatible one already ends in /v1.
       GATEWAY_UPSTREAMS: >-
-        {"anthropic":{"base_url":"${GATEWAY_UPSTREAM_BASE_URL:-http://control-plane:8122/synthetic/anthropic}","credential_ref":"env:ANTHROPIC_UPSTREAM_KEY"}}
+        {"anthropic":{"base_url":"${GATEWAY_UPSTREAM_BASE_URL:-http://control-plane:8122/synthetic/anthropic}","credential_ref":"env:ANTHROPIC_UPSTREAM_KEY"},
+         "openai":{"base_url":"${OPENAI_UPSTREAM_BASE_URL:-https://router.huggingface.co/v1}","credential_ref":"env:HF_UPSTREAM_TOKEN","auth":"bearer"}}
       ANTHROPIC_UPSTREAM_KEY: ${ANTHROPIC_UPSTREAM_KEY:-sk-ant-synthetic-dev}
+      # Deliberately no default: an unset token fails credential resolution at
+      # call time, so POST /v1/chat/completions returns 502 locally rather than
+      # sending a junk credential to a real vendor.
+      HF_UPSTREAM_TOKEN: ${HF_UPSTREAM_TOKEN:-}
       GATEWAY_CLIENT_KEYS: ${GATEWAY_CLIENT_KEYS:-gwk-demo}
       GATEWAY_CONTROL_PLANE_KEY: ${AIRTRAFFIC_SPINE_KEY:-spine-dev-insecure}
       GATEWAY_DETECTORS: regex,presidio
       GATEWAY_PRESIDIO_URL: http://presidio:3000
-      GATEWAY_REDACT_ACTION: per_policy
+      # per_policy derives the action from the control plane's baseline and
+      # hot-reloads it (pii_redaction off -> detect, on -> mask, on+phi ->
+      # block until ZDR is attested). Only mask / block / per_policy are valid
+      # here: `detect` is reachable only via policy, deliberately, so
+      # monitor-only mode is a governance decision with an audit trail rather
+      # than a container env var. .env can pin mask or block.
+      GATEWAY_REDACT_ACTION: ${GATEWAY_REDACT_ACTION:-per_policy}
       GATEWAY_CONTROL_PLANE_URL: http://control-plane:8122
     depends_on:
       control-plane:

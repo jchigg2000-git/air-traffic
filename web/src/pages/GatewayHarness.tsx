@@ -393,14 +393,36 @@ export default function GatewayHarness() {
             <div key={p.id} className="panel-2 flex flex-wrap items-center gap-3 px-3 py-2">
               <span className="font-mono text-xs">{p.id}</span>
               <span className="rounded-full border px-2 py-0.5 text-[10px]" style={{ borderColor: 'var(--line)' }}>{p.type}</span>
-              <span className="rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide text-faint" style={{ borderColor: 'var(--line)' }}>
-                {p.kind === 'deny_list' ? 'deny list' : p.kind === 'threshold' ? 'score gate' : p.kind === 'regex' || p.regex ? 'regex' : 'no artifact'}
+              <span
+                className="rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide"
+                style={{
+                  // allow_list is the one kind that REMOVES enforcement, so it
+                  // is coloured apart from the additive kinds rather than
+                  // reading as one more rule in the same list.
+                  borderColor: p.kind === 'allow_list' ? 'var(--amber)' : 'var(--line)',
+                  color: p.kind === 'allow_list' ? 'var(--amber)' : 'var(--faint)',
+                }}
+              >
+                {p.kind === 'deny_list'
+                  ? 'deny list'
+                  : p.kind === 'allow_list'
+                    ? 'allow list · suppresses'
+                    : p.kind === 'threshold'
+                      ? 'score gate'
+                      : p.kind === 'regex' || p.regex
+                        ? 'regex'
+                        : 'no artifact'}
               </span>
               <span className="text-[11px] text-muted">{p.rationale}</span>
               {p.regex && <code className="max-w-[280px] truncate font-mono text-[10px] text-faint">{p.regex}</code>}
               {p.kind === 'deny_list' && (p.deny_list?.length ?? 0) > 0 && (
                 <code className="max-w-[280px] truncate font-mono text-[10px] text-faint" title={p.deny_list!.join(', ')}>
                   {p.deny_list!.slice(0, 4).join(' · ')}{p.deny_list!.length > 4 ? ` +${p.deny_list!.length - 4}` : ''}
+                </code>
+              )}
+              {p.kind === 'allow_list' && (p.allow_list?.length ?? 0) > 0 && (
+                <code className="max-w-[280px] truncate font-mono text-[10px]" style={{ color: 'var(--amber)' }} title={p.allow_list!.join(', ')}>
+                  {p.allow_list!.slice(0, 4).join(' · ')}{p.allow_list!.length > 4 ? ` +${p.allow_list!.length - 4}` : ''}
                 </code>
               )}
               {p.kind === 'threshold' && (

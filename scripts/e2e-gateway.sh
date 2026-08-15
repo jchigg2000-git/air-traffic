@@ -19,10 +19,21 @@ if [ "${E2E_COMPOSE:-}" = "1" ]; then
   # the default 15s interval, so propagation waits are longer.
   echo "→ using running compose stack at $CP / $GW"
   PULL_WAIT=17
+  # The running stack authenticates with whatever key it was started with.
+  # After ./scripts/dev-env.sh that is a minted gwk-<random>, not the compose
+  # fallback, so read the same .env compose read rather than assuming the demo
+  # value — otherwise every proxy check here 401s and reads as a regression.
+  GWKEY="${GATEWAY_CLIENT_KEYS:-}"
+  if [ -z "$GWKEY" ] && [ -f .env ]; then
+    GWKEY=$(sed -n 's/^GATEWAY_CLIENT_KEYS=//p' .env | tail -n1)
+  fi
+  GWKEY="${GWKEY:-gwk-demo}"
   curl -sf http://$CP/api/health >/dev/null || { echo "control plane not reachable — docker compose up -d --build first"; exit 1; }
   curl -sf http://$GW/readyz >/dev/null || { echo "gateway not ready"; exit 1; }
 else
   PULL_WAIT=4
+  # Bare mode boots its own gateway below with this exact key.
+  GWKEY=gwk-demo
 
   # A stale listener would make every check below test the wrong build.
   for p in ${CP_PORT:-8122} ${GW_PORT:-8125}; do
@@ -70,7 +81,7 @@ sleep $PULL_WAIT  # one policy-pull interval
 
 echo "→ direct proxy checks"
 BLOCKED=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://$GW/v1/messages \
-  -H 'Authorization: Bearer gwk-demo' -H 'content-type: application/json' \
+  -H "Authorization: Bearer $GWKEY" -H 'content-type: application/json' \
   -d '{"model":"m","messages":[{"role":"user","content":"SSN 123-45-6789 please"}]}')
 check "healthcare gate blocks PII (got $BLOCKED)" "[ \"$BLOCKED\" = 400 ]"
 UNAUTH=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://$GW/v1/messages -d '{}')
@@ -80,7 +91,7 @@ echo "→ attest ZDR (block → mask, no restart)"
 curl -sf -X PUT http://$CP/api/policies -d '{"baseline":"healthcare","vendors":{"anthropic":{"zdr_attested":true}}}' >/dev/null
 sleep $PULL_WAIT
 MASKED=$(curl -s -X POST http://$GW/v1/messages \
-  -H 'Authorization: Bearer gwk-demo' -H 'content-type: application/json' \
+  -H "Authorization: Bearer $GWKEY" -H 'content-type: application/json' \
   -d '{"model":"m","messages":[{"role":"user","content":"SSN 123-45-6789 please"}]}' -o /dev/null -w '%{http_code}')
 check "attested ZDR masks instead of blocking (got $MASKED)" "[ \"$MASKED\" = 200 ]"
 

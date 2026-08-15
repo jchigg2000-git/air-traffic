@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -32,6 +34,9 @@ type Detector interface {
 type Chain struct {
 	Detectors []Detector
 	Timeout   time.Duration
+	// allow holds map[type]set(lowercased term) from the pattern pack's
+	// allow_list rules. Swapped atomically so a hot-reload never tears.
+	allow atomic.Value
 }
 
 // typeGuards are engine-independent validators applied to every span by
@@ -48,6 +53,46 @@ var typeGuards = map[string]func(text string, start, end int) bool{
 	"ADDRESS": notHyphenAdjacent,
 }
 
+// SetPatternPack installs the chain-level half of a pattern pack: the
+// allow-list entries. It lives here rather than in one engine because
+// suppression must overrule whichever engine made the claim, exactly like
+// typeGuards — a term the owner has ruled a false positive must not come back
+// because a different detector found it.
+func (c *Chain) SetPatternPack(rules []PatternRule) {
+	allow := map[string]map[string]struct{}{}
+	for _, r := range rules {
+		if r.Kind != "allow_list" || len(r.AllowList) == 0 {
+			continue
+		}
+		set, ok := allow[r.Type]
+		if !ok {
+			set = map[string]struct{}{}
+			allow[r.Type] = set
+		}
+		for _, term := range r.AllowList {
+			set[strings.ToLower(term)] = struct{}{}
+		}
+	}
+	c.allow.Store(allow)
+}
+
+// allowed reports whether this exact span text has been ruled a false positive
+// for this type. Matching is on the span's own text, case-insensitively: an
+// allow-list entry suppresses the term, never a region of the document, so it
+// cannot be used to smuggle real PII past the filter by neighbouring it.
+func (c *Chain) allowed(typ, span string) bool {
+	v := c.allow.Load()
+	if v == nil {
+		return false
+	}
+	set, ok := v.(map[string]map[string]struct{})[typ]
+	if !ok {
+		return false
+	}
+	_, hit := set[strings.ToLower(span)]
+	return hit
+}
+
 // Run returns merged, guard-validated spans plus one error per failed engine.
 func (c *Chain) Run(ctx context.Context, text string) ([]Span, []error) {
 	var all []Span
@@ -62,6 +107,9 @@ func (c *Chain) Run(ctx context.Context, text string) ([]Span, []error) {
 		}
 		for _, sp := range spans {
 			if guard, ok := typeGuards[sp.Type]; ok && !guard(text, sp.Start, sp.End) {
+				continue
+			}
+			if sp.Start >= 0 && sp.End <= len(text) && c.allowed(sp.Type, text[sp.Start:sp.End]) {
 				continue
 			}
 			all = append(all, sp)

@@ -17,12 +17,23 @@ import (
 	"air-traffic/internal/redact"
 )
 
-// Upstream is one proxied vendor route: where to forward and which credential
-// reference to resolve at call time.
+// Upstream is one proxied vendor route: where to forward, which credential
+// reference to resolve at call time, and how that credential is presented.
 type Upstream struct {
 	BaseURL       string `json:"base_url"`
 	CredentialRef string `json:"credential_ref"`
+	// Auth selects the header the resolved credential goes into: "x-api-key"
+	// (Anthropic's native header) or "bearer" (Authorization: Bearer, what
+	// OpenAI-compatible routers expect). Empty means the route's dialect
+	// default, so existing single-route configs keep working untouched.
+	Auth string `json:"auth,omitempty"`
 }
+
+// Auth modes an upstream may request.
+const (
+	AuthAPIKey = "x-api-key"
+	AuthBearer = "bearer"
+)
 
 // Config is the gateway's full runtime configuration.
 type Config struct {
@@ -165,6 +176,11 @@ func parseUpstreams(raw string) (map[string]Upstream, error) {
 		}
 		if !refScheme.MatchString(up.CredentialRef) {
 			return nil, fmt.Errorf("GATEWAY_UPSTREAMS[%s].credential_ref %q is not a secret reference (want env:NAME)", route, up.CredentialRef)
+		}
+		switch up.Auth {
+		case "", AuthAPIKey, AuthBearer:
+		default:
+			return nil, fmt.Errorf("GATEWAY_UPSTREAMS[%s].auth %q (want %s, %s, or omit for the route default)", route, up.Auth, AuthAPIKey, AuthBearer)
 		}
 	}
 	return upstreams, nil

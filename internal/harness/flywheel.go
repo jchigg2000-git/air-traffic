@@ -33,6 +33,11 @@ const (
 	probeTimeout    = 2500 * time.Millisecond
 	maxDenyTerms    = 50
 	maxDenyTermLen  = 80
+	maxAllowTerms   = 50
+	// Shorter than a deny term on purpose: an allow term names a thing
+	// (a character, a product, a place), and the longer the string the more
+	// likely it is an attempt to switch a type off wholesale.
+	maxAllowTermLen = 48
 	minGate         = 0.05
 	maxGate         = 0.95
 )
@@ -523,6 +528,23 @@ func validateDenyTerm(term string) error {
 	return nil
 }
 
+// validateAllowTerm bounds one suppression term. Unlike a deny term this
+// SWITCHES OFF a detection, so the shape is checked rather than the content:
+// a term must be a single trimmed token-run short enough to be a name or
+// place, never a sentence someone pasted in to blanket-disable a type.
+func validateAllowTerm(term string) error {
+	if t := strings.TrimSpace(term); t == "" || t != term {
+		return fmt.Errorf("allow term %q is empty or has surrounding whitespace", term)
+	}
+	if len(term) > maxAllowTermLen {
+		return fmt.Errorf("allow term longer than %d bytes", maxAllowTermLen)
+	}
+	if strings.ContainsAny(term, "\n\r\t") {
+		return fmt.Errorf("allow term %q spans lines", term)
+	}
+	return nil
+}
+
 // ruleFromProposal validates a proposal's artifact and shapes the pack rule.
 // Approval is the trust boundary: whatever passes here hot-reloads into
 // every gateway, so each kind gets a hard check.
@@ -555,6 +577,20 @@ func ruleFromProposal(p model.PatternProposal) (model.PatternRule, error) {
 		}
 		rule.Kind = model.KindThreshold
 		rule.Threshold = p.Threshold
+	case model.KindAllowList:
+		// The only kind that removes enforcement, so the check is the
+		// strictest: bounded count, no whitespace-padded or empty terms, and
+		// nothing long enough to be a document fragment rather than a term.
+		if len(p.AllowList) == 0 || len(p.AllowList) > maxAllowTerms {
+			return rule, fmt.Errorf("proposal %q: allow list must hold 1–%d terms", p.ID, maxAllowTerms)
+		}
+		for _, term := range p.AllowList {
+			if err := validateAllowTerm(term); err != nil {
+				return rule, fmt.Errorf("proposal %q: %w", p.ID, err)
+			}
+		}
+		rule.Kind = model.KindAllowList
+		rule.AllowList = p.AllowList
 	default:
 		return rule, fmt.Errorf("proposal %q has unknown kind %q", p.ID, p.Kind)
 	}
@@ -564,6 +600,50 @@ func ruleFromProposal(p model.PatternProposal) (model.PatternRule, error) {
 // ApproveProposal moves a proposal into the active pattern pack: version
 // bump, store publish (gateways hot-reload on next pull), durable persist,
 // audit event. Human-in-the-loop by design.
+// AddProposal records an owner-authored proposal. The flywheel's own
+// proposals are recall-driven — they come from harness misses, and it has no
+// ground truth for real application traffic, so it can never infer that a
+// detection was wrong. A false positive seen in production is therefore an
+// owner judgement, and this is how it enters the same propose → approve →
+// hot-reload path with the same audit trail rather than becoming a hardcoded
+// exception in the detector.
+//
+// It is deliberately NOT auto-approved: authoring and approving stay separate
+// acts, exactly as they are for a flywheel-generated proposal.
+func (r *Runner) AddProposal(p model.PatternProposal) (model.PatternProposal, error) {
+	if p.Type == "" {
+		return model.PatternProposal{}, fmt.Errorf("proposal type is required")
+	}
+	if p.Rationale == "" {
+		return model.PatternProposal{}, fmt.Errorf("proposal rationale is required: an unexplained suppression is unreviewable")
+	}
+	p.Status = "proposed"
+	p.CreatedAt = time.Now().UTC()
+	if p.ID == "" {
+		p.ID = fmt.Sprintf("manual-%s-%s", strings.ToLower(p.Type), model.NewUUID()[:8])
+	}
+	p.SourceRun = "manual"
+	// Validate now, so an unapprovable artifact is rejected at authoring time
+	// rather than surfacing as a failure on the approve click.
+	if _, err := ruleFromProposal(p); err != nil {
+		return model.PatternProposal{}, err
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, existing := range r.proposals {
+		if existing.ID == p.ID {
+			return model.PatternProposal{}, fmt.Errorf("proposal %q already exists", p.ID)
+		}
+	}
+	r.proposals = append(r.proposals, p)
+	if err := r.persist.savePatterns(r.store.GetPatternPack(), r.proposals); err != nil {
+		r.log.Warn("pattern persist failed", "error", err)
+	}
+	r.log.Info("proposal authored", "id", p.ID, "kind", p.Kind, "type", p.Type)
+	return p, nil
+}
+
 func (r *Runner) ApproveProposal(id string) (model.PatternPack, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
