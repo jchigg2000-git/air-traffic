@@ -63,7 +63,9 @@ export function buildCostSnapshot(
       tokens_in: v.tokensInLatest,
       tokens_out: v.tokensOutLatest,
       cap_util_pct: v.capUtil,
-      status: v.worstRag,
+      // An off vendor exports as 'off', never as its (meaningless) rollup colour — otherwise the
+      // CSV persists the same green-when-silent lie the board used to show.
+      status: v.emitting ? v.worstRag : 'off',
     }))
 
   let drilldown: CostSnapshot['drilldown'] = null

@@ -1,5 +1,5 @@
 import type { Adapter, ObservationRecord, DriftRecord } from './api.ts'
-import { ageSeconds, type Rag } from './format.ts'
+import { ageSeconds, freshnessRag, type Rag } from './format.ts'
 
 // FacetMemberRollup is one cost drill-down row (cost attributed to one user / model / repo
 // / project / …), derived from the emitter's kind:"cost_breakdown" observations.
@@ -16,6 +16,10 @@ export interface FacetMemberRollup {
 export interface VendorRollup {
   adapter: Adapter
   latest?: ObservationRecord
+  // emitting mirrors the backend's own emit gate (internal/emitter/emitter.go:62). It is the
+  // single source of "should this vendor look alive" — a vendor that is off cannot be healthy,
+  // cannot be stale, and must never render as green.
+  emitting: boolean
   freshnessSec: number
   series: Record<string, number[]>
   planeRag: Record<string, Rag>
@@ -44,7 +48,11 @@ function asRag(status: string): Rag {
 export interface Fleet {
   vendors: VendorRollup[]
   totalSpend: number
+  /** Green vendors among the emitting ones only — an off vendor is not "healthy", it is absent. */
   healthy: number
+  emittingCount: number
+  /** connector_instance ids that reported observations but have no adapter row (e.g. the gateway). */
+  unmatchedEmitters: string[]
   driftCount: number
   obsPerMin: number
   tokensInTotal: number
@@ -69,6 +77,8 @@ export function computeFleet(
   const vendors: VendorRollup[] = adapters.map((adapter) => {
     const recs = (byVendor.get(adapter.id) ?? []).slice().sort((a, b) => a.received_at.localeCompare(b.received_at))
     const latest = recs[recs.length - 1]
+    const emitting = adapter.enabled && adapter.emit && adapter.mode !== 'disabled'
+    const freshnessSec = latest ? ageSeconds(latest.received_at, now) : Infinity
 
     // aggregate metric series (cost_breakdown rows are drill-down attribution, not
     // fleet-level metrics — skip them so they can't pollute cost_usd / totals).
@@ -100,6 +110,10 @@ export function computeFleet(
     const vendorDrift = drift.filter((d) => d.vendor === adapter.id)
     if (vendorDrift.length) worstRag = worse(worstRag, 'amber')
 
+    // A feed that silently stops must decay, not sit green forever. Only emitting vendors are
+    // held to this — an off vendor is not stale, it is off (rendered as such, never as green).
+    if (emitting) worstRag = worse(worstRag, freshnessRag(freshnessSec))
+
     const last = (name: string) => {
       const s = series[name]
       return s && s.length ? s[s.length - 1] : 0
@@ -113,7 +127,8 @@ export function computeFleet(
     return {
       adapter,
       latest,
-      freshnessSec: latest ? ageSeconds(latest.received_at, now) : Infinity,
+      emitting,
+      freshnessSec,
       series,
       planeRag,
       worstRag,
@@ -128,10 +143,14 @@ export function computeFleet(
     }
   })
 
+  const adapterIds = new Set(adapters.map((a) => a.id))
+
   return {
     vendors,
     totalSpend: vendors.reduce((s, v) => s + v.costLatest, 0),
-    healthy: vendors.filter((v) => v.worstRag === 'green').length,
+    healthy: vendors.filter((v) => v.emitting && v.worstRag === 'green').length,
+    emittingCount: vendors.filter((v) => v.emitting).length,
+    unmatchedEmitters: [...byVendor.keys()].filter((id) => !adapterIds.has(id)).sort(),
     driftCount: drift.length,
     obsPerMin: recentBatches,
     tokensInTotal: vendors.reduce((s, v) => s + v.tokensInLatest, 0),

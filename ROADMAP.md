@@ -187,6 +187,26 @@ kept on disk, not deleted — see Appendix).
   record, kept in place).
 - ✅ **PHASE2-2** (`3f14442`+ series) CSV + JSON export added to Cost Explorer; API error surfacing
   in CostExplorer (`9e212b2`); Vitest harness added (`d2cd9cb`).
+- ✅ **PHASE2-3** (2026-08-15) **Honest-liveness pass.** Fixed the rollup bug that painted 13
+  non-emitting vendors green (`web/src/lib/fleet.ts` now mirrors the emitter's own gate via
+  `VendorRollup.emitting`; stale feeds decay; `healthy` counts emitting vendors only;
+  `unmatchedEmitters` surfaces emitters with no adapter row). Flight Deck: off rows dimmed with an
+  `off` marker, worst-first sort, unconditional pulses and the hardcoded "emitter · 5s" /
+  "live · updates every 5s" claims replaced with the real age of the last successful poll, KPI
+  strip 5→4, Legend and dead `.tile-flash` CSS removed. App-wide: shared
+  `components/ApiStateBanner.tsx` mounted on the 7 pages that previously failed silently;
+  loading-vs-empty conflation fixed in Vendors + Gateway Harness + Rigor Console. Principle and
+  scope rulings: `DECISIONS.md` 2026-08-15 "an element may not claim liveness it cannot disprove".
+  - ⬜ **PHASE2-3a** Next `/ratchet-up landing-page` run must fix `web/src/pages/landing/Hero.tsx`
+    (~`:30-40`): the "spine online" and "emitter · ops-observation-batch/v1 · 5s" badges pulse
+    unconditionally with zero data binding and cannot go false — a violation of that page's own
+    Correctness axis. Left untouched this pass because `/welcome` is a ratcheted champion; it must
+    be changed through the ledger, and the run must still beat the reigning score.
+  - ⬜ **PHASE2-3b** Residual, non-blocking: `web/src/components/VendorGlyph.tsx` brand hues for
+    bedrock/mistral/m365/groq (`#FF9900`, `#FA520F`, `#D83B01`, `#F55036`) sit in the same band as
+    `--amber`/`--unverified`, so a decorative glyph can camouflage a real status dot in the same
+    row. Mitigated (off-row dimming + glow now conditional), not solved; a full palette rework was
+    deliberately not taken because `VendorGlyph` is shared with the ratcheted landing page.
 
 ---
 

@@ -169,3 +169,32 @@ the live OpenAI-dialect client.
 Consequence recorded, not fixed: the pattern pack is append-only, so the allow-list rule authored
 for that app (`manual-person-m2m-interests`) cannot be retired and stays in the pack. See
 `docs/plans/TODO-gateway-deferred.md`, "the pattern pack has no retraction path".
+
+## 2026-08-15 — Flight Deck: an element may not claim liveness it cannot disprove
+
+Driver: the owner's read that the Flight Deck was "too busy" and that "many of the things stay
+active as if they're emitting regardless." Probing the live stack confirmed the second half as a
+correctness bug, not a styling complaint: the Go emitter gates emission on
+`Enabled && Emit && Mode != disabled` (`internal/emitter/emitter.go:62`), but the client rollup
+gated only on `mode === 'disabled'` (`web/src/lib/fleet.ts`). All 16 adapters carry
+`mode: "synthetic"`, so the 13 with `enabled: false` fell through to green, rendered as healthy
+rows, and inflated the "Healthy %" KPI. Three vendors were emitting; thirteen were painted alive.
+
+**Principle adopted:** no element may claim liveness, health, or freshness unless it is derived
+from data that could currently disprove it — and when the data disproves it, the element must show
+that instead. Applied as: `VendorRollup.emitting` mirrors the backend gate; an emitting vendor's
+`worstRag` now decays with feed age; off vendors render dimmed with an `off` marker and `—` in the
+live columns; the header pill and board header report the age of the last *successful* poll; the
+unconditional "emitter · 5s" chip and the static "live · updates every 5s" string are gone.
+
+**Scope rulings.** (1) The `fleet.ts` change is classed as presentation-layer honesty, not a
+behaviour change: it corrects a client-side view rollup, mutates no server state, and enables or
+disables no adapter — the owner's standing rule that adapters are his to toggle is untouched.
+(2) The same fake-live badges in `web/src/pages/landing/Hero.tsx` ("spine online", "emitter ·
+…5s", both hardcoded and pulsing) were left in place: `/welcome` is a ratcheted champion governed
+by `.claude/ratchet-up/landing-page-ledger.md`, and editing it outside that process would mutate
+the champion. Filed as spec input for the next `/ratchet-up landing-page` run instead.
+
+Not taken, deliberately: the vendor brand-hue palette rework (`VendorGlyph.tsx` oranges collide
+with `--amber`), the `.panel-2` vs `bg-panel2` naming reconciliation, and propagating Gateway
+Traffic's Live/Pause toggle app-wide — the last is behaviour addition, not tightening.

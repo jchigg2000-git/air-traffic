@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api, qk, type GatewayRequest } from '../lib/api.ts'
 import PageHeader from '../components/PageHeader.tsx'
+import ApiStateBanner from '../components/ApiStateBanner.tsx'
 import { relativeTime, fmtNum } from '../lib/format.ts'
 import { useClock } from '../lib/useClock.ts'
 
@@ -118,7 +119,9 @@ export default function GatewayTraffic() {
         }
       />
 
+      <ApiStateBanner error={traffic.error} className="mb-4" />
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+
         <Tile label="Requests" value={fmtNum(rows.length)} />
         <Tile label="Redactions" value={fmtNum(totals.redactions)} />
         <Tile label="Blocked" value={fmtNum(totals.blocked)} tone={totals.blocked ? 'var(--red)' : undefined} />

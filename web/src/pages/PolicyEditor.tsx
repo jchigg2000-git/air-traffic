@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api, qk, type Adapter, type Capability } from '../lib/api.ts'
 import PageHeader from '../components/PageHeader.tsx'
+import ApiStateBanner from '../components/ApiStateBanner.tsx'
 import VendorGlyph from '../components/VendorGlyph.tsx'
 import DispositionChip from '../components/DispositionChip.tsx'
 import { titleCase } from '../lib/format.ts'
@@ -29,6 +30,7 @@ export default function PolicyEditor() {
   return (
     <div>
       <PageHeader title="Policy Editor" subtitle="Expand each control into per-vendor mechanisms. Every chip states the real disposition — never overstated." />
+      <ApiStateBanner error={adapters.error} className="mb-4" />
 
       {adapters.isLoading && <div className="h-64 animate-pulse panel" />}
 

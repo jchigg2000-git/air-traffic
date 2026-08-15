@@ -1,7 +1,9 @@
 import { useEffect, useState, type MouseEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, qk, type Adapter, type Mode } from '../lib/api.ts'
+import { useClock } from '../lib/useClock.ts'
 import PageHeader from '../components/PageHeader.tsx'
+import ApiStateBanner from '../components/ApiStateBanner.tsx'
 import VendorGlyph from '../components/VendorGlyph.tsx'
 import DispositionChip from '../components/DispositionChip.tsx'
 import Modal from '../components/Modal.tsx'
@@ -29,6 +31,7 @@ function Switch({ on, onClick, title }: { on: boolean; onClick: (e: MouseEvent) 
 
 export default function Vendors() {
   const qc = useQueryClient()
+  const now = useClock(1000)
   const adapters = useQuery({ queryKey: qk.adapters, queryFn: api.adapters })
   const [selId, setSelId] = useState<string | null>(null)
   const [epOpen, setEpOpen] = useState(false)
@@ -76,13 +79,14 @@ export default function Vendors() {
   return (
     <div>
       <PageHeader title="Vendors & Surfaces" subtitle="Drive each synthetic control surface — toggle, mode, fault scenario, emitter, endpoint — and inspect its manifest and recorded calls." />
+      <ApiStateBanner error={adapters.error} className="mb-4" />
 
       <div className="grid items-start gap-4 lg:grid-cols-[1fr_1.4fr]">
         {/* list — fills the viewport height */}
         <div className="panel flex flex-col overflow-hidden lg:sticky lg:top-5 lg:h-[calc(100vh-7rem)]">
           <div className="flex items-center justify-between border-b border-line px-4 py-2.5 text-[11px] uppercase tracking-wider text-faint">
-            <span>{list.length} vendors</span>
-            <span>{onCount} on · {list.length - onCount} off</span>
+            <span>{adapters.isLoading ? '—' : `${list.length} vendors`}</span>
+            <span>{adapters.isLoading ? '—' : `${onCount} on · ${list.length - onCount} off`}</span>
           </div>
           <div className="flex-1 overflow-y-auto">
             {list.map((a) => (
@@ -209,7 +213,7 @@ export default function Vendors() {
                     <span className="w-10 shrink-0" style={{ color: c.status_code < 400 ? 'var(--green)' : 'var(--amber)' }}>{c.status_code}</span>
                     <span className="w-12 shrink-0 text-muted">{c.method}</span>
                     <span className="flex-1 truncate">{c.path}</span>
-                    <span className="shrink-0 text-faint">{c.duration_ms}ms · {relativeTime(c.recorded_at)}</span>
+                    <span className="shrink-0 text-faint">{c.duration_ms}ms · {relativeTime(c.recorded_at, now)}</span>
                   </div>
                 ))}
                 {!calls.data?.length && <div className="text-faint">No calls yet — hit a /synthetic/{sel.id}/… endpoint.</div>}

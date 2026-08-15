@@ -61,14 +61,14 @@ function SampleMarkedText({ content, redactions }: { content: string; redactions
 function Chip({ ok, label }: { ok: boolean; label: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]" style={{ borderColor: 'var(--line)' }}>
-      <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: ok ? 'var(--green, #22c55e)' : 'var(--red, #ef4444)' }} />
+      <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: ok ? 'var(--green)' : 'var(--red)' }} />
       {label}
     </span>
   )
 }
 
 function ScoreCard({ label, value, tone }: { label: string; value: string; tone?: 'good' | 'bad' | 'plain' }) {
-  const color = tone === 'good' ? 'var(--green, #22c55e)' : tone === 'bad' ? 'var(--red, #ef4444)' : 'var(--fg)'
+  const color = tone === 'good' ? 'var(--green)' : tone === 'bad' ? 'var(--red)' : 'var(--fg)'
   return (
     <div className="panel-2 px-3 py-2">
       <div className="text-xl font-semibold tabular-nums" style={{ color }}>{value}</div>
@@ -186,7 +186,7 @@ export default function GatewayHarness() {
           Start the data plane first: <code className="font-mono">go run ./cmd/air-traffic-gateway</code> (see docs/plans/phase-3-inference-gateway.md for env).
         </div>
       )}
-      {startError && <div className="mb-4 panel p-3 text-xs" style={{ color: 'var(--red, #ef4444)' }}>{startError}</div>}
+      {startError && <div className="mb-4 panel p-3 text-xs" style={{ color: 'var(--red)' }}>{startError}</div>}
 
       {/* try a prompt */}
       <div className="mb-5 panel p-4">
@@ -215,7 +215,7 @@ export default function GatewayHarness() {
             {sampling ? 'Sending…' : 'Send through gateway'}
           </button>
           <span className="text-[11px] text-faint">⌘⏎</span>
-          {sampleError && <span className="text-xs" style={{ color: 'var(--red, #ef4444)' }}>{sampleError}</span>}
+          {sampleError && <span className="text-xs" style={{ color: 'var(--red)' }}>{sampleError}</span>}
         </div>
         {sample && (
           <div className="mt-3 space-y-3">
@@ -343,9 +343,9 @@ export default function GatewayHarness() {
                 <tr key={typ} className="border-t" style={{ borderColor: 'var(--line)' }}>
                   <td className="py-1 font-mono">{typ}</td>
                   <td>{ts.tp}</td>
-                  <td style={{ color: ts.fn > 0 ? 'var(--red, #ef4444)' : undefined }}>{ts.fn}</td>
-                  <td style={{ color: ts.fp > 0 ? 'var(--amber, #f59e0b)' : undefined }}>{ts.fp}</td>
-                  <td style={{ color: ts.behavioral_misses > 0 ? 'var(--red, #ef4444)' : undefined }}>{ts.behavioral_misses}</td>
+                  <td style={{ color: ts.fn > 0 ? 'var(--red)' : undefined }}>{ts.fn}</td>
+                  <td style={{ color: ts.fp > 0 ? 'var(--amber)' : undefined }}>{ts.fp}</td>
+                  <td style={{ color: ts.behavioral_misses > 0 ? 'var(--red)' : undefined }}>{ts.behavioral_misses}</td>
                 </tr>
               ))}
             </tbody>
@@ -362,7 +362,9 @@ export default function GatewayHarness() {
           <h3 className="text-sm font-semibold">Recall ratchet</h3>
           <span className="text-[11px] text-muted">behavioral recall per run — the number this gateway publishes</span>
         </div>
-        {ratchetValues.length >= 2 ? (
+        {ratchet.isLoading ? (
+          <p className="text-xs italic text-muted">loading…</p>
+        ) : ratchetValues.length >= 2 ? (
           <Sparkline values={ratchetValues} width={420} height={56} />
         ) : (
           <p className="text-xs italic text-muted">Run twice (approve a pattern in between) to draw the trend.</p>
@@ -387,7 +389,11 @@ export default function GatewayHarness() {
           <h3 className="text-sm font-semibold">Flywheel · pattern proposals</h3>
           <span className="text-[11px] text-muted">human-approved only — nothing auto-applies</span>
         </div>
-        {(proposals.data ?? []).length === 0 && <p className="text-xs italic text-muted">No proposals yet — run traffic and misses will surface here.</p>}
+        {proposals.isLoading ? (
+          <p className="text-xs italic text-muted">loading…</p>
+        ) : (proposals.data ?? []).length === 0 ? (
+          <p className="text-xs italic text-muted">No proposals yet — run traffic and misses will surface here.</p>
+        ) : null}
         <div className="space-y-2">
           {(proposals.data ?? []).map((p) => (
             <div key={p.id} className="panel-2 flex flex-wrap items-center gap-3 px-3 py-2">
@@ -465,7 +471,7 @@ export default function GatewayHarness() {
                     <td className="py-1.5 font-mono">{r.template}{r.straddle ? ' ⚡sse' : ''}</td>
                     <td>{r.action || (r.error ? 'error' : '—')}</td>
                     <td className="text-muted">{r.truth.map((t) => t.type).join(', ') || '—'}</td>
-                    <td style={{ color: (r.missed_types?.length ?? 0) > 0 ? 'var(--red, #ef4444)' : undefined }}>
+                    <td style={{ color: (r.missed_types?.length ?? 0) > 0 ? 'var(--red)' : undefined }}>
                       {r.missed_types?.join(', ') || '—'}
                     </td>
                     <td className="tabular-nums text-muted">{r.latency_ms}ms</td>
@@ -497,7 +503,11 @@ export default function GatewayHarness() {
         </button>
         {corpusOpen && (
           <div className="mt-3 space-y-2">
-            {(corpus.data ?? []).length === 0 && <p className="text-xs italic text-muted">Empty — no misses promoted yet.</p>}
+            {corpus.isLoading ? (
+              <p className="text-xs italic text-muted">loading…</p>
+            ) : (corpus.data ?? []).length === 0 ? (
+              <p className="text-xs italic text-muted">Empty — no misses promoted yet.</p>
+            ) : null}
             {(corpus.data ?? []).slice(0, 50).map((e) => (
               <div key={e.id} className="panel-2 px-3 py-2">
                 <div className="mb-1 flex flex-wrap gap-3 text-[10px] text-faint">

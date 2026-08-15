@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api, qk, type ObservationRecord } from '../lib/api.ts'
 import PageHeader from '../components/PageHeader.tsx'
+import ApiStateBanner from '../components/ApiStateBanner.tsx'
 import VendorGlyph from '../components/VendorGlyph.tsx'
 import { relativeTime } from '../lib/format.ts'
 import { useClock } from '../lib/useClock.ts'
@@ -19,7 +20,9 @@ export default function Observability() {
         actions={<span className="rounded-md border border-line bg-panel2 px-2 py-1 font-mono text-[11px] text-accent">ops-observation-batch/v1</span>}
       />
 
+      <ApiStateBanner error={obs.error} className="mb-4" />
       <div className="panel overflow-hidden">
+
         <div className="grid grid-cols-[1.4fr_0.8fr_0.8fr_1fr_0.4fr] gap-2 border-b border-line px-5 py-2 text-[10px] font-semibold uppercase tracking-wider text-faint">
           <span>Vendor</span>
           <span>Obs</span>

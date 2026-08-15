@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, qk, type Adapter, type Baseline, type CoverageReport } from '../lib/api.ts'
 import PageHeader from '../components/PageHeader.tsx'
+import { dispMeta } from '../lib/dispositions.ts'
+import ApiStateBanner from '../components/ApiStateBanner.tsx'
 import { titleCase } from '../lib/format.ts'
 
 // Hand-written narrative for each preconfigured rigor profile. `posture` maps to the
@@ -148,7 +150,10 @@ export default function RigorConsole() {
         }
       />
 
+      <ApiStateBanner error={baselines.error || adapters.error} className="mb-4" />
+
       {/* profile selector */}
+      {(baselines.isLoading || adapters.isLoading) && <p className="mb-5 text-xs italic text-muted">loading…</p>}
       <div className="mb-5 flex flex-wrap gap-2">
         {baselines.data?.map((b) => (
           <button
@@ -210,7 +215,7 @@ export default function RigorConsole() {
                   <div className="mb-1.5 text-[10px] uppercase tracking-wider text-faint">Coverage across vendors</div>
                   <div className="flex h-2 overflow-hidden rounded-full bg-panel2">
                     {['vendor_native', 'env_managed', 'proxy_enforced', 'monitor_only', 'unverified', 'unsupported'].map((d) => (
-                      <span key={d} style={{ width: `${((cov[d] ?? 0) / total) * 100}%`, background: dispColor(d) }} title={`${titleCase(d)}: ${cov[d] ?? 0}`} />
+                      <span key={d} style={{ width: `${((cov[d] ?? 0) / total) * 100}%`, background: dispMeta(d).color }} title={`${titleCase(d)}: ${cov[d] ?? 0}`} />
                     ))}
                   </div>
                 </div>
@@ -264,13 +269,3 @@ function coverageByPlane(adapters: Adapter[]): Record<string, Record<string, num
   return out
 }
 
-function dispColor(d: string): string {
-  return {
-    vendor_native: 'var(--native)',
-    env_managed: 'var(--env)',
-    proxy_enforced: 'var(--proxy)',
-    monitor_only: 'var(--monitor)',
-    unverified: 'var(--unverified)',
-    unsupported: 'var(--unsupported)',
-  }[d] ?? 'var(--muted)'
-}

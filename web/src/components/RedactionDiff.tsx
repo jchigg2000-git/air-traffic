@@ -9,9 +9,9 @@ import type { GatewayRedaction, TruthSpan } from '../lib/api.ts'
 type Mark = { start: number; end: number; kind: 'detected' | 'missed' | 'fp' | 'trap' }
 
 const MARK_STYLE: Record<Mark['kind'], { background: string; borderBottom: string; title: string }> = {
-  detected: { background: 'color-mix(in srgb, var(--green, #22c55e) 18%, transparent)', borderBottom: '2px solid var(--green, #22c55e)', title: 'seeded PII — detected' },
-  missed: { background: 'color-mix(in srgb, var(--red, #ef4444) 24%, transparent)', borderBottom: '2px solid var(--red, #ef4444)', title: 'seeded PII — MISSED' },
-  fp: { background: 'color-mix(in srgb, var(--amber, #f59e0b) 24%, transparent)', borderBottom: '2px dashed var(--amber, #f59e0b)', title: 'detected but not seeded (false positive)' },
+  detected: { background: 'color-mix(in srgb, var(--green) 18%, transparent)', borderBottom: '2px solid var(--green)', title: 'seeded PII — detected' },
+  missed: { background: 'color-mix(in srgb, var(--red) 24%, transparent)', borderBottom: '2px solid var(--red)', title: 'seeded PII — MISSED' },
+  fp: { background: 'color-mix(in srgb, var(--amber) 24%, transparent)', borderBottom: '2px dashed var(--amber)', title: 'detected but not seeded (false positive)' },
   trap: { background: 'transparent', borderBottom: '1px dotted var(--muted)', title: 'trap — must not be detected' },
 }
 

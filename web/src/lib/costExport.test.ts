@@ -16,6 +16,7 @@ function adapter(id: string, name: string): Adapter {
 function vendor(id: string, name: string, cost: number, facets: VendorRollup['facets'] = {}): VendorRollup {
   return {
     adapter: adapter(id, name),
+    emitting: true,
     freshnessSec: 1,
     series: {},
     planeRag: {},
@@ -45,6 +46,8 @@ const FLEET: Fleet = {
   ],
   totalSpend: 450,
   healthy: 3,
+  emittingCount: 3,
+  unmatchedEmitters: [],
   driftCount: 0,
   obsPerMin: 5,
   tokensInTotal: 4500,

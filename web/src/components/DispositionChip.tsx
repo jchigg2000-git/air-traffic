@@ -12,13 +12,14 @@ export default function DispositionChip({
   const m = dispMeta(disposition)
   const enf = enforcement ? enforcementMeta(enforcement) : null
   const pad = size === 'xs' ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-xs'
+  // Border + glyph + text carry the disposition; the background fill was a third stacked colour
+  // treatment that turned an 18-chip row into a wall of tint.
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full border font-medium ${pad}`}
       style={{
         color: m.color,
         borderColor: `color-mix(in srgb, ${m.color} 45%, transparent)`,
-        background: `color-mix(in srgb, ${m.color} 12%, transparent)`,
       }}
       title={m.blurb}
     >

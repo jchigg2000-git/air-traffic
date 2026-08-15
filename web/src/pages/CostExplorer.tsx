@@ -6,6 +6,7 @@ import { useClock } from '../lib/useClock.ts'
 import { fmtUSD, fmtNum, titleCase } from '../lib/format.ts'
 import { buildCostSnapshot, snapshotToCSV, snapshotToJSON, downloadBlob, exportFilename } from '../lib/costExport.ts'
 import PageHeader from '../components/PageHeader.tsx'
+import ApiStateBanner from '../components/ApiStateBanner.tsx'
 import VendorGlyph, { vendorAccent } from '../components/VendorGlyph.tsx'
 import Sparkline from '../components/Sparkline.tsx'
 
@@ -18,7 +19,8 @@ export default function CostExplorer() {
   const costFacets = useQuery({ queryKey: qk.costFacets, queryFn: api.costFacets })
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  const error = adapters.error || observations.error
+  // costFacets was silently excluded — a facet-fetch failure rendered as "no drill-down data".
+  const error = adapters.error || observations.error || costFacets.error
 
   const fleet = adapters.data && observations.data ? computeFleet(adapters.data, observations.data, [], now) : null
 
@@ -73,12 +75,7 @@ export default function CostExplorer() {
         }
       />
 
-      {error && (
-        <div className="mt-8 panel p-6 text-center text-red">
-          Cannot reach the Air-Traffic API. Is the server running on :8122? <br />
-          <span className="text-xs text-muted">{String(error)}</span>
-        </div>
-      )}
+      <ApiStateBanner error={error} className="mb-4" />
 
       {!fleet && !error && <div className="h-64 animate-pulse panel" />}
 
@@ -153,11 +150,11 @@ export default function CostExplorer() {
                 <h3 className="mb-3 text-sm font-semibold">Cap Alerts</h3>
                 <div className="flex flex-col gap-2">
                   {alerts.map((v) => (
-                    <div key={v.adapter.id} className="flex items-center gap-2 rounded-lg border px-3 py-2" style={{ borderColor: v.capUtil > 92 ? 'var(--red)' : 'var(--amber)' }}>
-                      <span style={{ color: v.capUtil > 92 ? 'var(--red)' : 'var(--amber)' }}>⚠</span>
+                    <div key={v.adapter.id} className="flex items-center gap-2 rounded-lg border px-3 py-2" style={{ borderColor: v.capUtil > 90 ? 'var(--red)' : 'var(--amber)' }}>
+                      <span style={{ color: v.capUtil > 90 ? 'var(--red)' : 'var(--amber)' }}>⚠</span>
                       <VendorGlyph id={v.adapter.id} size={20} />
                       <span className="flex-1 text-sm">{v.adapter.display_name}</span>
-                      <span className="text-sm font-semibold tabular-nums" style={{ color: v.capUtil > 92 ? 'var(--red)' : 'var(--amber)' }}>
+                      <span className="text-sm font-semibold tabular-nums" style={{ color: v.capUtil > 90 ? 'var(--red)' : 'var(--amber)' }}>
                         {v.capUtil.toFixed(0)}%
                       </span>
                     </div>

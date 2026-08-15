@@ -133,18 +133,6 @@ body {
   }
 }
 
-.tile-flash {
-  animation: flash 0.6s ease-out;
-}
-@keyframes flash {
-  from {
-    background: color-mix(in srgb, var(--accent) 16%, transparent);
-  }
-  to {
-    background: transparent;
-  }
-}
-
 .grid-fade {
   background-image:
     linear-gradient(var(--line) 1px, transparent 1px),
@@ -156,8 +144,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pulse-dot,
-  .tile-flash {
+  .pulse-dot {
     animation: none;
   }
 }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api, qk } from '../lib/api.ts'
 import PageHeader from '../components/PageHeader.tsx'
+import ApiStateBanner from '../components/ApiStateBanner.tsx'
 import VendorGlyph from '../components/VendorGlyph.tsx'
 import DispositionChip from '../components/DispositionChip.tsx'
 import { relativeTime, titleCase } from '../lib/format.ts'
@@ -47,7 +48,9 @@ export default function Audit() {
         }
       />
 
+      <ApiStateBanner error={audit.error} className="mb-4" />
       <div className="panel overflow-hidden">
+
         <div className="grid grid-cols-[1fr_1.4fr_1.2fr_1fr_0.9fr] gap-2 border-b border-line px-5 py-2 text-[10px] font-semibold uppercase tracking-wider text-faint">
           <span>Actor</span>
           <span>Action</span>
