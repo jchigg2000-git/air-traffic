@@ -121,6 +121,21 @@ export default function RigorConsole() {
 
   const planeCoverage = useMemo(() => coverageByPlane(adapters.data ?? []), [adapters.data])
 
+  // FIXME(PIVOT-1, ROADMAP.md §7.1) — this button is a one-click org-wide outage.
+  // `api.applyPolicy(selected)` sends no overrides (api.ts defaults `overrides = {}`), so
+  // `Policy.Vendors` reaches the gateway empty, `zdrAttested` derives false
+  // (internal/gateway/spine_pull.go:117-119), and the `healthcare` baseline
+  // (ZDR:"enforced" + PIIRedaction:"on+phi", internal/policy/baselines.go:26-29) resolves to
+  // `actionBlock` for EVERY caller within one policy-pull interval (spine_pull.go:144-146).
+  // No control anywhere in this UI can set `zdr_attested`, so from a browser "Healthcare" is
+  // unconditionally block, permanently. This already happened once: an app returned HTTP 200
+  // throughout while 100% of its calls were dropped (docs/plans/TODO-gateway-deferred.md:30).
+  // Aggravators, same file: `selected` defaults to 'fintech' (:116) so the primary CTA is armed
+  // on arrival with a posture nobody chose; the profile buttons render a 🔒→🔒🔒🔒 severity ramp
+  // while deriveAction yields detect→mask→block→mask, so gov_infra looks strictest and enforces
+  // LESS than healthcare; and there is no confirmation dialog anywhere in this codebase.
+  // Do not "fix" this by hiding the Healthcare card — see §7.1 for the three candidate fixes
+  // (send the attestation / gate the selection / preview the derived action before commit).
   async function apply() {
     setApplying(true)
     try {

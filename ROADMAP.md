@@ -31,7 +31,8 @@ parked item as a blocker is misreading this file.
 
 **Contents:** §0 Do next · §1 Phase 1 — control plane backend · §2 Phase 2 — frontend SPA ·
 §3 Phase 3 — inference gateway + harness + flywheel · §4 Cost & usage drill-down · §5 Per-vendor
-auth schemas · §6 Open-decisions index · Appendix
+auth schemas · §6 Open-decisions index · §7 Non-expert pivot (honesty, blast radius, detection,
+budget) · Appendix
 
 ---
 
@@ -52,10 +53,13 @@ auth schemas · §6 Open-decisions index · Appendix
 > to **detect**, same gateway, same instant. See §3 GATEWAY-7 and `DECISIONS.md` 2026-08-15
 > "Gateway keystore".
 >
-> **▶ NEXT ACTION: unchanged and unblocked** — §3's deferred G-blocks, §4's vendor cost facets,
-> §5's 10 vendor auth schemas. The one keystore follow-up (**GATEWAY-7a**, an
-> `AIRTRAFFIC_ADMIN_KEY` tier so the admin API is reachable from the browser) is an owner call,
-> not a blocker.
+> **▶ NEXT ACTION — superseded 2026-08-15 by the non-expert-pivot pass; see §7.** The strongest
+> candidate is now **§7.1 PIVOT-1**, a confirmed one-click org-wide outage (the Rigor Console's
+> "Healthcare" card resolves to `block` for every caller, with no UI path to the attestation that
+> would prevent it), followed by §7.2's four cheap instrumentation fixes. §3's deferred G-blocks,
+> §4's vendor cost facets and §5's 10 vendor auth schemas remain open and still block nothing.
+> **GATEWAY-7a is no longer an owner call** — the `AIRTRAFFIC_ADMIN_KEY` tier was ratified
+> 2026-08-15 as this repo's auth answer (`DECISIONS.md`, "The control plane stays single-operator").
 >
 > **Owed / unverified from the keystore pass:**
 > - The Gateway Traffic page's new **App column is build-verified only** — the same
@@ -299,11 +303,15 @@ kept on disk, not deleted — see Appendix).
     green there is the proof. `go test -race ./...`, `npm run build`, 18 vitest all green.
   - **Rationale, tradeoffs, and what was deliberately not built:** `DECISIONS.md` 2026-08-15
     "Gateway keystore: apps own the policy, keys carry the identity".
-  - ⬜ **GATEWAY-7a** (follow-up, non-blocking) No keystore UI, because issuance is loopback-only
-    and compose publishes the control plane behind a port — a browser request arrives from the
-    Docker bridge, not loopback. Opening it to the UI means adding an `AIRTRAFFIC_ADMIN_KEY` tier
-    to `requireLocalAdmin`, the same two-tier ladder `requireSpineKey` already implements. Owner
-    call, ~30 lines, no data-model change.
+  - ⬜ **GATEWAY-7a** (follow-up, non-blocking) — **DECIDED 2026-08-15, no longer an owner call.**
+    No keystore UI, because issuance is loopback-only and compose publishes the control plane
+    behind a port — a browser request arrives from the Docker bridge, not loopback. Opening it to
+    the UI means adding an `AIRTRAFFIC_ADMIN_KEY` tier to `requireLocalAdmin`, the same two-tier
+    ladder `requireSpineKey` already implements. ~30 lines, no data-model change. The owner
+    ratified this as the repo's auth answer (`DECISIONS.md` 2026-08-15, "The control plane stays
+    single-operator; auth is the admin-key tier, not a user model") — the alternative, an
+    authenticated per-human principal at the `Routes()` seam, was considered and rejected. Build it
+    when convenient; nothing gates it.
 - ⬜ **GATEWAY-3** Deferred G-blocks — full detail lives in `docs/plans/TODO-gateway-deferred.md`
   (kept separate, code-referenced; not duplicated here). Summary pointer only:
   - G3 (reversible tokenize + Redis vault), G4 (async monitor + response-side enforcement),
@@ -387,8 +395,283 @@ callout). Pointer only:
   commit message confirms a browser click-through happened since. Not answered.
 - 🔬 **OWED-3** — see §1: phase-1 acceptance checklist never formally re-run/checked off against
   current code.
-- 🔬 **OWED-4** — see §3 GATEWAY-3 G9: Redis-vs-hand-rolled-RESP-client is an owner scope call,
-  not yet made.
+- ✅ **OWED-4 — ANSWERED 2026-08-15.** The dependency question G9 was blocked on
+  (Redis vs hand-rolled RESP client vs neither) was put to the owner as part of the storage fork
+  and answered **no third-party dependency; stdlib-only holds** (`DECISIONS.md` 2026-08-15,
+  "Policy persists; the stdlib-only constraint holds; no durable time series"). G9's cross-replica
+  budget counter therefore stays deferred **by ruling** rather than remaining an open fork. Read
+  the consequence precisely: this does not make G9 buildable, `policy.json` is not a step toward
+  it, and per-user vendor budget tuning (§7.5) does not need it and must not be bundled with it.
+
+---
+
+## §7 Non-expert pivot — honesty, blast radius, detection, budget
+
+> **Provenance, read this before citing anything below as binding.** Two items are
+> **user-ratified** (2026-08-15, answered directly): the single-operator/admin-key posture and
+> policy-persistence-only. Both have `DECISIONS.md` entries. **Everything else in this section is
+> `CLAUDE-ORIGIN`** — agent-authored from a six-lens analysis pass on 2026-08-15, not decided by
+> the owner. Ranking, thresholds, and effort estimates are proposals. Re-derive before treating any
+> of it as a requirement; do not cite one of these items back as settled because it appears here.
+>
+> **Driver (owner's words, 2026-08-15):** pivot the app "to be helpful [to] even those who don't
+> understand these things"; identify bottlenecks in settings and "potentially auto heal, or alert
+> to adjust parameters"; "auto budget tuning in per user (github copilot is our harness at work so
+> def start with it), we have claude as well…but only few of us"; consider "administrative lift,
+> and the risk of a user not understanding and opening the wrong thing"; and "different modes.
+> Expert tuning versus guided."
+>
+> **Tiers are ordering constraints, not preferences.** A later tier shipped before an earlier one
+> is dishonest, not merely early — each tier supplies the evidence the next one's claims rest on.
+
+### §7.0 The finding that frames the rest
+
+The gateway is real. **The control plane is a simulator.** `internal/policy/reconcile.go:67-85`
+`classify()` is a `switch` on a compile-time constant — `applied_native` is asserted for all 16
+vendors with no vendor call ever made. `internal/policy/drift.go:101-110` `overrideHeuristic` is
+`hash(id) % 5 == 0`, so the `env_managed` half of drift is deterministic fiction while the gateway
+half is real, and **both write `model.DriftRecord` with no field distinguishing them.** Every
+dollar, token, latency and cap-utilization figure comes from `internal/emitter/emitter.go:94`
+(random walk) fanned across static facet weights. The control plane has never made an outbound
+vendor call.
+
+Consequence for the pivot: an expert reads `mode: "synthetic"` and knows; a non-expert reads
+"All vendors under 80% of cap." **The only surfaces safe to hand a non-expert today are the
+Gateway Traffic page and the keystore.**
+
+### §7.1 CONFIRMED DEFECT — Healthcare is a one-click org-wide outage
+
+⬜ **PIVOT-1** Verified end-to-end against source 2026-08-15 (not executed; read from code):
+`web/src/pages/RigorConsole.tsx:126` calls `api.applyPolicy(selected)` with one argument →
+`web/src/lib/api.ts:410` defaults `overrides = {}` → `Policy.Vendors` is empty →
+`internal/gateway/spine_pull.go:117-119` derives `zdrAttested = false` → healthcare is
+`ZDR:"enforced"` + `PIIRedaction:"on+phi"` (`internal/policy/baselines.go:26-29`) →
+`spine_pull.go:144-146` returns **`actionBlock`**.
+
+The card labelled "Healthcare 🔒🔒🔒 — Maximum rigor" blocks 100% of gateway traffic org-wide
+within one pull interval. **No control anywhere in the UI can set `zdr_attested`**, so from a
+browser Healthcare is unconditionally block, permanently. This is the failure already in the record
+(`docs/plans/TODO-gateway-deferred.md:30`) — an app returning HTTP 200 while every call was dropped.
+
+Three aggravators, same page:
+- `RigorConsole.tsx:116` is `useState<string>('fintech')` — the accent-coloured primary CTA is
+  **armed on arrival** with a posture nobody chose.
+- The severity ramp is **inverted**: buttons render 🔒→🔒🔒→🔒🔒🔒→🔒🔒🔒 while `deriveAction`
+  yields `detect→mask→block→mask`. `gov_infra` sits last, looks strictest, and enforces *less* than
+  healthcare because its `PIIRedaction` is `"on"` and falls to the default branch.
+- No confirmation dialog exists anywhere in the codebase, and `PUT /api/policies` is unauthenticated.
+
+Candidate fixes (not chosen): let the UI send `zdr_attested`; gate Healthcare behind an attestation
+step; or — preferred by the analysis — make Apply **preview the derived gateway action before
+commit**. The words `detect`/`mask`/`block` currently appear nowhere on the page and are the only
+thing Apply changes.
+
+### §7.2 Tier 0 — instrumentation preconditions (cheap, no decision needed)
+
+- ⬜ **PIVOT-2** **Record the eight silent exits in `proxyRequest`.** `s.record()` fires at only 3
+  of 11 exits (`internal/gateway/proxy.go:245`, `:256`, `:325`). Auth failure (`:89`), no upstream
+  (`:172`), oversized body (`:178`), bad JSON (`:206`), mask failure (`:265`), credential
+  resolution failure (`:279`), request-build failure (`:286`) and upstream unreachable (`:298`) all
+  return with zero rows and zero metrics (`metrics.observe` is reachable only via `record`,
+  `internal/gateway/audit.go:66-67`). The heartbeat keeps beating on its own timer claiming
+  enforcement throughout. **A route failing 100% of requests is indistinguishable from an idle
+  one** — and compose ships `HF_UPSTREAM_TOKEN` with no default by design
+  (`DECISIONS.md` 2026-08-15), so that is the likeliest real failure. Lands FIRST: every rate in
+  §7.4 is otherwise computed over a denominator missing an entire failure class.
+- ⬜ **PIVOT-3** **Heartbeat carries effective action + pulled policy/pack/keystore versions + a
+  `detector_ran` fact.** `model.EnforcementReport` (`internal/model/gateway.go:59-66`) carries no
+  versions, so a gateway stuck on a stale snapshot is indistinguishable from a current one.
+  Unblocks PIVOT-9, PIVOT-10 and the pack-version join in one change.
+- ⬜ **PIVOT-4** **Fix hardcoded vendor attribution.** `internal/gateway/spine_emit.go:97` and
+  `:133` hardcode `anthropic` regardless of route: every gateway *aggregate* is attributed to
+  Anthropic, and the `openai` adapter can never reach `applied_proxy`
+  (`internal/policy/reconcile.go:74`). The per-request feed is correct; the aggregate is not.
+- ⬜ **PIVOT-5** **Collapse the duplicated staleness constants.** `gatewayStaleAfter = 45s` is
+  hardcoded twice independently (`internal/policy/reconcile.go:15`,
+  `internal/server/routes_gateway.go:17`) and `heartbeatInterval = 15s` a third time
+  (`internal/gateway/spine_emit.go:19`), none derived from a shared constant or from
+  `GATEWAY_POLICY_PULL_INTERVAL`. Three-way divergence risk.
+
+### §7.3 Tier 1 — blast radius (the "user opens the wrong thing" ask)
+
+- ⬜ **PIVOT-6** Close PIVOT-1 (see §7.1) — preview-before-commit, drop the armed default, show the
+  affected-app count (`totals.apps` already exists on the traffic page).
+- ⛔ **PIVOT-7** **Pattern-pack retraction path — BLOCKS all pack automation.** `ApproveProposal`
+  only appends (`internal/harness/flywheel.go:670`); `allow_list` is the one kind that *removes*
+  detection; approval is permanent. A stale suppression (`manual-person-m2m-interests`) already
+  sits in the running pack for a client that no longer exists, unretirable without wiping the
+  volume and destroying the ratchet history. Spec already written:
+  `docs/plans/TODO-gateway-deferred.md:36-40`.
+  **⛔ BLOCKS:** nothing automated may touch the pattern pack until this exists — *including
+  auto-authoring*, because a flood of auto-authored proposals into a UI with a one-click Approve is
+  an auto-approver with extra steps. (This marker is `CLAUDE-ORIGIN` reasoning, not an owner
+  instruction — it gates only §7.4's PIVOT-9 remedy path, which is itself agent-proposed.)
+- ⬜ **PIVOT-8** **Make an `allow_list` Approve look different from an additive Approve.** Today the
+  irreversible button is byte-identical in size, colour and position to the reversible one
+  (`web/src/pages/GatewayHarness.tsx:441`), under a header reading *"human-approved only — nothing
+  auto-applies"* — reassurance where a warning belongs.
+- ⬜ **PIVOT-8a** **Surface that the Vendors "Enabled" toggle blinds drift detection.**
+  `internal/policy/drift.go:17` and `:56` exclude disabled adapters from *both* drift loops, so
+  flipping one of sixteen bare switches silently stops divergence detection for that vendor with no
+  indication anywhere.
+
+### §7.4 Tier 2 — bottleneck detection
+
+Ruling that shapes this whole tier: **cost is not a detectable axis, because no setting controls
+cost.** `OrgCapUSD`, `UserCapUSD`, `RetentionDays`, `ModelAccess`, `ContentSafety`,
+`TrainingOptOut` and `Policy.Budget` are declared (`internal/model/policy.go:11-29`) and never read
+by any non-test Go code; only `PIIRedaction`, `ZDR` and `BAAOnly` are load-bearing. The honest axes
+are **latency and success**.
+
+- ⬜ **PIVOT-9** **Invariant redaction fingerprint** — the highest-value detector found.
+  Fire on `Action=="block"` ∧ every redaction `Path` prefixed `system` or `tools[` ∧ N≥10
+  consecutive blocks from one `AppID`. The path-provenance half is decisive:
+  `walkAnthropicBody` emits `Path=="system"` / `system[N].text` / `tools[N].description`
+  (`internal/gateway/adapter_anthropic.go:40,43,69,87`), so a redaction on those paths is *by
+  construction* in developer-authored text, not user input.
+  **Validated against the canonical incident:** existing drift misses (heartbeat fresh, action
+  `block` = enforcing — enforcing *was* the failure). The harness misses **provably** — it scored
+  9/9, recall 1.000, precision 0.991 *during* the outage, because it scores generated corpus and
+  never the app's real prompt. The flywheel misses by design. This catches it in ~10 requests + one
+  5s push, and can name the exact field path and span length **without ever having seen a value**.
+  Remedy is PROPOSE-only and is gated by PIVOT-7. Hard limit: the report carries no values by
+  design (`internal/model/gateway.go:5-6`), so an auto-authored proposal cannot populate
+  `AllowList` — it can only state the location and ask a human to open that prompt.
+- ⬜ **PIVOT-10** **Per-app block-rate saturation** — block rate ≥0.9 over N≥20 per `AppID` from
+  `store.ListGatewayReports` (`internal/store/gateway.go:82-90`). **Must not ship with any
+  auto-remedy before PIVOT-9 exists**: alone it cannot separate "misconfigured" from "correctly
+  blocking an app that genuinely sends PII", so an auto-unblock fires precisely when an app is
+  sending the most PII.
+- ⬜ **PIVOT-11** **App-baseline substitution** — an app naming a baseline the gateway hasn't pulled
+  falls through to the global action and only logs (`internal/gateway/proxy.go:123-126`), while the
+  report's `Baseline` carries the *global* id. Exact string comparison against authoritative local
+  keystore state; near-zero false-positive risk.
+- ⬜ **PIVOT-12** **Fail-open unenforcement → the one justified auto-apply.** Under
+  `GATEWAY_FAIL_MODE=open` a dead Presidio forwards traffic unfiltered while `pushHeartbeat` keeps
+  claiming `pii_redaction` — it consults only `enforces(action)` and `allAppsEnforce()`
+  (`internal/gateway/spine_emit.go:132-134`) and never asks whether the chain actually ran. Drift
+  structurally cannot see this. What auto-applies is **honesty, not policy**: retract the
+  enforcement claim. It changes no enforcement behaviour; it withdraws an assertion the system
+  cannot substantiate. Sole condition satisfying all three safety properties — it is a *retraction*
+  not a novel state, it moves fail-*closed*, and its signal is a direct fact rather than an
+  inference over a distribution.
+- ⬜ **PIVOT-13** **Split-brain policy detector.** On restart the control plane forgets the policy,
+  but `pullPolicy` returns early on `Policy == nil` **without clearing `s.policyAction`**
+  (`internal/gateway/spine_pull.go:110-112`) — the gateway keeps enforcing while the control plane
+  believes nothing is applied, and nothing compares them. `gatewayDrift`'s `expected` flips false
+  (`internal/policy/drift.go:49-52`), *silencing the one check that would have noticed*. When the
+  gateway later restarts it falls to `actionMask` (`proxy.go:148`) — a third posture matching
+  neither belief. Detection needs no persistence: policy nil + a gateway reporting a non-default
+  enforcing action = one comparison, one drift record. Pairs with the policy-persistence work
+  ratified in `DECISIONS.md` 2026-08-15 — **persistence and heartbeat version-reporting land
+  together or not at all**, since persisting without fixing the revert semantics makes the
+  disagreement durable instead of transient.
+
+### §7.5 Tier 3 — per-user budget tuning (Copilot first)
+
+- ⬜ **PIVOT-14** **Provenance enum on the observation contract + typographic rendering.** Gates any
+  real number entering the UI. `web/src/lib/fleet.ts:150` **sums** `cost_usd` across vendors, so one
+  real Copilot figure gets added to fifteen fabricated ones — **the lie is the total, not the row.**
+  Colour is fully spent (severity / disposition / vendor identity), so the signal must be
+  typographic: measured renders as today, simulated renders italic-muted. A mixed-provenance
+  aggregate renders as **two numbers, never a sum**. Also: `web/src/lib/costExport.ts:10-11`'s
+  snapshot note caveats *staleness*, not *fabrication* — the wrong caveat, and its rigorous tone
+  makes a fabricated CSV read as more credible, not less. Provenance must be a **column per row**,
+  not a header comment.
+- ⬜ **PIVOT-15** **Copilot read-only budget posture view** — the smallest honest first slice, and
+  the first real dollar figure in the app. Three real reads:
+  `GET /orgs/{org}/copilot/billing/seats` (roster — **discovered** identity),
+  `GET /organizations/{org}/settings/billing/ai_credit/usage?user=` (per-user spend),
+  `GET /organizations/{org}/settings/billing/budgets` (current caps). No write path.
+  - **Never join vendor identity to gateway `Subject`.** `APIKey.Subject`
+    (`internal/model/keystore.go:41-49`) is owner-typed free text with no uniqueness constraint and
+    is explicitly not verified identity; Copilot's user-scope budget *requires*
+    `prevent_further_usage: true`, so a mistyped join hard-stops the wrong engineer with no error
+    either way. Vendor identity must be **discovered** from `seats[].assignee.login` /
+    `actor.email_address`, never typed — which makes the wrong-person hard stop unrepresentable
+    rather than merely unlikely. A display-only link is acceptable in the read direction
+    (vendor principal → subject) and must never be read when constructing a budget write.
+  - **Key the money path on the billing endpoint**, which is *not* subject to the 5-active-user
+    privacy floor — that floor applies to the metrics reports only, and is evaluated per org **and
+    per team**, so small teams inside a large org silently drop days. Use metrics for soft context
+    (IDE, model, language, acceptance) and render a withheld day as **"withheld", never 0** — a
+    withheld day shown as zero is an idle user who isn't idle, which is the input to a seat reclaim.
+- ⬜ **PIVOT-16** **Tuning-loop semantics, when it eventually writes.** Clock is the **billing
+  period**, not the tick: trailing 3 *complete* periods, last 48h excluded as incomplete, at most
+  one write per principal per period, dead-band ~25%. **Never write a cap below current
+  period-to-date spend** — the single comparison that prevents the catastrophic case (an engineer
+  burns 40% of a month on one agentic refactor on the 4th; a cap computed from quiet months lands
+  below their MTD; `prevent_further_usage: true` removes Copilot for 26 days, instantly). Raises:
+  auto-apply inside a pre-ratified envelope (**the envelope's numbers are an owner decision, not a
+  design**). **Lowers and first-ever caps: PROPOSE-only, always** — on Copilot, lowering is not a
+  budget adjustment, it is scheduling a named engineer's outage. Durable state is *decisions*, not
+  history: an append-only `budget-decisions.jsonl` in `AIRTRAFFIC_DATA_DIR`, the same shape as
+  `appendRatchet` (`internal/harness/persist.go:43-51`). Vendor history is read on demand, never
+  mirrored — a second drifting copy of billing data is both a support burden and a wrong input to a
+  hard stop.
+- 🔬 **PIVOT-17** **Stale catalog entries, verified against live vendor docs 2026-08-15.**
+  `internal/catalog/vendors.go` states Copilot has "no native cap on AI credit spend" and that
+  Anthropic's workspace spend limit is "Console-only; no SET endpoint". Both were true when written
+  and are **wrong as of June 2026**: GitHub moved Copilot to token-based AI Credits on 2026-06-01
+  and shipped a user-scoped Budgets API (`budget_scope: "user"`, `prevent_further_usage: true`) on
+  2026-06-04; Anthropic shipped a per-user Spend Limits API where `scope.type: "user"` is the only
+  accepted scope (Enterprise plan + usage credits required — **verify with one call to
+  `/v1/organizations/spend_limits/effective` before designing anything; a 403/404 answers it**, and
+  if it fails, Claude is PROPOSE-only by plan rather than by design choice). Not edited — that pass
+  was scoped analysis-only. Worth date-labelling catalog notes generally: one lens reached a wrong
+  conclusion by trusting this comment as current.
+
+### §7.6 Tier 4 — Expert vs Guided
+
+- ⬜ **PIVOT-18** **Guided is a reading mode, not a simplified app.** Per `DECISIONS.md` 2026-08-15
+  (single-operator ratified), it is a **view preference, not a permission model** — it protects
+  against a slip, not against a user, and must be described that way in the UI and never as a
+  safety boundary.
+  Proposed rule: Guided-safe iff **bounded** (one named object) ∧ **previewable** (resulting state
+  renderable pre-commit) ∧ **reversible in view**. Applied honestly that yields **one write control
+  in the entire product** (the Vendors Enabled toggle) — the correct output of the rule, not a
+  failure of it.
+  - Guided pages: Gateway Traffic; Audit minus the disposition column (it imports a 6-term taxonomy
+    into the only page that otherwise needs no vocabulary); Flight Deck reworked; Rigor Console
+    **read-only** — its `NARRATIVE` block (`web/src/pages/RigorConsole.tsx:18-55`) is the best
+    non-expert writing in the app, so keep the page and move the button.
+  - Expert-only, do not attempt to simplify: Policy Editor (`proxy_enforced` is a *conditional*
+    truth — `web/src/lib/dispositions.ts:24` — and any simplification rounds it up to "protected",
+    the exact lie the taxonomy exists to prevent); Vendors (a test-fixture driver wearing an admin
+    console's clothes — it offers `500` / `timeout` / `invalid-json`); Observability; Gateway
+    Harness (eight prerequisite concepts, and it holds the only irreversible control).
+  - **Guided must not:** show "Healthy %" without the emitting denominator in the headline
+    (`web/src/pages/FlightDeck.tsx:104-106` — dropping sub-labels re-creates the exact bug
+    `DECISIONS.md` 2026-08-15 was written to kill); show spend against a cap
+    (`FlightDeck.tsx:15` and `web/src/pages/CostExplorer.tsx:13` each hardcode `50000`, which is
+    *fintech's* number, rendered against every baseline — under healthcare/gov the real cap is `0`,
+    i.e. none); drop the stale/degraded treatment; collapse dispositions into
+    "protected / not protected"; or show a block count without the posture that produced it.
+
+### §7.7 Explicitly not to be built (kept here so a later pass doesn't re-propose it)
+
+- Any detector over emitter output — a "cost anomaly" alarm on random-walked numbers trains the
+  operator to ignore alerts, and is precisely what the honesty model exists to prevent.
+- Any alarm over `/api/drift` without filtering to `Surface == proxy_enforced` — it will fire on
+  `hash % 5` rows. Drift is not automatically honest just because it is not the emitter.
+- A per-user "low acceptance rate" flag — a productivity judgement about a named person, derived
+  from an API whose 5-user floor exists specifically to prevent per-person surveillance below that
+  threshold. Cohort statistic only, if at all. **Values call for the owner, not an engineering one.**
+- Auto-reverting the pattern pack on a latency regression — considered and declined: reverted rules
+  may include `allow_list` entries, so a revert can loosen *or* tighten depending on pack contents,
+  and there is no store-side retraction to revert *to*.
+- Persisting the policy without fixing the split-brain revert (PIVOT-13) — that makes the
+  disagreement durable instead of transient.
+
+### §7.8 Analysis provenance
+
+Six-lens pass, 2026-08-15: two mechanical inventories (configurable-knob surface; telemetry/data
+surface), four judgement lenses (solution architecture; per-user budget design; enterprise UX;
+platform/SRE detection), plus one live-vendor-docs research pass. Nothing was executed — no compose
+stack, no `go test`, no e2e run; every claim is read from source or from vendor documentation.
+The PIVOT-1 chain and the inverted severity ramp were verified directly against the four files
+involved. N-thresholds in PIVOT-9/PIVOT-10 are proposals sized against one documented incident, not
+derived from retained traffic — the system retains none.
 
 ---
 

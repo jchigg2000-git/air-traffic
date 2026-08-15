@@ -261,3 +261,60 @@ issuance path rather than a new data model. No OIDC/Entra machinery was built.
 **Explicitly not in this slice:** per-app pattern-rule scoping (the `manual-person-m2m-interests`
 retraction hole in `docs/plans/TODO-gateway-deferred.md` stays open), per-key quotas (same
 stdlib-only blocker as G9), OIDC, and a keystore UI.
+
+## 2026-08-15 — The control plane stays single-operator; auth is the admin-key tier, not a user model
+
+Owner decision, asked directly during the non-expert-pivot analysis and answered
+**"single-operator, harden in place."** The question on the table was whether the control plane
+gets authenticated humans (principal + role at the `Routes()` seam, mirroring the gateway's own
+`withPrincipal`) or stays a single-operator tool. It stays single-operator.
+
+**What this ratifies:** `GATEWAY-7a` — the `AIRTRAFFIC_ADMIN_KEY` tier on `requireLocalAdmin`,
+the same two-tier ladder `requireSpineKey` already implements — is the auth answer for this repo,
+and it is now a decided item rather than an open owner call. It also unblocks a keystore UI, which
+was absent only because loopback-only admin is unreachable from a browser over the Docker bridge.
+
+**What this rules out, said plainly rather than left implicit:** there is no authenticated human
+principal, so `model.AuditEvent.Actor` keeps its hardcoded literals (`"air-traffic:admin"` at
+`routes.go:67`, `reconcile.go:60`, `routes_keystore.go:215`, `flywheel.go:678`) — an audit row can
+name the system but never a person. Any future feature whose safety argument depends on
+"we can see who did this" is not available under this decision.
+
+**Consequence for Expert-vs-Guided modes:** Guided becomes **a read-only page set and a view
+preference, not a permission model.** Without per-user authorization a mode that changes what
+someone *may* do cannot exist; a mode that changes what they *see* is bypassable with one `curl`.
+For a single operator that is honest and sufficient — the mode protects against a slip, not
+against a user. It must be described that way in the UI and never as a safety boundary.
+
+## 2026-08-15 — Policy persists; the stdlib-only constraint holds; no durable time series
+
+Owner decision, same pass, on the storage fork: **policy persistence only.** The applied policy
+gets write-through to a `policy.json` under `AIRTRAFFIC_DATA_DIR`, mirroring the keystore's
+existing atomic temp-file + rename pattern (`internal/store/keystore_persist.go:27-40`). Stdlib
+only; no `go.sum`; the CI guard stands.
+
+Driver: `SetPolicy` writes `s.policy = &p` and nothing else (`internal/store/store.go:292-297`),
+with no boot reload — so a control-plane restart silently discards the applied baseline while the
+gateway keeps enforcing the old action (`pullPolicy` returns early on `Policy == nil` without
+clearing `s.policyAction`, `internal/gateway/spine_pull.go:110-112`). The deployed stack runs
+`GATEWAY_REDACT_ACTION=per_policy` (`docker-compose.yml:96`), so this is the live configuration,
+not a latent one.
+
+**Rejected, with the reason:** accepting a first third-party dependency to get a durable
+`gwReports` time series. It would have unblocked zero-traffic detection, trailing-window
+baselines, and cross-restart trend analysis in one decision, at the cost of the repo's most
+distinctive property. Also rejected: hand-rolling a rolling-window store — `keys.json` proves the
+JSON-file pattern works for a flat map, and a windowed rollup is where that stops being reasonable.
+
+**What this permanently rules out, so no later pass re-proposes it as a gap:** detection of
+"an app stopped sending traffic" (absence of traffic is indistinguishable from absence of the
+metric — `pushObservations` returns early at zero requests, `spine_emit.go:53-55`), any threshold
+computed against a trailing baseline that outlives a restart, and any cross-restart trend. All
+bottleneck detection must therefore be computable from the **current** 5000-entry ring
+(`internal/store/gateway.go:82-90`) within a single process lifetime.
+
+**Relationship to G9, stated because it is easy to get wrong in both directions:** this answers the
+*dependency* question G9 was blocked on (`ROADMAP.md` OWED-4) — the answer is no third-party
+dependency — so G9's Redis-backed cross-replica budget counter stays deferred **by ruling** rather
+than remaining an open fork. It does not make G9 buildable, and `policy.json` is not a step toward
+it. Per-user vendor budget tuning does not need G9 and must not be bundled with it.

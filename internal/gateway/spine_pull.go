@@ -114,6 +114,13 @@ func (s *Server) pullPolicy(ctx context.Context) error {
 	if !ok {
 		return fmt.Errorf("baseline %q not found", payload.Policy.Baseline)
 	}
+	// FIXME(PIVOT-1, ROADMAP.md §7.1) — this is the sole source of zdrAttested, and nothing in
+	// the SPA can populate it. web/src/pages/RigorConsole.tsx calls api.applyPolicy(selected)
+	// with no overrides, so Policy.Vendors arrives empty, zdrAttested stays false, and the
+	// `healthcare` baseline resolves to actionBlock for every caller in deriveAction below.
+	// From a browser that outcome is unreachable-by-any-other-path: "Healthcare" means block,
+	// always. Verified against source 2026-08-15; already caused one silent outage behind
+	// HTTP 200 (docs/plans/TODO-gateway-deferred.md:30).
 	zdrAttested := false
 	if v, ok := payload.Policy.Vendors["anthropic"]; ok {
 		zdrAttested, _ = v["zdr_attested"].(bool)
