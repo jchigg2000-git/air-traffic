@@ -118,6 +118,29 @@ func TestCredentialsRejectPlaintext(t *testing.T) {
 	}
 }
 
+// reqLocal is req from a loopback caller. httptest's default RemoteAddr
+// (192.0.2.1) is deliberately non-local, so any test touching an ingest or
+// admin route has to say which side of that line it is on.
+func reqLocal(t *testing.T, h http.Handler, method, path string, body any) (int, map[string]any) {
+	t.Helper()
+	var r *http.Request
+	if body != nil {
+		b, _ := json.Marshal(body)
+		r = httptest.NewRequest(method, path, bytes.NewReader(b))
+		r.Header.Set("Content-Type", "application/json")
+	} else {
+		r = httptest.NewRequest(method, path, nil)
+	}
+	r.RemoteAddr = "127.0.0.1:54321"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	var out map[string]any
+	if rec.Body.Len() > 0 {
+		_ = json.Unmarshal(rec.Body.Bytes(), &out)
+	}
+	return rec.Code, out
+}
+
 func TestObservationsIngestAndList(t *testing.T) {
 	h := testServer()
 	batch := map[string]any{
@@ -126,18 +149,33 @@ func TestObservationsIngestAndList(t *testing.T) {
 		"connector": map[string]any{"type": "ai-vendor", "instance": "openai", "api_version": "x"},
 		"complete":  true,
 	}
-	code, body := req(t, h, "POST", "/api/observations", batch)
+	code, body := reqLocal(t, h, "POST", "/api/observations", batch)
 	if code != 202 || body["observation"] == nil {
 		t.Fatalf("ingest: %d %v", code, body)
 	}
 	// wrong contract rejected
-	code, _ = req(t, h, "POST", "/api/observations", map[string]any{"contract": "nope"})
+	code, _ = reqLocal(t, h, "POST", "/api/observations", map[string]any{"contract": "nope"})
 	if code != 400 {
 		t.Errorf("expected 400 for wrong contract, got %d", code)
 	}
+	// Reads stay open — the observability surfaces are the product.
 	code, body = req(t, h, "GET", "/api/observations", nil)
 	if code != 200 || body["observations"] == nil {
 		t.Fatalf("list obs: %d %v", code, body)
+	}
+}
+
+// Observation ingest is a write, and writes from off-host need a credential.
+// With no keys configured the route accepts loopback only, the same posture
+// the other three spine ingest routes have had since GATEWAY-2; observations
+// was simply the one that was never gated.
+func TestObservationsIngestRejectsUnauthenticatedRemoteWriter(t *testing.T) {
+	h := testServer()
+	code, _ := req(t, h, "POST", "/api/observations", map[string]any{
+		"contract": model.ObservationContract, "batch_id": "remote",
+	})
+	if code != http.StatusUnauthorized {
+		t.Errorf("remote unauthenticated ingest = %d, want 401", code)
 	}
 }
 

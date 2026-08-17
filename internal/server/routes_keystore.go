@@ -22,18 +22,25 @@ import (
 // itself a credential. Those are two different trust boundaries and collapsing
 // them would make the keystore pointless.
 //
-// Consequence worth knowing: in the compose stack the SPA is served from the
-// control-plane container behind a published port, so a browser request
-// arrives from the Docker bridge, not from loopback — the same reason
-// spine_auth.go says compose has to set a key. The admin API is therefore
-// reachable by curl from a host-run binary or `docker compose exec`, not from
-// the browser UI. Adding an AIRTRAFFIC_ADMIN_KEY tier here (the same ladder
-// requireSpineKey already implements) is what would open it to the UI.
+// Two ways in, either sufficient: a loopback caller, or one presenting
+// AIRTRAFFIC_ADMIN_KEY. The key tier was added 2026-08-16 (ratified
+// 2026-08-15) precisely because loopback alone is unreachable from the SPA —
+// in the compose stack the browser request arrives from the Docker bridge, not
+// from loopback, which is why scripts/keystore.sh has to route its call
+// through the container's netns. With the key set, a keystore UI becomes
+// buildable; without it the loopback-only posture is unchanged.
 func (s *Server) requireLocalAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if s.adminKey != "" && validKey(r, s.adminKey) {
+			next(w, r)
+			return
+		}
 		if !isLoopback(r.RemoteAddr) {
-			writeError(w, http.StatusUnauthorized,
-				"keystore administration accepts loopback callers only")
+			msg := "keystore administration accepts loopback callers only"
+			if s.adminKey != "" {
+				msg = "keystore administration requires loopback or the operator key (X-Air-Traffic-Admin-Key)"
+			}
+			writeError(w, http.StatusUnauthorized, msg)
 			return
 		}
 		next(w, r)

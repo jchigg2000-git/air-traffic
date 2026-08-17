@@ -32,7 +32,9 @@ export default function PolicyEditor() {
       <PageHeader title="Policy Editor" subtitle="Expand each control into per-vendor mechanisms. Every chip states the real disposition — never overstated." />
       <ApiStateBanner error={adapters.error} className="mb-4" />
 
-      {adapters.isLoading && <div className="h-64 animate-pulse panel" />}
+      {adapters.isLoading && (
+        <div role="status" aria-label="Loading per-vendor controls" className="h-64 animate-pulse panel" />
+      )}
 
       <div className="flex flex-col gap-3">
         {Object.entries(grouped).map(([plane, controls]) => {
@@ -41,10 +43,12 @@ export default function PolicyEditor() {
             <div key={plane} className="panel overflow-hidden">
               <button
                 onClick={() => setOpenPlanes((p) => ({ ...p, [plane]: !open }))}
+                aria-expanded={open}
+                aria-label={`${open ? 'Collapse' : 'Expand'} the ${PLANE_TITLES[plane] ?? titleCase(plane)} control plane, ${controls.length} controls`}
                 className="flex w-full items-center justify-between px-5 py-3 text-left transition hover:bg-panel2"
               >
                 <span className="flex items-center gap-2 text-sm font-semibold">
-                  <span className="text-accent">{open ? '▼' : '▶'}</span>
+                  <span aria-hidden className="text-accent">{open ? '▼' : '▶'}</span>
                   {PLANE_TITLES[plane] ?? titleCase(plane)}
                 </span>
                 <span className="text-xs text-faint">{controls.length} controls</span>
@@ -60,10 +64,12 @@ export default function PolicyEditor() {
                       <div key={cid} className="border-b border-line last:border-0">
                         <button
                           onClick={() => setOpenControl(expanded ? null : cid)}
+                          aria-expanded={expanded}
+                          aria-label={`${expanded ? 'Collapse' : 'Expand'} ${g.name} across ${g.rows.length} vendors`}
                           className="flex w-full items-center justify-between gap-3 px-5 py-2.5 text-left transition hover:bg-panel2"
                         >
                           <span className="flex items-center gap-2.5">
-                            <span className="text-xs text-faint">{expanded ? '–' : '+'}</span>
+                            <span aria-hidden className="text-xs text-faint">{expanded ? '–' : '+'}</span>
                             <span className="text-sm font-medium">{g.name}</span>
                             <span className="text-[11px] text-faint">{g.rows.length} vendors</span>
                           </span>

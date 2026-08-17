@@ -35,11 +35,22 @@ Env: `AIRTRAFFIC_ADDR` (default `127.0.0.1:8122`), `AIRTRAFFIC_EMIT` (`on`),
 
 ### Vendor coverage (16 adapters)
 
-| Tier | Fidelity | Vendors |
-|---|---|---|
-| 1 | deep, multi-endpoint | OpenAI · Anthropic · AWS Bedrock · Azure OpenAI · Google Vertex · GitHub Copilot |
-| 2 | core surfaces | M365 Copilot · Mistral · Databricks · Perplexity · Cohere · Together |
-| 3 | manifest + emit | Groq · xAI · Amazon Q · IBM watsonx |
+Tier is the *research* depth of the capability manifest; **fidelity** is what the synthetic
+replica actually returns, and the two are not the same thing. Seven vendors have a dedicated
+byte-identical fixture; the rest answer from a generic envelope
+(`internal/synthetic/errors.go` `genericFixture`) that is correctly shaped and honestly labelled
+rather than vendor-exact. That gap is stated here rather than rounded up — the manifests, error
+envelopes, cost facets and emitted signal are real for all sixteen.
+
+| Tier | Manifest depth | Replica fidelity | Vendors |
+|---|---|---|---|
+| 1 | deep, multi-endpoint | **dedicated fixture** | OpenAI · Anthropic · AWS Bedrock · Azure OpenAI · Google Vertex · GitHub Copilot |
+| 2 | core surfaces | **dedicated fixture** | Mistral |
+| 2 | core surfaces | generic envelope | M365 Copilot · Databricks · Perplexity · Cohere · Together |
+| 3 | manifest + emit | generic envelope | Groq · xAI · Amazon Q · IBM watsonx |
+
+Per-vendor error envelopes are real for **all sixteen** regardless of fixture depth — that is the
+part `/_harness/scenario/*` exercises, and it is the part an integration actually breaks on.
 
 Each capability carries one of five **dispositions** — `vendor_native` · `env_managed` ·
 `proxy_enforced` · `monitor_only` · `unverified` — and every `env_managed` capability also
@@ -71,11 +82,11 @@ a seed-only control as "enforced."
 ### Synthetic surface example
 
 ```bash
-curl :8122/synthetic/openai/admin/organization/users      # OpenAI {"object":"list","data":[…]}
-curl :8122/synthetic/anthropic/v1/organizations/workspaces # Anthropic {"data":[…],"has_more":…}
-curl :8122/synthetic/bedrock/guardrails                    # AWS {"guardrails":[…],"nextToken":…}
+curl 127.0.0.1:8122/synthetic/openai/admin/organization/users       # OpenAI {"object":"list","data":[…]}
+curl 127.0.0.1:8122/synthetic/anthropic/v1/organizations/workspaces # Anthropic {"data":[…],"has_more":…}
+curl 127.0.0.1:8122/synthetic/bedrock/guardrails                    # AWS {"guardrails":[…],"nextToken":…}
 # inject a scenario; each vendor returns its OWN error envelope
-curl -X PUT :8122/synthetic/openai/_harness/scenario/429-retry-after
+curl -X PUT 127.0.0.1:8122/synthetic/openai/_harness/scenario/429-retry-after
 ```
 
 ## Architecture
@@ -90,6 +101,7 @@ internal/policy          baselines · reconcile/coverage · drift
 internal/envconfig       render managed-settings.json / branch protection / VS Code / Cursor
 internal/audit           normalized stream + SIEM export
 internal/store           in-memory state (RWMutex, FIFO ring buffers)
+  └ *_persist.go         the two exceptions, written through to disk: keystore + applied policy
 internal/server          HTTP API + SPA fallback (Phase 2)
 internal/model           domain types + ops-observation-batch/v1 contract
 
@@ -117,6 +129,17 @@ npm run dev          # Vite dev server on :5202, proxies /api + /synthetic → :
 npm run build        # → web/dist (the Go binary auto-serves it when present)
 npm test             # Vitest unit tests (vitest run — e.g. src/pages/Welcome.test.tsx)
 ```
+
+**Applying a rigor baseline states its consequence first.** The Rigor Console's profiles map to a
+gateway action — `detect` (monitor), `mask`, or `block` — and Healthcare is a *total block until ZDR
+coverage is attested*, by design (design §15's pre-coverage gate). Apply therefore previews the
+derived action, names the blast radius, and carries the attestation itself; the derivation is
+computed once in `internal/model/gateway_action.go` and shared with the gateway, so the preview and
+the enforcement cannot disagree.
+
+![The Rigor Console's Apply confirmation: resulting gateway action BLOCK, the ZDR attestation
+checkbox, and a warning that every request carrying a detected value will be
+refused](docs/images/rigor-console-apply-preview.png)
 
 Screens: **Flight Deck** (observability landing — live vendor status board, KPI strip, plane
 bands, drift, freshness) · **Rigor Console** (baseline + coverage marks) · **Policy Editor**
@@ -166,6 +189,25 @@ so the demo comes up in one command; both binaries log a warning while those are
 to replace existing keys) before anything shared. With no spine key set at all, those three
 routes accept **loopback callers only** — a container-network peer does not qualify.
 
+**Operator key (`AIRTRAFFIC_ADMIN_KEY`).** The control plane is single-operator by decision — no
+user model, no login, no per-human principal, so an audit row can name the system but never a
+person (`DECISIONS.md` 2026-08-15). What it does have is one key gating every **state-changing**
+route: adapter patch, policy PUT, credential POST, harness run/sample, and proposal
+approve/reject. Reads are never gated — the observability surfaces are the product.
+
+```bash
+./scripts/dev-env.sh              # mints AIRTRAFFIC_ADMIN_KEY (adm-…) into .env
+grep AIRTRAFFIC_ADMIN_KEY .env    # paste it into the SPA sidebar's "Operator key" field
+curl -X PUT 127.0.0.1:8122/api/policies -H "X-Air-Traffic-Admin-Key: $KEY" -d '{"baseline":"fintech"}'
+```
+
+**Unset, the writes are open** — that is the posture this repo shipped with, and it is what the
+one-command compose demo runs in, because the SPA is served from the control-plane container
+behind a published port and a browser arrives over the Docker bridge rather than loopback.
+Rather than imply otherwise, the boot logs warn on every start and `GET /api/health` +
+`/api/gateway/status` report `"admin_auth": "open"` until a key is set. The key is also an
+alternative to loopback for the keystore admin API below.
+
 **Keystore (issued keys, per-app policy).** `GATEWAY_CLIENT_KEYS` authenticates but says nothing
 about *who* is calling, and it gives every caller one posture. The keystore adds apps and keys
 issued against them, so a request carries a principal and an app can run its own baseline:
@@ -192,9 +234,17 @@ routes the call through the container's netns, and why there is no keystore UI. 
 **eventual**: gateways verify against a pulled snapshot, so a revoked key stops working within one
 `GATEWAY_POLICY_PULL_INTERVAL` (15s by default), not instantly. `GATEWAY_CLIENT_KEYS` keeps working
 throughout and is still required at boot; keystore-issued keys are additive, and legacy callers
-report as app `env`. The keystore itself is the one part of the control plane's store that is **not**
-in-memory — it persists to `keys.json` in the `harness-data` volume, so issued keys survive a restart
-that wipes observations.
+report as app `env`.
+
+**What survives a restart, and what deliberately doesn't.** Two things persist to
+`AIRTRAFFIC_DATA_DIR` (the `harness-data` volume) as whole-file atomic JSON writes: the keystore
+(`keys.json` — issued credentials are not reconstructible) and the **applied policy**
+(`policy.json` — the gateway is already enforcing it, so forgetting it here would leave the two
+halves disagreeing while traffic flows). Everything else — observations, gateway request reports,
+drift, audit — is in-memory ring buffers by decision, because a durable time series is what the
+rejected third-party-dependency fork would have bought (`DECISIONS.md` 2026-08-15). A policy
+write that fails is reported on `/api/gateway/status` as `policy_error` rather than swallowed; a
+corrupt `policy.json` warns and boots with none applied instead of refusing to start.
 
 Images bake built source — after a code change, `docker compose up -d --build <service>`
 (a bare `restart` won't pick it up). Harness state (ratchet series, promoted corpus, pattern
@@ -220,6 +270,45 @@ scores precision/recall against exact ground truth, and feeds the recall-ratchet
 misses → promoted corpus → curated pattern proposals → human approval → hot-reload (no
 restart) → re-run → the ratchet climbs. Everything is local — synthetic traffic, self-hosted
 NER, no cloud inference or compute.
+
+![The Gateway Harness readout: try-a-prompt redaction diff, run configuration, behavioral score
+card, recall ratchet series, flywheel pattern proposals, per-request misses and the promoted
+corpus](docs/images/gateway-harness-readout.png)
+
+*One 200-request run: **100.0% behavioral recall**, 99.0% precision, 0 trap false positives. Read
+it top to bottom — a live prompt masked mid-flight (`Jane Doe` → `[PERSON_NAME]`, SSN → `[SSN]`)
+with what the upstream actually received beside what was sent; the per-type TP/FN/FP table; the
+ratchet's run-over-run history; and the flywheel's pattern proposals, which are* human-approved
+only — nothing auto-applies. *An annotated walkthrough of the same screen is at
+[`docs/images/gateway-harness-readout-annotated.png`](docs/images/gateway-harness-readout-annotated.png),
+and the concepts behind it are explained without jargon in
+[`docs/inference-gateway-eli5.md`](docs/inference-gateway-eli5.md).*
+
+**The 60-second path to seeing redaction work** (no Docker, no third-party image). The Presidio
+sidecar is the NER tier, not the whole detector — the regex floor runs standalone and is the
+default:
+
+```bash
+# terminal 1 — control plane (also serves the SPA if web/dist exists)
+go run ./cmd/air-traffic-server
+
+# terminal 2 — gateway, regex only, pointed at the synthetic Anthropic replica
+GATEWAY_UPSTREAMS='{"anthropic":{"base_url":"http://127.0.0.1:8122/synthetic/anthropic","credential_ref":"env:ANTHROPIC_UPSTREAM_KEY"}}' \
+ANTHROPIC_UPSTREAM_KEY=sk-ant-synthetic-dev GATEWAY_CLIENT_KEYS=gwk-demo \
+GATEWAY_DETECTORS=regex GATEWAY_REDACT_ACTION=mask \
+go run ./cmd/air-traffic-gateway
+
+# terminal 3 — watch a value get rewritten before it leaves
+curl -s 127.0.0.1:8125/v1/messages -H 'x-api-key: gwk-demo' -H 'content-type: application/json' \
+  -d '{"model":"claude-3-5-sonnet","max_tokens":64,"messages":[{"role":"user","content":"Wire it to SSN 123-45-6789, callback 555-123-4567"}]}'
+```
+
+What you give up by skipping Presidio, stated plainly: the regex tier recognizes exactly seven
+**structured** types — `SSN`, `CREDIT_CARD`, `IBAN`, `EMAIL`, `PHONE`, `DOB`, `MRN`
+(`internal/gateway/detect/regex.go`), four of them checksum-gated before a hit counts — and
+recognizes **nothing** unstructured. `PERSON_NAME` and `ADDRESS` are the NER tier's job and go
+undetected here. Expect recall well below the numbers above, which are measured with
+`GATEWAY_DETECTORS=regex,presidio`. Use this path to see the mechanism; use compose to measure it.
 
 Rules come in four kinds. Three of them **add** enforcement (`regex`, `deny_list`) or gate it by
 score (`threshold`); `allow_list` is the only one that **removes** a detection, and it exists
@@ -254,3 +343,9 @@ route: set the client's base URL to `http://127.0.0.1:8125/v1`, pass a `GATEWAY_
 as the bearer token, and set `HF_UPSTREAM_TOKEN` (or point `OPENAI_UPSTREAM_BASE_URL` elsewhere and
 supply that vendor's key). That upstream credential has **no compose fallback on purpose** — unset,
 the route returns 502 locally rather than sending a placeholder to a real vendor.
+
+## License
+
+Proprietary — Copyright (c) 2026 Justin Higgins. All rights reserved.
+Not open source. See [LICENSE](LICENSE); no rights are granted without a separate written
+agreement. Access is permission to look, not permission to use.

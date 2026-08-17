@@ -108,22 +108,36 @@ func (s *Server) pullPolicy(ctx context.Context) error {
 	s.baselines.Store(&byID)
 
 	if payload.Policy == nil || payload.Policy.Baseline == "" {
-		return nil // no policy applied yet; keep the safe default (mask)
+		// No policy applied yet; keep whatever we are already enforcing rather
+		// than reverting mid-flight.
+		//
+		// If we are ALREADY enforcing something, the two halves now disagree:
+		// the control plane believes nothing is applied while this gateway is
+		// still gating traffic under a previously-pulled action, and a restart
+		// of THIS process would drop to the actionMask default — a third
+		// posture matching neither belief. Since 2026-08-16 the control plane
+		// persists its policy across restarts (internal/store/policy_persist.go),
+		// so the common cause of this is gone; say so out loud when it happens
+		// anyway rather than letting it stay silent. Turning the disagreement
+		// into a first-class drift record is PIVOT-13 and is not done here.
+		if prev, ok := s.policyAction.Load().(string); ok && prev != "" {
+			s.log.Warn("control plane reports no applied policy while this gateway is still enforcing",
+				"enforcing", prev, "baseline", s.policyBaseline.Load())
+		}
+		return nil
 	}
 	base, ok := byID[payload.Policy.Baseline]
 	if !ok {
 		return fmt.Errorf("baseline %q not found", payload.Policy.Baseline)
 	}
-	// FIXME(PIVOT-1, ROADMAP.md §7.1) — this is the sole source of zdrAttested, and nothing in
-	// the SPA can populate it. web/src/pages/RigorConsole.tsx calls api.applyPolicy(selected)
-	// with no overrides, so Policy.Vendors arrives empty, zdrAttested stays false, and the
-	// `healthcare` baseline resolves to actionBlock for every caller in deriveAction below.
-	// From a browser that outcome is unreachable-by-any-other-path: "Healthcare" means block,
-	// always. Verified against source 2026-08-15; already caused one silent outage behind
-	// HTTP 200 (docs/plans/TODO-gateway-deferred.md:30).
+	// The attestation is the operator's, made explicitly in the Rigor Console
+	// before Apply commits (web/src/pages/RigorConsole.tsx). It rides the
+	// policy as a vendor flag on the path model.ZDRAttestationVendor/Key, and
+	// this is its only source — an unattested healthcare baseline is a
+	// deliberate, previewed block, not an accident of an empty override map.
 	zdrAttested := false
-	if v, ok := payload.Policy.Vendors["anthropic"]; ok {
-		zdrAttested, _ = v["zdr_attested"].(bool)
+	if v, ok := payload.Policy.Vendors[model.ZDRAttestationVendor]; ok {
+		zdrAttested, _ = v[model.ZDRAttestationKey].(bool)
 	}
 	// ZDR attestation is a property of the vendor contract, not of the
 	// caller, so it stays global and feeds per-app derivation unchanged.
@@ -137,24 +151,12 @@ func (s *Server) pullPolicy(ctx context.Context) error {
 	return nil
 }
 
-// deriveAction maps a baseline to the gateway action (build plan G7):
-//
-//	pii_redaction off       → detect (log-only; monitoring, not enforcement)
-//	pii_redaction on        → mask
-//	pii_redaction on+phi    → block until ZDR coverage is attested (the
-//	                          pre-coverage gate, design §15), then mask
+// deriveAction maps a baseline to the gateway action. The rule itself lives in
+// model.GatewayAction, shared with the control plane so the Rigor Console's
+// pre-commit preview and this enforcement path cannot be two implementations
+// that drift apart.
 func deriveAction(b model.Baseline, zdrAttested bool) string {
-	switch b.PIIRedaction {
-	case "off":
-		return actionDetect
-	case "on+phi":
-		if b.ZDR == "enforced" && !zdrAttested {
-			return actionBlock
-		}
-		return actionMask
-	default: // "on"
-		return actionMask
-	}
+	return model.GatewayAction(b, zdrAttested)
 }
 
 func (s *Server) fetchBaselines(ctx context.Context) (map[string]model.Baseline, error) {

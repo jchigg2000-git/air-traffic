@@ -1,6 +1,7 @@
 import { NavLink, Outlet, Link } from 'react-router-dom'
 import Brand from './Brand.tsx'
 import ThemeToggle from './ThemeToggle.tsx'
+import AdminKeyField from './AdminKeyField.tsx'
 
 const NAV = [
   { to: '/settings/rigor', label: 'Rigor Console', icon: '🎚', desc: 'Baseline rigor' },
@@ -42,9 +43,12 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className="mt-auto flex items-center justify-between px-1 pt-4">
-          <span className="text-[10px] text-faint">Phase 2 · control plane</span>
-          <ThemeToggle />
+        <div className="mt-auto pt-4">
+          <AdminKeyField />
+          <div className="mt-3 flex items-center justify-between px-1">
+            <span className="text-[10px] text-faint">Phase 2 · control plane</span>
+            <ThemeToggle />
+          </div>
         </div>
       </aside>
 

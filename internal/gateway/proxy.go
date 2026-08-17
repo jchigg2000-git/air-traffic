@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"air-traffic/internal/gateway/config"
 	"air-traffic/internal/gateway/redact"
+	"air-traffic/internal/model"
 )
 
 // hop-by-hop headers (RFC 9110 §7.6.1) are never forwarded in either direction.
@@ -95,10 +97,13 @@ func (s *Server) requireClientKey(d dialect, next http.HandlerFunc) http.Handler
 
 // action values the pipeline can run under. mask/block come from config or
 // policy; detect (log-only) and pass exist for policy-driven monitor routes.
+// The first three alias the shared contract constants so the hot path and the
+// control plane's pre-commit preview can never mean different things by the
+// same word. pass is gateway-local: no baseline derives it.
 const (
-	actionMask   = "mask"
-	actionBlock  = "block"
-	actionDetect = "detect"
+	actionMask   = model.ActionMask
+	actionBlock  = model.ActionBlock
+	actionDetect = model.ActionDetect
 	actionPass   = "pass"
 )
 
@@ -407,12 +412,31 @@ func copyHeaders(dst, src http.Header) {
 	}
 }
 
-func (s *Server) httpClient() *http.Client {
-	// No global timeout: streaming responses legitimately run long. Connection
-	// establishment uses the transport's defaults; cancellation rides the
-	// request context.
-	return http.DefaultClient
+// upstreamTransport bounds everything that happens BEFORE the response body
+// starts, and nothing after it.
+//
+// http.Client.Timeout is deliberately not set and must not be: it covers the
+// body read too, so any value large enough for a long generation is useless as
+// a hang detector, and any value small enough to detect a hang truncates a
+// legitimate stream mid-token. ResponseHeaderTimeout is the right knob —
+// a vendor that accepts the connection and then says nothing is caught in
+// seconds, while an SSE response that has begun flowing may run as long as it
+// likes. Cancellation still rides the request context, so a client that goes
+// away tears the upstream call down with it.
+var upstreamTransport = &http.Transport{
+	Proxy:                 http.ProxyFromEnvironment,
+	DialContext:           (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+	TLSHandshakeTimeout:   10 * time.Second,
+	ResponseHeaderTimeout: 60 * time.Second,
+	ExpectContinueTimeout: 1 * time.Second,
+	MaxIdleConns:          100,
+	IdleConnTimeout:       90 * time.Second,
+	ForceAttemptHTTP2:     true,
 }
+
+var upstreamClient = &http.Client{Transport: upstreamTransport}
+
+func (s *Server) httpClient() *http.Client { return upstreamClient }
 
 // writeVendorError renders an Anthropic-shaped error. Callers on that route
 // parse this envelope, so its shape is part of the contract.

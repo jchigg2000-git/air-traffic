@@ -30,7 +30,13 @@ type Store struct {
 	audit        []model.AuditEvent
 	activity     []model.ActivityEvent
 	drift        []model.DriftRecord
-	policy       *model.Policy
+
+	// The applied policy, write-through to disk when policyFile is set
+	// (policy_persist.go) — it is enforcement intent the gateway is already
+	// acting on, so losing it to a restart makes the two halves disagree.
+	policy           *model.Policy
+	policyFile       policyPersister
+	policyPersistErr error
 
 	inferCaptures []model.InferenceCapture
 	gwReports     []model.GatewayRequestReport
@@ -289,11 +295,23 @@ func (s *Store) ListDrift() []model.DriftRecord {
 
 // ---- policy ----
 
+// SetPolicy applies a policy and, when persistence is enabled, writes it
+// through to disk.
+//
+// A persist failure does not fail the apply: the policy IS applied in memory,
+// the gateway will pull it within one interval, and refusing the apply would
+// mean a full disk stops enforcement changes. The error is recorded instead
+// and reported on the gateway-status route, because the failure mode it
+// creates — an applied policy that will not survive a restart — is invisible
+// until the restart.
 func (s *Store) SetPolicy(p model.Policy) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p.AppliedAt = time.Now().UTC()
 	s.policy = &p
+	if s.policyFile != nil {
+		s.policyPersistErr = s.policyFile.save(p)
+	}
 }
 
 func (s *Store) GetPolicy() *model.Policy {

@@ -318,3 +318,74 @@ bottleneck detection must therefore be computable from the **current** 5000-entr
 dependency — so G9's Redis-backed cross-replica budget counter stays deferred **by ruling** rather
 than remaining an open fork. It does not make G9 buildable, and `policy.json` is not a step toward
 it. Per-user vendor budget tuning does not need G9 and must not be bundled with it.
+
+## 2026-08-16 — PIVOT-1 closed by previewing the derived action, not by hiding the card
+
+The Rigor Console's Apply was a one-click, permanent, organization-wide traffic block: it called
+`api.applyPolicy(selected)` with no overrides, so `Policy.Vendors` reached the gateway empty,
+`zdrAttested` derived false, and `healthcare` resolved to `actionBlock` for every caller within one
+pull interval — with no control anywhere in the SPA able to set the attestation that prevents it.
+
+**Chosen:** ROADMAP §7.1's preferred candidate — **preview the derived action before commit**, plus
+the attestation path itself. Applying now requires picking a profile (nothing is armed on arrival;
+the default was `fintech`), opens a dialog naming the resulting `detect`/`mask`/`block` and the
+number of gateway callers it lands on, and — for a baseline gated on the attestation — offers an
+unticked checkbox that sends `vendors.anthropic.zdr_attested`. The words `detect`/`mask`/`block`
+now appear on the page at all; they were the only thing Apply changed and appeared nowhere.
+
+**The derivation moved to `internal/model/gateway_action.go`**, beside the Presidio vocabulary and
+for the same reason: two binaries must agree on it. The control plane cannot link gateway packages
+(G0, enforced by the depisolation test), so a preview computed in the SPA or the server would have
+been a second implementation of the enforcement rule, free to drift. `GET /api/baselines` now
+carries `gateway_action`, `gateway_action_attested` and `requires_zdr_attestation` per baseline —
+derived, never stored.
+
+**Rejected:** hiding or disabling the Healthcare card. It is a legitimate posture and the block is
+its correct unattested behaviour; the defect was that the consequence was unknowable, not that the
+consequence existed. **Also not done:** re-ordering the 🔒 severity ramp. The ramp describes intent
+and is not wrong; the action chip now sits beside it, which is what makes `gov_infra` visibly
+enforce less than an unattested `healthcare` rather than merely looking stricter.
+
+**Not claimed:** PIVOT-13 is not closed. `pullPolicy` now *logs* when the control plane reports no
+policy while this gateway is still enforcing; turning that disagreement into a drift record is
+still open.
+
+## 2026-08-16 — The admin-key tier is open-when-unset, and says so
+
+Built the `AIRTRAFFIC_ADMIN_KEY` tier ratified 2026-08-15. `requireAdminWrite` gates every
+state-changing control-plane route (adapter patch, policy PUT, credential POST, harness run/sample,
+proposal approve/reject); reads are never gated, because the observability surfaces are the product.
+`requireLocalAdmin` now accepts the key as an alternative to loopback, which is the specific unblock
+GATEWAY-7a named.
+
+**The load-bearing choice: with no key configured the writes stay open**, rather than falling back
+to loopback-only the way `requireSpineKey` does. The reason is structural, not preference — compose
+publishes the control plane behind a port and serves the SPA from that same container, so a browser
+request arrives from the Docker bridge and is never loopback (the fact `routes_keystore.go` already
+documented). Loopback-when-unset would 401 the entire UI in the one-command demo. Since "open" is
+therefore a real, reachable, default state, it is **reported rather than implied**: a boot warning
+every start, and `"admin_auth": "open"` on `/api/health` and `/api/gateway/status`. The sidebar field
+that holds the key renders as a plain statement that writes are unauthenticated until one is set.
+
+`POST /api/observations` takes a composed gate accepting the admin key **or** the spine key — it has
+two legitimate writers (an operator and the gateway pushing batches) with different credentials.
+That route was previously ungated entirely; it is now the same posture the other three spine ingest
+routes have had since GATEWAY-2.
+
+**Consequence unchanged from the ratifying decision:** no user model, no per-human principal, so
+`AuditEvent.Actor` keeps its hardcoded literals. This gates changes, not people, and the UI says so.
+
+## 2026-08-16 — Tier-2 replica fidelity: the README was corrected, not the code
+
+The README and roadmap described six Tier-2 vendors at "core surfaces" fidelity while
+`internal/synthetic/fixtures_t1.go` registers a dedicated fixture for exactly one of them
+(`mistral`); M365 Copilot, Databricks, Perplexity, Cohere and Together fall through to
+`genericFixture`.
+
+**Chosen:** state what is true. The vendor table now separates *manifest depth* (the research tier)
+from *replica fidelity* (what the synthetic surface actually returns), and names the five that
+answer from a generic envelope. **Rejected:** writing the five fixtures to make the old sentence
+true. Every one would have been reconstructed from memory rather than from verified vendor
+documentation, and a wrong envelope shipped under a "byte-identical" claim is a worse defect than
+the doc drift — it is the exact failure the honesty model exists to prevent. The five remain open
+work in `ROADMAP.md` §1, to be built against real API documentation.

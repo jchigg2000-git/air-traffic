@@ -1,7 +1,7 @@
 <div class="cover">
 <div class="glow"></div><div class="glow2"></div>
 <div class="eyebrow">AIR-TRAFFIC · AI CONTROL PLANE</div>
-<div class="tile"><img src="/Users/justinhiggins/Projects/air-traffic/air-traffic-option-4-logo-pack/air-traffic-icon-1024.png" alt="Air-Traffic"/></div>
+<div class="tile"><img src="../air-traffic-option-4-logo-pack/air-traffic-icon-1024.png" alt="Air-Traffic"/></div>
 <h1>Centralizing <span class="acc">Claude Code</span> &amp;<br/><span class="acc">GitHub Copilot</span> governance</h1>
 <div class="sub">One control plane for the two agentic developer platforms your engineers actually use — set policy once, prove it continuously, never touch the inference path.</div>
 <div class="chips">
@@ -14,7 +14,7 @@
 
 # The agentic dev estate has no control tower
 
-<div class="smark"><img src="/Users/justinhiggins/Projects/air-traffic/air-traffic-option-4-logo-pack/air-traffic-mark-transparent-1024.png"/><span class="lab">The problem</span></div>
+<div class="smark"><img src="../air-traffic-option-4-logo-pack/air-traffic-mark-transparent-1024.png"/><span class="lab">The problem</span></div>
 
 <p class="lead">Two platforms now write a large share of your code: <strong>Claude Code</strong> and <strong>GitHub Copilot</strong>. Each ships its own admin surface — different consoles, different APIs, different gaps. Today, proving "which MCP servers are allowed, who can skip code review, and what we're spending" means stitching together a dozen screens and trusting that nobody changed a setting last Tuesday.</p>
 
@@ -49,7 +49,7 @@
 
 # What Air-Traffic centralizes
 
-<div class="smark"><img src="/Users/justinhiggins/Projects/air-traffic/air-traffic-option-4-logo-pack/air-traffic-mark-transparent-1024.png"/><span class="lab">The control catalog</span></div>
+<div class="smark"><img src="../air-traffic-option-4-logo-pack/air-traffic-mark-transparent-1024.png"/><span class="lab">The control catalog</span></div>
 
 <p class="lead">Air-Traffic governs each platform through whichever mechanism actually works — and labels it honestly. <span class="b native">VendorNative</span> drives the vendor's admin API. <span class="b env">EnvManaged</span> pushes managed configuration into the developer environment and reads it back. <span class="b proxy">ProxyEnforced</span> is an optional add-on (off by default). <span class="b monitor">MonitorOnly</span> verifies &amp; alerts. The tier badge (<span class="tier A">A</span> server-side · <span class="tier B">B</span> MDM-locked · <span class="tier C">C</span> seed-only) tells you how strong the enforcement really is.</p>
 
@@ -83,7 +83,7 @@
 
 # Enforcement confidence, stated honestly
 
-<div class="smark"><img src="/Users/justinhiggins/Projects/air-traffic/air-traffic-option-4-logo-pack/air-traffic-mark-transparent-1024.png"/><span class="lab">How strong is "enforced"?</span></div>
+<div class="smark"><img src="../air-traffic-option-4-logo-pack/air-traffic-mark-transparent-1024.png"/><span class="lab">How strong is "enforced"?</span></div>
 
 <p class="lead">"Governed" is not one thing. Air-Traffic grades every control by how hard it is to bypass — and never paints a soft control green.</p>
 
@@ -97,7 +97,7 @@
 
 # How it works — no proxy required
 
-<div class="smark"><img src="/Users/justinhiggins/Projects/air-traffic/air-traffic-option-4-logo-pack/air-traffic-mark-transparent-1024.png"/><span class="lab">Architecture</span></div>
+<div class="smark"><img src="../air-traffic-option-4-logo-pack/air-traffic-mark-transparent-1024.png"/><span class="lab">Architecture</span></div>
 
 <p class="lead">Air-Traffic is a <strong>control plane + config distributor</strong>, not a man-in-the-middle on your model calls. It drives each platform's admin surface, pushes managed config into the environment, and reads the effective state back for drift — then normalizes everything into one observability stream.</p>
 
@@ -116,7 +116,7 @@ graph LR
 
 # Proof it's real
 
-<div class="smark"><img src="/Users/justinhiggins/Projects/air-traffic/air-traffic-option-4-logo-pack/air-traffic-mark-transparent-1024.png"/><span class="lab">The artifacts Air-Traffic emits</span></div>
+<div class="smark"><img src="../air-traffic-option-4-logo-pack/air-traffic-mark-transparent-1024.png"/><span class="lab">The artifacts Air-Traffic emits</span></div>
 
 <p class="lead">One policy declaration compiles into the exact managed artifacts each platform understands — pushed, then verified.</p>
 
@@ -153,7 +153,7 @@ graph LR
 
 # The control room
 
-<div class="smark"><img src="/Users/justinhiggins/Projects/air-traffic/air-traffic-option-4-logo-pack/air-traffic-mark-transparent-1024.png"/><span class="lab">Executive Flight Deck — scoped to the two platforms</span></div>
+<div class="smark"><img src="../air-traffic-option-4-logo-pack/air-traffic-mark-transparent-1024.png"/><span class="lab">Executive Flight Deck — scoped to the two platforms</span></div>
 
 <div class="dash">
 <div class="bar"><span class="dot g"></span>Air-Traffic · Flight Deck<span class="right">policy: Fintech 🔒🔒 · synced 12s ago</span></div>
@@ -171,7 +171,7 @@ graph LR
 
 # Why it matters
 
-<div class="smark"><img src="/Users/justinhiggins/Projects/air-traffic/air-traffic-option-4-logo-pack/air-traffic-mark-transparent-1024.png"/><span class="lab">The board-level outcome</span></div>
+<div class="smark"><img src="../air-traffic-option-4-logo-pack/air-traffic-mark-transparent-1024.png"/><span class="lab">The board-level outcome</span></div>
 
 <div class="two">
 <div>

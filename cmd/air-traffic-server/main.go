@@ -35,12 +35,27 @@ func main() {
 		os.Exit(1)
 	}
 
+	// The applied policy also outlives a restart: the gateway is already
+	// enforcing it, so forgetting it here makes the two halves disagree while
+	// traffic keeps flowing. Unlike the keystore this is NOT fatal — see
+	// EnablePolicyPersistence for why a control plane that refuses to start
+	// cannot be used to fix itself.
+	if err := st.EnablePolicyPersistence(dataDir); err != nil {
+		log.Error("applied policy could not be restored; booting with none applied", "error", err)
+	} else if p := st.GetPolicy(); p != nil {
+		log.Info("applied policy restored", "baseline", p.Baseline, "applied_at", p.AppliedAt)
+	}
+
 	// Shared key for the gateway spine routes (/api/gateway/leaks,
 	// /enforcement, /patterns). Unset keeps the loopback-only dev posture.
 	gatewayKey := env("AIRTRAFFIC_GATEWAY_KEY", "gwk-demo")
 	spineKey := os.Getenv("AIRTRAFFIC_SPINE_KEY")
 	app.SetSpineKey(spineKey)
-	warnUnrotatedKeys(log, gatewayKey, spineKey)
+	// Operator key for every state-changing control-plane route. Unset leaves
+	// them open, which is the posture this repo shipped with.
+	adminKey := os.Getenv("AIRTRAFFIC_ADMIN_KEY")
+	app.SetAdminKey(adminKey)
+	warnUnrotatedKeys(log, gatewayKey, spineKey, adminKey)
 
 	// The gateway harness engine: drives synthetic traffic through the
 	// gateway and feeds the flywheel. Durable state (ratchet, corpus,
@@ -108,7 +123,7 @@ func main() {
 // anywhere else, so a boot that still carries one says so out loud.
 var devDefaultKeys = map[string]bool{"gwk-demo": true, "spine-dev-insecure": true}
 
-func warnUnrotatedKeys(log *slog.Logger, gatewayKey, spineKey string) {
+func warnUnrotatedKeys(log *slog.Logger, gatewayKey, spineKey, adminKey string) {
 	if devDefaultKeys[gatewayKey] {
 		log.Warn("AIRTRAFFIC_GATEWAY_KEY is the dev default; rotate before any shared deployment (scripts/dev-env.sh)")
 	}
@@ -117,6 +132,12 @@ func warnUnrotatedKeys(log *slog.Logger, gatewayKey, spineKey string) {
 		log.Warn("AIRTRAFFIC_SPINE_KEY unset: /api/gateway/{leaks,enforcement,patterns} accept loopback callers only")
 	case devDefaultKeys[spineKey]:
 		log.Warn("AIRTRAFFIC_SPINE_KEY is the dev default; rotate before any shared deployment (scripts/dev-env.sh)")
+	}
+	switch {
+	case adminKey == "":
+		log.Warn("AIRTRAFFIC_ADMIN_KEY unset: every state-changing route (adapters, policies, credentials, harness) accepts unauthenticated writes from anyone who can reach this port (scripts/dev-env.sh)")
+	case devDefaultKeys[adminKey]:
+		log.Warn("AIRTRAFFIC_ADMIN_KEY is the dev default; rotate before any shared deployment (scripts/dev-env.sh)")
 	}
 }
 

@@ -8,6 +8,13 @@
 #                         must match.
 #   AIRTRAFFIC_SPINE_KEY  shared key on the control plane's gateway spine
 #                         routes (leaks / enforcement / patterns).
+#   AIRTRAFFIC_ADMIN_KEY  operator key on every state-changing control-plane
+#                         route (adapters, policies, credentials, harness) and
+#                         the alternative to loopback for keystore admin.
+#                         Unset leaves those routes OPEN — the posture the repo
+#                         shipped with, warned about at boot. Once set, paste it
+#                         into the SPA's "Operator key" field or the consoles
+#                         will 401 on every change.
 #
 # docker compose reads .env automatically. Idempotent: an existing key is kept
 # unless --rotate is passed. No real vendor credential is ever written here —
@@ -54,6 +61,7 @@ fi
 echo "Writing $ENV_FILE:"
 set_key GATEWAY_CLIENT_KEYS gwk-
 set_key AIRTRAFFIC_SPINE_KEY spk-
+set_key AIRTRAFFIC_ADMIN_KEY adm-
 chmod 600 "$ENV_FILE"
 
 cat <<'EOF'
@@ -61,6 +69,7 @@ cat <<'EOF'
 Done. Next:
   docker compose up -d --build          # picks .env up automatically
   grep GATEWAY_CLIENT_KEYS .env         # the key Claude Code / curl must send
+  grep AIRTRAFFIC_ADMIN_KEY .env        # paste into the SPA's "Operator key" field
 
 Running the binaries directly? Export the same values:
   set -a; source .env; set +a

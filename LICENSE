@@ -1,0 +1,53 @@
+Copyright (c) 2026 Justin Higgins. All rights reserved.
+
+PROPRIETARY AND CONFIDENTIAL — NOT OPEN SOURCE
+
+This software and its accompanying documentation, specifications, designs,
+schemas, prompts, and data models (collectively, the "Software") are the
+proprietary and confidential property of Justin Higgins (the "Owner").
+
+NO LICENSE IS GRANTED. No person or entity may use, copy, reproduce, modify,
+adapt, translate, merge, publish, distribute, transmit, sublicense, rent,
+lease, sell, host, operate as a service, or create derivative works of the
+Software, in whole or in part, in any form or by any means, without the prior
+express written permission of the Owner. No rights are granted by implication,
+estoppel, course of dealing, or otherwise.
+
+Access is not a license. Being given access to the Software — by repository
+access, a demonstration, a shared archive, an evaluation copy, an engagement,
+or by any other means — grants no license and waives no right reserved here.
+Access is permission to look, not permission to use.
+
+Evaluation. Where the Owner has granted a party written permission to evaluate
+the Software, that permission is non-exclusive, non-transferable, revocable at
+any time, and limited to internal assessment. It does not permit production
+use, redistribution, or disclosure to third parties.
+
+No reverse engineering. Except to the extent this restriction is unenforceable
+under applicable law, no party may decompile, disassemble, or reverse engineer
+the Software, or attempt to derive its source code, structure, or underlying
+ideas, other than from source the Owner has deliberately made available.
+
+Customer materials. Any output the Software produces from a party's own
+materials belongs to that party. Nothing here claims ownership of a customer's
+source code, documentation, schemas, data, or other inputs. This notice
+reserves rights only in the Software itself.
+
+Third-party dependencies retain their own licenses and are not covered by this
+notice. Their terms govern their own code.
+
+Trademarks. This notice grants no right to use the names, logos, or marks of
+the Owner.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+OWNER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Separate written agreement. Where the Owner and a party have signed an
+agreement covering the Software, that agreement governs to the extent it
+conflicts with this notice.
+
+For licensing enquiries, contact Justin Higgins.

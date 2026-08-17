@@ -177,12 +177,21 @@ func (s *Server) handleGatewayStatus(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.KeystorePersistError(); err != nil {
 		keystoreErr = err.Error()
 	}
+	// Same reasoning for the applied policy: an apply that succeeded in memory
+	// but failed to reach disk looks identical to one that worked, until the
+	// restart that loses it.
+	policyErr := ""
+	if err := s.store.PolicyPersistError(); err != nil {
+		policyErr = err.Error()
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"gateways":             out,
 		"pattern_pack_version": s.store.GetPatternPack().Version,
 		"spine_auth":           s.spineAuthMode(),
 		"spine_key_unrotated":  devSpineKeys[s.spineKey],
+		"admin_auth":           s.adminAuthMode(),
 		"keystore_version":     s.store.KeySnapshot().Version,
 		"keystore_error":       keystoreErr,
+		"policy_error":         policyErr,
 	})
 }

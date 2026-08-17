@@ -6,8 +6,11 @@
 > emitter, policy/baseline/drift engine, and env-config rendering. No frontend in
 > this phase (Phase 2). Modifies **only** the `air-traffic` repo.
 
-Status: **PLANNED** · Owner: Justin · Ports: API `8122` (`AIRTRAFFIC_ADDR`), web dev `5202` (Phase 2)
-Sibling reference (read-only): `/Users/justinhiggins/Projects/it-scorecard`
+Status: **BUILT** — this document is a build-history record of the plan as written, not open work.
+The backend below shipped; current status lives in [`../../ROADMAP.md`](../../ROADMAP.md) §1, which
+wins on any conflict. (Its §13 acceptance checkboxes were never formally re-run line-by-line —
+tracked as `OWED-3` in the roadmap.) · Owner: Justin · Ports: API `8122` (`AIRTRAFFIC_ADDR`), web dev `5202` (Phase 2)
+Sibling reference (read-only): `../it-scorecard`
 
 ---
 

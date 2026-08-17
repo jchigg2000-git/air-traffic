@@ -1,5 +1,7 @@
 // Typed client for the Air-Traffic control-plane API (Phase 1 backend).
 
+import { adminHeaders } from './adminKey.ts'
+
 export type Mode = 'disabled' | 'synthetic' | 'proxy'
 
 export interface Capability {
@@ -55,6 +57,21 @@ export interface Baseline {
   user_cap_usd: number
   code_review: string
   baa_only: boolean
+  /** What the gateway enforces for this baseline right now, given the applied
+   *  policy's attestation state. Derived server-side by model.GatewayAction so
+   *  this preview and the gateway's enforcement cannot be two implementations. */
+  gateway_action: 'detect' | 'mask' | 'block'
+  /** What it would enforce with ZDR coverage attested. Differs from
+   *  gateway_action only where requires_zdr_attestation is true. */
+  gateway_action_attested: 'detect' | 'mask' | 'block'
+  /** True where applying WITHOUT the attestation blocks all gateway traffic. */
+  requires_zdr_attestation: boolean
+}
+
+export interface BaselineSet {
+  baselines: Baseline[]
+  /** Whether the currently applied policy carries the ZDR attestation. */
+  zdr_attested: boolean
 }
 
 export interface SignalEntry {
@@ -378,24 +395,43 @@ async function getJSON<T>(path: string): Promise<T> {
   return (await res.json()) as T
 }
 
+// Every mutating call goes through send, so the operator key is attached in
+// exactly one place. It is omitted when unset, which is the server's own
+// default posture (AIRTRAFFIC_ADMIN_KEY unset → writes open) — sending an
+// empty header would look like a failed credential rather than no credential.
 export async function send<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
     method,
-    headers: { accept: 'application/json', 'content-type': 'application/json' },
+    headers: { accept: 'application/json', 'content-type': 'application/json', ...adminHeaders() },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
-  if (!res.ok) throw new ApiError(res.status, `${method} ${path} → ${res.status}`)
+  if (!res.ok) {
+    if (res.status === 401) {
+      throw new ApiError(
+        401,
+        `${method} ${path} → 401. This control plane requires the operator key; set it under Operator key in the sidebar.`,
+      )
+    }
+    throw new ApiError(res.status, `${method} ${path} → ${res.status}`)
+  }
   if (res.status === 204) return undefined as T
   return (await res.json()) as T
 }
 
 export const api = {
-  health: () => getJSON<{ ok: boolean; adapter_count: number; ts: string }>('/api/health'),
+  health: () =>
+    getJSON<{
+      ok: boolean
+      adapter_count: number
+      /** Whether state-changing routes require the operator key, or are open. */
+      admin_auth: 'admin_key' | 'open'
+      ts: string
+    }>('/api/health'),
   adapters: () => getJSON<{ adapters: Adapter[] }>('/api/adapters').then((d) => d.adapters),
   adapter: (id: string) => getJSON<{ adapter: Adapter }>(`/api/adapters/${id}`).then((d) => d.adapter),
   manifest: (id: string) => getJSON<{ capabilities: Capability[]; env_platforms: unknown[] }>(`/api/adapters/${id}/manifest`),
   calls: (id: string) => getJSON<{ calls: CallRecord[] }>(`/api/adapters/${id}/calls`).then((d) => d.calls),
-  baselines: () => getJSON<{ baselines: Baseline[] }>('/api/baselines').then((d) => d.baselines),
+  baselines: () => getJSON<BaselineSet>('/api/baselines'),
   policy: () => getJSON<{ policy: unknown }>('/api/policies').then((d) => d.policy),
   observations: (limit = 400) => getJSON<{ observations: ObservationRecord[] }>(`/api/observations?limit=${limit}`).then((d) => d.observations),
   audit: () => getJSON<{ audit: AuditEvent[] }>('/api/audit').then((d) => d.audit),

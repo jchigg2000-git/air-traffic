@@ -38,7 +38,60 @@ budget) · Appendix
 
 ## §0 Do next
 
-> ### ▶ RESUME HERE — session handoff 2026-08-15 (GATEWAY-7: the gateway keystore)
+> ### ▶ RESUME HERE — session handoff 2026-08-16 (gap-closure pass: PIVOT-1, auth, persistence)
+>
+> **State:** everything below was **built and verified this pass** — full toolchain present
+> (go 1.26.5, node 24.14.1, docker 29.5.3). `gofmt` clean, `go vet` clean, `go test -race ./...`
+> green, `npm run build` + **47 vitest across 7 files** green (was 18 across 3),
+> `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` **9/9** (recall_behavioral 1.000, precision 0.991,
+> trap FPs 0), compose stack rebuilt and healthy. The Rigor Console was also **opened in a real
+> browser** (headless Chromium) and its screenshots are in `docs/images/` — that is the OWED-2
+> class of verification, done for this change at least.
+>
+> **What landed — a 14-item captured-gap list, closed except where noted.**
+> - **PIVOT-1 is closed** (§7.1). Apply now previews the derived gateway action before commit,
+>   arms nothing on arrival, names the blast radius, and carries the **ZDR attestation** the SPA
+>   previously had no control for. The derivation moved to `internal/model/gateway_action.go`,
+>   shared by both binaries, and `GET /api/baselines` exposes `gateway_action` /
+>   `gateway_action_attested` / `requires_zdr_attestation`. `DECISIONS.md` 2026-08-16.
+> - **The admin-key tier is built** (GATEWAY-7a). `AIRTRAFFIC_ADMIN_KEY` gates every
+>   state-changing route; reads stay open; `requireLocalAdmin` accepts it as an alternative to
+>   loopback. **Unset ⇒ writes stay open**, warned at boot and reported as `"admin_auth": "open"`.
+> - **Policy persists** to `policy.json` under `AIRTRAFFIC_DATA_DIR`, verified on the compose
+>   stack across a real `docker compose restart control-plane`.
+> - A **client organization's name was scrubbed** from `docs/inference-gateway-build-plan.md`.
+> - Docs: absolute `/Users/...` paths gone from 4 files (2 were image `src`s, so those decks were
+>   rendering broken anywhere else), harness + rigor screenshots embedded in the README, a
+>   regex-only no-Docker quick path documented **and run verbatim**, Tier-2 replica fidelity
+>   corrected, phase-1/2 plan `Status:` headers un-staled, `LICENSE` added (proprietary, Justin
+>   Higgins), ARIA added to the four bare console screens, gateway upstream connect/TLS/response-
+>   header timeouts bounded without breaking streaming.
+>
+> **▶ NEXT ACTION:** §7.2's four cheap instrumentation fixes (PIVOT-2 → PIVOT-5) are now the
+> strongest candidates — PIVOT-2 especially, since every rate in §7.4 is computed over a
+> denominator missing an entire failure class until it lands. §3's deferred G-blocks, §4's vendor
+> cost facets and §5's 10 vendor auth schemas remain open and still block nothing.
+>
+> **Owed / explicitly NOT done this pass — read this before claiming any of it is closed:**
+> - **G4 response-side enforcement is still not built** and was not attempted. It is deferred by
+>   design (`docs/plans/TODO-gateway-deferred.md`, README): responses relay byte-faithfully and a
+>   streamed leak is scored informationally, not blocked. A gap scan will keep finding it; it is a
+>   feature, not a defect.
+> - **PIVOT-13 is NOT closed.** `pullPolicy` now *logs* when the control plane reports no policy
+>   while this gateway is still enforcing. Persistence removes the common cause; the drift record
+>   that would make the disagreement first-class is still open.
+> - **Five Tier-2 fixtures are still missing** (M365 Copilot, Databricks, Perplexity, Cohere,
+>   Together) — see §1 PHASE1-3. The README was corrected to stop claiming otherwise; the code was
+>   not changed. Building them needs real vendor API documentation, not recall.
+> - **Live stack state left behind:** the `harness-data` volume now also holds `policy.json`
+>   (`healthcare` **with the ZDR attestation set**, so the gateway is enforcing `mask` — confirmed
+>   on `/api/gateway/status`). That state is now durable across restarts, which is the point, but
+>   it also means the stack no longer starts from "no policy applied". The `hf-sandbox` app + two
+>   revoked keys from the keystore pass are still there.
+> - The **Gateway Traffic** page and the Gateway Harness `allow_list` chip remain browser-unverified
+>   (OWED-2). Only the Rigor Console was opened this pass.
+>
+> ### Session handoff 2026-08-15 (GATEWAY-7: the gateway keystore) — HISTORY
 >
 > **State:** working tree has **uncommitted** GATEWAY-7 work on top of the uncommitted GATEWAY-5/6
 > work below. Everything below was built and verified this pass: `go test -race ./...` green,
@@ -205,6 +258,16 @@ kept on disk, not deleted — see Appendix).
   `proxy_enforced` / `monitor_only` / `unverified` / `unsupported`) plus `env_managed` enforcement
   tiers (`server_side` / `mdm_locked` / `seed_only`) — README confirms this is live and documented
   in the HTTP API surface.
+- ⬜ **PHASE1-3** **Five Tier-2 vendors still answer from the generic fixture.**
+  `internal/synthetic/fixtures_t1.go:10-18` registers dedicated byte-identical fixtures for the six
+  Tier-1 vendors plus `mistral`; **M365 Copilot, Databricks, Perplexity, Cohere and Together** fall
+  through to `genericFixture` (`internal/synthetic/errors.go:97`). The README claimed all six
+  Tier-2 vendors were at "core surfaces" fidelity; it was corrected 2026-08-16 to separate
+  *manifest depth* from *replica fidelity* rather than write five envelopes from memory
+  (`DECISIONS.md` 2026-08-16). Build each against real vendor documentation — Graph `value[]` for
+  M365, `/api/2.0/serving-endpoints` + `system.billing.usage` for Databricks, etc. Per-vendor error
+  envelopes and the emitted signal are already real for all sixteen; only the success-path bodies
+  are generic. Overlaps §4 COST-3, which needs the same vendors' billing envelopes.
 - 🔬 **OWED-3** The phase-1 doc's acceptance checklist (`docs/plans/phase-1-surface-collection.md`
   §13) uses `- [ ]` checkboxes never flipped to `[x]` even though the code shipped — nobody ever
   re-ran `go test ./... ` against that specific checklist to close it out formally. Low priority
@@ -303,7 +366,19 @@ kept on disk, not deleted — see Appendix).
     green there is the proof. `go test -race ./...`, `npm run build`, 18 vitest all green.
   - **Rationale, tradeoffs, and what was deliberately not built:** `DECISIONS.md` 2026-08-15
     "Gateway keystore: apps own the policy, keys carry the identity".
-  - ⬜ **GATEWAY-7a** (follow-up, non-blocking) — **DECIDED 2026-08-15, no longer an owner call.**
+  - ✅ **GATEWAY-7a — BUILT 2026-08-16.** The `AIRTRAFFIC_ADMIN_KEY` tier now gates every
+    state-changing control-plane route (`requireAdminWrite`, `internal/server/spine_auth.go`) and
+    is accepted by `requireLocalAdmin` as an alternative to loopback, which is the specific unblock
+    this item named. Reads are never gated. **Unset leaves writes open** — structural, not
+    preference: compose serves the SPA from the control-plane container behind a published port, so
+    a browser is never loopback and a loopback-only default would 401 the whole UI. Because "open"
+    is a real default state it is reported (`"admin_auth"` on `/api/health` and
+    `/api/gateway/status`) and warned at boot rather than implied away. `POST /api/observations`
+    takes a composed gate accepting the admin key *or* the spine key — the gateway pushes batches
+    there. SPA side: `web/src/lib/adminKey.ts` + a sidebar field; `scripts/dev-env.sh` mints it.
+    Tests: `internal/server/admin_auth_test.go`, `web/src/lib/adminKey.test.ts`. Decision:
+    `DECISIONS.md` 2026-08-16. A keystore UI is now buildable and remains unbuilt.
+  - 🔁 **GATEWAY-7a (original text, superseded by the line above)** — **DECIDED 2026-08-15.**
     No keystore UI, because issuance is loopback-only and compose publishes the control plane
     behind a port — a browser request arrives from the Docker bridge, not loopback. Opening it to
     the UI means adding an `AIRTRAFFIC_ADMIN_KEY` tier to `requireLocalAdmin`, the same two-tier
@@ -439,9 +514,29 @@ Consequence for the pivot: an expert reads `mode: "synthetic"` and knows; a non-
 "All vendors under 80% of cap." **The only surfaces safe to hand a non-expert today are the
 Gateway Traffic page and the keystore.**
 
-### §7.1 CONFIRMED DEFECT — Healthcare is a one-click org-wide outage
+### §7.1 CONFIRMED DEFECT — Healthcare is a one-click org-wide outage — ✅ CLOSED 2026-08-16
 
-⬜ **PIVOT-1** Verified end-to-end against source 2026-08-15 (not executed; read from code):
+> ✅ **PIVOT-1 is closed.** Apply now previews the derived gateway action before it commits, arms
+> nothing on arrival (`selected` starts null), shows the affected-caller count, and carries the ZDR
+> attestation as an unticked-by-default checkbox that writes
+> `vendors.anthropic.zdr_attested`. The rule itself moved to `internal/model/gateway_action.go` and
+> is shared with the gateway, so the preview cannot drift from enforcement; `GET /api/baselines`
+> serves `gateway_action` / `gateway_action_attested` / `requires_zdr_attestation`.
+> **A second defect was found by opening the page in a browser and fixed in the same pass:** with an
+> attestation already in force the dialog previewed `mask` while an unticked box would have sent an
+> empty override map — silently revoking it and flipping the gateway to `block`, i.e. the original
+> defect wearing a confirmation dialog. The checkbox now seeds from the attestation in force.
+> Verified live (`curl` + headless browser, screenshot at
+> `docs/images/rigor-console-apply-preview.png`); pinned by `internal/model/gateway_action_test.go`
+> and 13 assertions in `web/src/pages/RigorConsole.test.tsx`. Decision + what was rejected (hiding
+> the card; re-ordering the 🔒 ramp): `DECISIONS.md` 2026-08-16.
+>
+> Not fixed here, deliberately: `PUT /api/policies` is now gated by the admin key **only when one is
+> configured** (GATEWAY-7a) — the roadmap text below calling it "unauthenticated" was true and is now
+> conditional.
+
+**Original finding, kept as the evidence** — verified end-to-end against source 2026-08-15 (not
+executed; read from code):
 `web/src/pages/RigorConsole.tsx:126` calls `api.applyPolicy(selected)` with one argument →
 `web/src/lib/api.ts:410` defaults `overrides = {}` → `Policy.Vendors` is empty →
 `internal/gateway/spine_pull.go:117-119` derives `zdrAttested = false` → healthcare is
@@ -460,6 +555,8 @@ Three aggravators, same page:
   yields `detect→mask→block→mask`. `gov_infra` sits last, looks strictest, and enforces *less* than
   healthcare because its `PIIRedaction` is `"on"` and falls to the default branch.
 - No confirmation dialog exists anywhere in the codebase, and `PUT /api/policies` is unauthenticated.
+  *(Both addressed 2026-08-16: a confirmation dialog now exists on this action, and the route is
+  gated by `AIRTRAFFIC_ADMIN_KEY` when one is configured — see GATEWAY-7a.)*
 
 Candidate fixes (not chosen): let the UI send `zdr_attested`; gate Healthcare behind an attestation
 step; or — preferred by the analysis — make Apply **preview the derived gateway action before
@@ -494,8 +591,9 @@ thing Apply changes.
 
 ### §7.3 Tier 1 — blast radius (the "user opens the wrong thing" ask)
 
-- ⬜ **PIVOT-6** Close PIVOT-1 (see §7.1) — preview-before-commit, drop the armed default, show the
-  affected-app count (`totals.apps` already exists on the traffic page).
+- ✅ **PIVOT-6 — DONE 2026-08-16.** Closed PIVOT-1 (see §7.1): preview-before-commit, armed default
+  dropped, affected-caller count shown, attestation path built. What is still open from this
+  item's neighbourhood is PIVOT-8 (below), which is a different control on a different page.
 - ⛔ **PIVOT-7** **Pattern-pack retraction path — BLOCKS all pack automation.** `ApproveProposal`
   only appends (`internal/harness/flywheel.go:670`); `allow_list` is the one kind that *removes*
   detection; approval is permanent. A stale suppression (`manual-person-m2m-interests`) already
@@ -555,7 +653,16 @@ are **latency and success**.
   cannot substantiate. Sole condition satisfying all three safety properties — it is a *retraction*
   not a novel state, it moves fail-*closed*, and its signal is a direct fact rather than an
   inference over a distribution.
-- ⬜ **PIVOT-13** **Split-brain policy detector.** On restart the control plane forgets the policy,
+- ⏳ **PIVOT-13** **Split-brain policy detector — HALF DONE 2026-08-16, do not read as closed.**
+  Two of the three legs changed: the applied policy now **persists** (`internal/store/policy_persist.go`,
+  loaded at boot, verified across a real `docker compose restart control-plane`), so the common
+  cause — the control plane forgetting on restart — is gone; and `pullPolicy` now **logs** the
+  disagreement when the control plane reports no policy while this gateway is still enforcing.
+  **Still open:** turning that into a first-class `model.DriftRecord` so it appears on `/api/drift`
+  rather than only in a log line, and the gateway-restart case that falls to `actionMask`. The
+  §7.7 ruling that persistence must not ship without the revert fix is satisfied in substance —
+  persisting *is* what stops the disagreement being durable — but the detector itself is not built.
+  Original finding, unchanged:
   but `pullPolicy` returns early on `Policy == nil` **without clearing `s.policyAction`**
   (`internal/gateway/spine_pull.go:110-112`) — the gateway keeps enforcing while the control plane
   believes nothing is applied, and nothing compares them. `gatewayDrift`'s `expected` flips false
@@ -660,8 +767,12 @@ are **latency and success**.
 - Auto-reverting the pattern pack on a latency regression — considered and declined: reverted rules
   may include `allow_list` entries, so a revert can loosen *or* tighten depending on pack contents,
   and there is no store-side retraction to revert *to*.
-- Persisting the policy without fixing the split-brain revert (PIVOT-13) — that makes the
-  disagreement durable instead of transient.
+- ~~Persisting the policy without fixing the split-brain revert (PIVOT-13) — that makes the
+  disagreement durable instead of transient.~~ **Resolved 2026-08-16, and the reasoning inverted on
+  contact with the code:** persistence is what *removes* the disagreement, because the control
+  plane no longer forgets on restart and `pullPolicy` no longer returns early on a nil policy in
+  the ordinary case. Persistence shipped with a warning log on the residual case; the drift record
+  remains open as PIVOT-13. Nothing here was made durable that was not already being enforced.
 
 ### §7.8 Analysis provenance
 

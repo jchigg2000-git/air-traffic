@@ -19,7 +19,7 @@
 > proven shape — a Go HTTP service exposing a **control plane** + a **background emitter** that
 > produces a normalized `ops-observation-batch/v1` signal, with a React SPA on top. it-scorecard
 > configures connectors and emits signal; Air-Traffic does the same, and adds a **config
-> distributor** for agentic environments. (`/Users/justinhiggins/Projects/it-scorecard`.)
+> distributor** for agentic environments. (`../it-scorecard`, a sibling repo.)
 
 ---
 

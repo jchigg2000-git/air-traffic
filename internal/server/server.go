@@ -25,6 +25,10 @@ type Server struct {
 	// spineKey is the shared secret the gateway presents on /api/gateway/*
 	// ingest + pattern reads. Empty means loopback-only (see spine_auth.go).
 	spineKey string
+	// adminKey gates every state-changing control-plane route. Empty leaves
+	// them open — the posture this repo shipped with, reported honestly rather
+	// than silently (see requireAdminWrite).
+	adminKey string
 }
 
 // New constructs a Server and seeds the audit stream.
@@ -43,13 +47,18 @@ func (s *Server) SetHarness(h *harness.Runner) { s.harness = h }
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 
+	// Reads are ungated; every state-changing route below carries
+	// requireAdminWrite (spine_auth.go), which is a no-op until
+	// AIRTRAFFIC_ADMIN_KEY is set. GET-only routes are left bare rather than
+	// wrapped in a gate that could never fire.
 	mux.HandleFunc("/api/health", s.handleHealth)
 	mux.HandleFunc("/api/adapters", s.handleAdapters)
-	mux.HandleFunc("/api/adapters/", s.handleAdapter)
+	mux.HandleFunc("/api/adapters/", s.requireAdminWrite(s.handleAdapter))
 	mux.HandleFunc("/api/baselines", s.handleBaselines)
-	mux.HandleFunc("/api/policies", s.handlePolicies)
-	mux.HandleFunc("/api/credentials", s.handleCredentials)
-	mux.HandleFunc("/api/observations", s.handleObservations)
+	mux.HandleFunc("/api/policies", s.requireAdminWrite(s.handlePolicies))
+	mux.HandleFunc("/api/credentials", s.requireAdminWrite(s.handleCredentials))
+	// Two legitimate writers, two different credentials — see requireAdminIngest.
+	mux.HandleFunc("/api/observations", s.requireAdminIngest(s.handleObservations))
 	mux.HandleFunc("/api/audit", s.handleAudit)
 	mux.HandleFunc("/api/activity", s.handleActivity)
 	mux.HandleFunc("/api/drift", s.handleDrift)
@@ -69,13 +78,16 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/apps/{id}", s.requireLocalAdmin(s.handleApp))
 	mux.HandleFunc("/api/apps/{id}/keys", s.requireLocalAdmin(s.handleAppKeys))
 	mux.HandleFunc("/api/keys/{kid}", s.requireLocalAdmin(s.handleKey))
-	mux.HandleFunc("/api/harness/runs", s.handleHarnessRuns)
+	mux.HandleFunc("/api/harness/runs", s.requireAdminWrite(s.handleHarnessRuns))
 	mux.HandleFunc("/api/harness/runs/", s.handleHarnessRun)
-	mux.HandleFunc("/api/harness/sample", s.handleHarnessSample)
+	mux.HandleFunc("/api/harness/sample", s.requireAdminWrite(s.handleHarnessSample))
 	mux.HandleFunc("/api/harness/ratchet", s.handleHarnessRatchet)
 	mux.HandleFunc("/api/harness/corpus", s.handleHarnessCorpus)
-	mux.HandleFunc("/api/harness/proposals", s.handleHarnessProposals)
-	mux.HandleFunc("/api/harness/proposals/", s.handleHarnessProposals)
+	// Proposal approve/reject is the one irreversible control in the product:
+	// an approved allow_list rule removes detection and there is no retraction
+	// path yet (ROADMAP.md PIVOT-7).
+	mux.HandleFunc("/api/harness/proposals", s.requireAdminWrite(s.handleHarnessProposals))
+	mux.HandleFunc("/api/harness/proposals/", s.requireAdminWrite(s.handleHarnessProposals))
 
 	mux.Handle("/synthetic/", s.synthetic)
 

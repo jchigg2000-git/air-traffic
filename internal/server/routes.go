@@ -18,7 +18,12 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"ok":            true,
 		"service":       "air-traffic",
 		"adapter_count": len(s.store.ListAdapters()),
-		"ts":            time.Now().UTC().Format(time.RFC3339),
+		// Say which write posture is actually in effect. "open" is a real
+		// state and naming it is the point — a control plane that implies it
+		// is authenticated when it isn't is the exact class of claim this
+		// repo's honesty model exists to prevent.
+		"admin_auth": s.adminAuthMode(),
+		"ts":         time.Now().UTC().Format(time.RFC3339),
 	})
 }
 
@@ -109,8 +114,49 @@ func (s *Server) handleAdapter(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// baselineView is a baseline plus what applying it would actually do to
+// gateway traffic. The derived fields are computed, never stored, and are the
+// only thing that lets the Rigor Console tell an operator the consequence of
+// Apply *before* it commits — previously the words detect/mask/block appeared
+// nowhere on that page while being the only thing Apply changed.
+//
+// They hang off the response envelope rather than model.Baseline so the domain
+// type stays a description of policy intent rather than of one enforcement
+// point's behaviour.
+type baselineView struct {
+	model.Baseline
+	// GatewayAction is what this baseline enforces WITHOUT the attestation.
+	// Both derived fields are absolute properties of the baseline rather than
+	// of the currently applied policy: the caller decides which one applies by
+	// deciding whether it is attesting, and mixing the two — previewing
+	// against current state while sending a different attestation — is exactly
+	// how an operator silently drops an attestation that is already in force.
+	GatewayAction string `json:"gateway_action"`
+	// GatewayActionAttested is what it enforces WITH ZDR coverage attested.
+	// Equal to GatewayAction for every baseline that does not gate on it.
+	GatewayActionAttested string `json:"gateway_action_attested"`
+	// RequiresZDRAttestation marks the baselines where those two differ — i.e.
+	// where applying without the attestation blocks all traffic.
+	RequiresZDRAttestation bool `json:"requires_zdr_attestation"`
+}
+
 func (s *Server) handleBaselines(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"baselines": policy.Baselines()})
+	base := policy.Baselines()
+	out := make([]baselineView, 0, len(base))
+	for _, b := range base {
+		out = append(out, baselineView{
+			Baseline:               b,
+			GatewayAction:          model.GatewayAction(b, false),
+			GatewayActionAttested:  model.GatewayAction(b, true),
+			RequiresZDRAttestation: model.RequiresZDRAttestation(b),
+		})
+	}
+	// The attestation currently in force, so the UI can seed its checkbox from
+	// reality instead of from a default that would revoke it.
+	writeJSON(w, http.StatusOK, map[string]any{
+		"baselines":    out,
+		"zdr_attested": model.ZDRAttestedIn(s.store.GetPolicy()),
+	})
 }
 
 func (s *Server) handlePolicies(w http.ResponseWriter, r *http.Request) {

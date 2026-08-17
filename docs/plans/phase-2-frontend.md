@@ -5,7 +5,9 @@
 > Deck**); configuration (Rigor Console, Policy Editor, Cost Explorer) is treated with equal
 > rigor. Served same-origin by the Go binary from `web/dist`. Modifies **only** `air-traffic`.
 
-Status: **PLANNED** (after Phase 1 ships) · Web dev port `5202` · API `8122`
+Status: **BUILT** — this document is a build-history record of the plan as written, not open work.
+Every screen below shipped; current status lives in [`../../ROADMAP.md`](../../ROADMAP.md) §2, which
+wins on any conflict. · Web dev port `5202` · API `8122`
 Stack mirrors it-scorecard: **Vite + React + TypeScript + Tailwind v4 + TanStack Query + React Router**.
 Brand: navy `#0B1220` + cyan `#0891B2`/`#38D5EA`; assets in `air-traffic-option-4-logo-pack/`,
 vendor glyphs in `air-traffic-option-4-logo-pack/vendor/` (inline path data — no counterfeit logos).
