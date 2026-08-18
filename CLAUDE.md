@@ -7,6 +7,11 @@ docs** — the ones that existed (`docs/handoff.md`, `docs/plans/TODO-cost-drill
 consolidated into it (2026-08-07); never recreate them. Put new plan or status content in
 `ROADMAP.md`. If any doc's status conflicts with ROADMAP, ROADMAP wins.
 
+**ROADMAP.md holds only open work — closure is deletion.** A finished, verified item is deleted
+in the closing edit, never marked ✅ and kept; git and `CHANGELOG.md` are the history layer. Do not
+preserve, restore, or re-add closed items. `git log -S'<ID>' -- ROADMAP.md` recovers any deleted
+item.
+
 **Exception, by design:** `docs/plans/TODO-gateway-deferred.md` and `docs/plans/TODO-vendor-auth.md`
 stay standalone rather than folding into `ROADMAP.md` — they are cited by path from live Go/TS
 source (`internal/gateway/credbroker/credbroker.go`, `internal/store/store.go`,

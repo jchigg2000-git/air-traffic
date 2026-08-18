@@ -20,9 +20,13 @@
 >   `docs/plans/phase-3-inference-gateway.md`.
 > - **Decisions**: `DECISIONS.md` (append-only log; roadmap items cite it by date + title)
 
-**Legend:** ✅ done · 🔶 shipped but UNVERIFIED · ⏳ in progress · ⬜ not started · 🔬 verification
-owed · 🔁 superseded (kept for its evidence, not as work) · ⛔ **BLOCKS** — the only marker that
-gates anything
+> **Closed work is not in this file.** An item is deleted at the edit that closes it — there is no
+> ✅ status. What shipped is recorded by the closing commit and `CHANGELOG.md`. To resurrect or
+> cite a deleted item: `git log -S'<ID>' -- ROADMAP.md`, then `git show <sha>:ROADMAP.md`.
+
+**Legend:** ⏳ in progress · ⬜ not started · 🔶 shipped but UNVERIFIED · 🔬 verification owed ·
+⛔ **BLOCKS** — the only marker that gates anything. Superseded/rejected work survives only as a
+one-line struck entry in the open-decisions index.
 
 **Backlog items are not blockers.** No item under a `BACKLOG` / `PARKED` status may be cited as
 gating, blocking, or holding up any other work unless it carries a `⛔ BLOCKS:` line with the
@@ -90,174 +94,14 @@ budget) · Appendix
 >   revoked keys from the keystore pass are still there.
 > - The **Gateway Traffic** page and the Gateway Harness `allow_list` chip remain browser-unverified
 >   (OWED-2). Only the Rigor Console was opened this pass.
->
-> ### Session handoff 2026-08-15 (GATEWAY-7: the gateway keystore) — HISTORY
->
-> **State:** working tree has **uncommitted** GATEWAY-7 work on top of the uncommitted GATEWAY-5/6
-> work below. Everything below was built and verified this pass: `go test -race ./...` green,
-> `npm run build` + 18 vitest green, `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` **9/9**
-> (recall_behavioral 1.000, precision 0.991, trap FPs 0), compose stack rebuilt and healthy.
->
-> **What landed.** A keystore: apps, many keys per app tagged by `subject` (user id / agent
-> instance / CI job), route scoping, expiry, revocation — and, the actual payoff, **per-app
-> redaction policy**. `GATEWAY_CLIENT_KEYS` already authenticated; what it could not do was say
-> who called or serve two callers different postures. Proven live: `hf-sandbox` scoped to
-> `fintech` resolved to **mask** while a legacy `env` caller on the global `general_saas` resolved
-> to **detect**, same gateway, same instant. See §3 GATEWAY-7 and `DECISIONS.md` 2026-08-15
-> "Gateway keystore".
->
-> **▶ NEXT ACTION — superseded 2026-08-15 by the non-expert-pivot pass; see §7.** The strongest
-> candidate is now **§7.1 PIVOT-1**, a confirmed one-click org-wide outage (the Rigor Console's
-> "Healthcare" card resolves to `block` for every caller, with no UI path to the attestation that
-> would prevent it), followed by §7.2's four cheap instrumentation fixes. §3's deferred G-blocks,
-> §4's vendor cost facets and §5's 10 vendor auth schemas remain open and still block nothing.
-> **GATEWAY-7a is no longer an owner call** — the `AIRTRAFFIC_ADMIN_KEY` tier was ratified
-> 2026-08-15 as this repo's auth answer (`DECISIONS.md`, "The control plane stays single-operator").
->
-> **Owed / unverified from the keystore pass:**
-> - The Gateway Traffic page's new **App column is build-verified only** — the same
->   nobody-opened-a-browser gap OWED-2 records. Its API and attribution are verified against real
->   traffic.
-> - There is **no keystore UI**, by construction (see GATEWAY-7a). Administration is
->   `scripts/keystore.sh`.
-> - Live stack state left behind: an app `hf-sandbox` is registered with **no baseline** (inherits
->   the global policy) and **two revoked keys**. Inert, but it is real state in the `harness-data`
->   volume, not a fixture.
->
-> ### Session handoff 2026-08-15 (GATEWAY-5: OpenAI dialect + traffic feed) — HISTORY
->
-> **State:** working tree has **uncommitted** GATEWAY-5 work (see §3). Toolchain present this pass
-> (go 1.26.5, node 24.14.1, docker 29.5.3), so unlike the 2026-08-07 pass everything below was
-> actually built and run: `go test ./...` green, `npm run build` + 12 vitest green,
-> `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` **9/9** (recall_behavioral 1.000, precision 0.991,
-> trap FPs 0), compose stack rebuilt and healthy on :8122 / :8125 / :8126.
->
-> **Why this work happened:** the goal was to route the owner's own agentic apps
-> (`~/Projects/meaning-to-making`, `~/Projects/hf-sandbox`) through the gateway. Both call
-> Hugging Face's router via `@huggingface/inference` — **OpenAI wire format** — and the gateway
-> spoke only Anthropic `/v1/messages`, so neither app could reach it at all. That gap, not a
-> roadmap item, drove the slice.
->
-> **▶ NEXT ACTION: this is live and proven end-to-end. Remaining work is unchanged:** §3's other
-> deferred G-blocks, §4's vendor cost facets, §5's 10 vendor auth schemas — none block each other.
->
-> #### ⚠️ meaning-to-making is NOT a client of this gateway — reverted 2026-08-15
-> It was used as the initial proving ground and every change to that repo has since been reverted
-> at the owner's instruction (`git status` there is clean; its `.env` no longer carries
-> `HF_ENDPOINT_URL` / `AIRTRAFFIC_CLIENT_KEY`). Air-Traffic is an enterprise app and a private
-> single-family creative tool is the wrong thing to demonstrate it against. **hf-sandbox is the
-> live integration.** The meaning-to-making findings below are kept because they are the evidence
-> that produced GATEWAY-6, not because that integration still exists — do not restore it.
->
-> #### The integration, as proven through the gateway (2026-08-15)
-> Live config: `.env` holds minted `GATEWAY_CLIENT_KEYS` (`gwk-…`) + `AIRTRAFFIC_SPINE_KEY`
-> (`spk-…`) plus `HF_UPSTREAM_TOKEN` (copied from the two apps, which shared one HF token). The
-> `openai` upstream points at `https://router.huggingface.co/v1`. Applied baseline is
-> **`general_saas`** → `pii_redaction: off` → gateway action **`detect`** (monitor-only).
-> - **meaning-to-making** *(historical — reverted, see the warning above)* — routed via
->   `HF_ENDPOINT_URL` + `AIRTRAFFIC_CLIENT_KEY`. One real turn produced exactly the predicted 3
->   chat calls (control-read 499/8, stage1 1364/99, stage2 558/25) while `render` and `tts` went
->   direct. This is what the token reconciliation below was measured against.
-> - **hf-sandbox** *(live)* — `HF_ROUTER_URL=http://127.0.0.1:8125/v1` (base already carries `/v1`) +
->   `AIRTRAFFIC_CLIENT_KEY`. Streamed and non-streamed both round-trip; the terminal usage chunk
->   survives the proxy hop, so the UI's running cost total still works. `/api/models` still goes
->   to the real router, by construction.
-> - **Reconciliation PASSED.** Gateway tokens vs meaning-to-making's *independent* SQLite store
->   (`server/data/observability.sqlite`): identical multisets, **2421 in / 132 out** across all 3
->   chat calls. Two separately-instrumented measurements agreeing is the proof that the OpenAI
->   usage scanner is right.
->
-> #### Findings worth keeping
-> - **Detect-first was the correct call, and there is now evidence.** On a turn about *"a big red
->   boat on the water"*, Presidio flagged 4 × `PERSON_NAME` and 1 × `ADDRESS` — all inside
->   `messages[0].content` at offsets 1512-1546 and 5574-5578, i.e. **in meaning-to-making's own
->   system prompt**, not in the child's utterance. Under `mask` those would have been rewritten to
->   `[PERSON_NAME]` inside the app's instructions, and the damage would have presented as model
->   misbehaviour. Raise the baseline for this app only after tuning; `general_saas` → `fintech`
->   flips it to `mask` live via policy pull, no restart.
-> - Gateway-added latency scales with prompt size: 12–23 ms on hf-sandbox's small prompts,
->   216–217 ms on meaning-to-making's ~1.4k-token ones.
-> - A transient HF `service_unavailable` was observed once mid-test and relayed byte-faithfully;
->   isolated to the vendor by comparing a direct call against a proxied one, not a gateway defect.
->
-> #### Unverified / owed from this pass
-> - The Gateway Traffic page (`/settings/traffic`) is served (route 200, component present in the
->   built bundle) and its API is verified against real data, but **nobody has looked at it in a
->   browser** — same gap OWED-2 records for the Harness tab.
-> - The **Anthropic** route is still pointed at the synthetic replica; only the OpenAI route has
->   run against a real vendor. Claude Code through `/v1/messages` remains untried.
-> - The control plane's store is in-memory: recreating the container wipes observations, reports,
->   and the applied policy. The `general_saas` baseline above must be re-applied after a restart.
->
-> ### Session handoff 2026-08-07 (doc-consolidation pass) — HISTORY, superseded by the block above.
->
-> **State:** `main` clean at `e4604d4` (`chore(ci): bump actions to v7, drop the unusable Go
-> module cache`). No `go`/`npm` toolchain available in the sandbox this pass ran in, so nothing
-> below was rebuilt or re-tested — treat "shipped" claims as **citations against README/commit
-> history**, not as freshly-verified. Prior session evidence (README, `docs/plans/phase-3-*.md`):
-> `go test ./...` green, `scripts/e2e-gateway.sh` 9/9 as of 2026-07-02; CI (`.github/workflows/ci.yml`)
-> covers Go + web + both Docker images as of `e4604d4`.
->
-> *(That pass's next-action, kept for the record: pick up any of §3's deferred G-blocks, §4's
-> remaining vendor cost facets, or §5's remaining 10 vendor auth schemas — none block each other.
-> Still true; see the current block above.)*
->
-> #### What shipped (this pass)
-> - Installed this ROADMAP.md + DECISIONS.md + CLAUDE.md triad (repo had no `ROADMAP.md` and no
->   `CLAUDE.md` before this pass).
-> - Folded `docs/handoff.md` (2026-07-02 G6 session handoff) into the HISTORY block below.
-> - Folded `docs/plans/TODO-cost-drilldown.md`'s open TODO items into §4.
->
-> #### What I found by reading that nobody reported
-> - `docs/plans/phase-1-surface-collection.md` and `docs/plans/phase-2-frontend.md` both still say
->   `Status: PLANNED` in their own headers, but the code (`internal/*`, `web/src/*`) and README both
->   show Phase 1, 2, and 3 fully shipped. Their `PLANNED` status lines are stale relative to the repo
->   but the files themselves stay in place (README links them as "Plans:" build-history records) —
->   this roadmap is the corrected status; the plan docs are not being edited.
-> - Three docs carry a paired `.pdf` and read as generated pitch/brief decks (`docs/air-traffic-executive-overview.md`,
->   `docs/air-traffic-claude-code-github-copilot.md`, plus `docs/air-traffic-analysis.md` and
->   `docs/air-traffic-system-design.md` which also have `.pdf` twins but are additionally
->   code-referenced). None show signs of being superseded — classified as portfolio RECORDS, left
->   untouched per the design-doc-archive convention (archive only if superseded).
->
-> #### What I deliberately did NOT do, and why
-> - Did **not** touch `docs/plans/TODO-gateway-deferred.md` or `docs/plans/TODO-vendor-auth.md` —
->   both are cited by path from live Go/TS source and one is rendered directly in the Vendors UI.
->   Folding or staging either would silently break those in-repo citations. They stay the
->   authoritative, continuously-updated ledgers for their subject matter; this roadmap points at
->   them (§3, §5) rather than duplicating their content.
-> - Did **not** re-run `go test`/`npm run build` — no Go/Node toolchain in this session's sandbox.
->   Nothing here should be read as "verified working today."
->
-> #### Questions
-> - None load-bearing enough to block — see §6 for the two 🔬 OWED items carried over from the
->   folded docs.
-
-### Session handoff 2026-07-02 (evening) — HISTORY, superseded by the block above.
-G6 config-knob slice shipped (`c00c975`): deny-list / threshold / context-word proposal kinds
-flow propose→approve→hot-reload; try-a-prompt box added to the Gateway Harness tab
-(`POST /api/harness/sample`). Also fixed en route: two live trap FPs (`US_ITIN`→`SSN` mapping,
-unmapped-Presidio-built-ins now dropped, `ADDRESS` hyphen guard), a stale-pointer upsert bug
-(`TestUpsertSurvivesSliceGrowth`), and a full-loop test that was silently lying about recall
-(heartbeat pointed at the wrong gateway instance — see `DECISIONS.md` 2026-07-02 entries).
-Verification owed at the time, uncertain if since closed — see §6 OWED-1 and OWED-2.
-Full original text recoverable: `git show e4604d4:docs/handoff.md` (folded 2026-08-07, file
-kept on disk, not deleted — see Appendix).
+> - **Observations/reports store is still in-memory** (carried from the GATEWAY-5 pass,
+>   2026-08-15) — only `policy.json` and the keystore (`keys.json`) persist across restarts;
+>   unconfirmed whether this has since been addressed.
 
 ---
 
 ## §1 Phase 1 — Control plane backend
 
-- ✅ **PHASE1-1** Go stdlib-only backend (`cmd/air-traffic-server`) serving byte-identical
-  synthetic replicas of 16 vendor admin/control surfaces (6 Tier-1 deep, 6 Tier-2 core, 4 Tier-3
-  manifest-only), the control-plane API, the `ops-observation-batch/v1` emitter, policy/baseline/
-  drift engine, and env-config rendering. Full spec + acceptance criteria:
-  `docs/plans/phase-1-surface-collection.md` (kept as build-history record, not re-transcribed
-  here — see roadmap-callout Appendix note on fidelity).
-- ✅ **PHASE1-2** Five-disposition honesty model (`vendor_native` / `env_managed` /
-  `proxy_enforced` / `monitor_only` / `unverified` / `unsupported`) plus `env_managed` enforcement
-  tiers (`server_side` / `mdm_locked` / `seed_only`) — README confirms this is live and documented
-  in the HTTP API surface.
 - ⬜ **PHASE1-3** **Five Tier-2 vendors still answer from the generic fixture.**
   `internal/synthetic/fixtures_t1.go:10-18` registers dedicated byte-identical fixtures for the six
   Tier-1 vendors plus `mistral`; **M365 Copilot, Databricks, Perplexity, Cohere and Together** fall
@@ -277,49 +121,21 @@ kept on disk, not deleted — see Appendix).
 
 ## §2 Phase 2 — Frontend SPA
 
-- ✅ **PHASE2-1** Vite + React + TS + Tailwind v4 + TanStack Query + React Router SPA, served
-  same-origin from `web/dist`. Flight Deck (`/`) observability landing, `/settings/*` consoles
-  (Rigor Console, Policy Editor, Cost & Usage Explorer, Vendors, Observability, Audit), plus a
-  public `/welcome` marketing page. Full spec: `docs/plans/phase-2-frontend.md` (build-history
-  record, kept in place).
-- ✅ **PHASE2-2** (`3f14442`+ series) CSV + JSON export added to Cost Explorer; API error surfacing
-  in CostExplorer (`9e212b2`); Vitest harness added (`d2cd9cb`).
-- ✅ **PHASE2-3** (2026-08-15) **Honest-liveness pass.** Fixed the rollup bug that painted 13
-  non-emitting vendors green (`web/src/lib/fleet.ts` now mirrors the emitter's own gate via
-  `VendorRollup.emitting`; stale feeds decay; `healthy` counts emitting vendors only;
-  `unmatchedEmitters` surfaces emitters with no adapter row). Flight Deck: off rows dimmed with an
-  `off` marker, worst-first sort, unconditional pulses and the hardcoded "emitter · 5s" /
-  "live · updates every 5s" claims replaced with the real age of the last successful poll, KPI
-  strip 5→4, Legend and dead `.tile-flash` CSS removed. App-wide: shared
-  `components/ApiStateBanner.tsx` mounted on the 7 pages that previously failed silently;
-  loading-vs-empty conflation fixed in Vendors + Gateway Harness + Rigor Console. Principle and
-  scope rulings: `DECISIONS.md` 2026-08-15 "an element may not claim liveness it cannot disprove".
-  - ⬜ **PHASE2-3a** Next `/ratchet-up landing-page` run must fix `web/src/pages/landing/Hero.tsx`
-    (~`:30-40`): the "spine online" and "emitter · ops-observation-batch/v1 · 5s" badges pulse
-    unconditionally with zero data binding and cannot go false — a violation of that page's own
-    Correctness axis. Left untouched this pass because `/welcome` is a ratcheted champion; it must
-    be changed through the ledger, and the run must still beat the reigning score.
-  - ⬜ **PHASE2-3b** Residual, non-blocking: `web/src/components/VendorGlyph.tsx` brand hues for
-    bedrock/mistral/m365/groq (`#FF9900`, `#FA520F`, `#D83B01`, `#F55036`) sit in the same band as
-    `--amber`/`--unverified`, so a decorative glyph can camouflage a real status dot in the same
-    row. Mitigated (off-row dimming + glow now conditional), not solved; a full palette rework was
-    deliberately not taken because `VendorGlyph` is shared with the ratcheted landing page.
+- ⬜ **PHASE2-3a** Next `/ratchet-up landing-page` run must fix `web/src/pages/landing/Hero.tsx`
+  (~`:30-40`): the "spine online" and "emitter · ops-observation-batch/v1 · 5s" badges pulse
+  unconditionally with zero data binding and cannot go false — a violation of that page's own
+  Correctness axis. Left untouched this pass because `/welcome` is a ratcheted champion; it must
+  be changed through the ledger, and the run must still beat the reigning score.
+- ⬜ **PHASE2-3b** Residual, non-blocking: `web/src/components/VendorGlyph.tsx` brand hues for
+  bedrock/mistral/m365/groq (`#FF9900`, `#FA520F`, `#D83B01`, `#F55036`) sit in the same band as
+  `--amber`/`--unverified`, so a decorative glyph can camouflage a real status dot in the same
+  row. Mitigated (off-row dimming + glow now conditional), not solved; a full palette rework was
+  deliberately not taken because `VendorGlyph` is shared with the ratcheted landing page.
 
 ---
 
 ## §3 Phase 3 — Inference gateway + harness + flywheel
 
-- ✅ **GATEWAY-1** MVP inference gateway (`cmd/air-traffic-gateway`, port 8125): pass-through
-  proxy, regex + self-hosted Presidio PII/PHI detection, mask/block/detect-only, spine
-  integration (observations, leak findings, enforcement heartbeats, policy pull), Gateway Harness
-  UI tab + recall-ratchet flywheel v0. Built and verified 2026-07-02 per
-  `docs/plans/phase-3-inference-gateway.md` (`go test ./...` green, `e2e-gateway.sh` 9/9,
-  recall_behavioral 0.997 / precision 0.975 / trap FPs 0 on a 120-request seeded run —
-  **not re-verified this pass**, see §0 state note).
-- ✅ **GATEWAY-2** (`8b4319f`, closed 2026-07-30 per `docs/plans/TODO-gateway-deferred.md`) Spine
-  auth on `/api/gateway/*` (`AIRTRAFFIC_SPINE_KEY`), key rotation via `scripts/dev-env.sh`,
-  deeper multimodal/tool-call field walk (tool_result, tool_use.input, document sources),
-  SSE usage extraction, CI hardening.
 - 🔶 **GATEWAY-5** (2026-08-15, **uncommitted**) OpenAI-compatible dialect + per-request traffic
   feed. `POST /v1/chat/completions` ships beside `/v1/messages`, both running the *same* pipeline
   behind a `dialect` descriptor (`internal/gateway/proxy.go`) so detector/policy changes can't
@@ -342,51 +158,6 @@ kept on disk, not deleted — see Appendix).
   (second pass)". Decisions: `DECISIONS.md` 2026-08-15 (two entries).
   **Marked 🔶 not ✅ because:** the new Gateway Harness chip rendering for `allow_list` is
   build-verified only, not browser-verified (same standing gap as OWED-2).
-- ✅ **GATEWAY-7** (2026-08-15) **Gateway keystore — apps, issued keys, per-app policy.** Before
-  this the gateway's whole notion of "who is calling" was `GATEWAY_CLIENT_KEYS`: one env var
-  resolved at boot into a `map[string]struct{}`, checked by a bare map lookup. It authenticated
-  and nothing more — no principal on any report, and one redaction posture for every caller.
-  - **What shipped.** `model.App` / `model.APIKey` / `model.KeySnapshot`
-    (`internal/model/keystore.go`); write-through persistence to `keys.json` under
-    `AIRTRAFFIC_DATA_DIR` (`internal/store/keystore*.go`); a loopback-gated admin API
-    (`internal/server/routes_keystore.go`: `/api/apps`, `/api/apps/{id}/keys`, `/api/keys/{kid}`)
-    plus `GET /api/gateway/keys` on the spine; edge verification against a pulled snapshot
-    (`internal/gateway/keystore.go`, `pullKeys` in `spine_pull.go`); `actionFor(principal)`
-    replacing `currentAction()`; `app_id`/`key_id`/`subject`/`baseline` on
-    `GatewayRequestReport`; an App column on the Gateway Traffic page; `scripts/keystore.sh`.
-  - **Proven live on the compose stack**, not merely built: app `hf-sandbox` scoped to `fintech`
-    resolved to **mask** at the same instant a legacy `env`-key caller on the global
-    `general_saas` resolved to **detect** — two postures, one gateway. Attribution
-    (`app_id`/`key_id`/`subject`) landed on the traffic feed; an `openai`-scoped key reached the
-    real Hugging Face router on `/v1/chat/completions` and was refused 401 on `/v1/messages`;
-    revocation took ~14 s (inside the 15 s pull window); the keystore survived a
-    `docker compose restart control-plane` that wipes everything else in that store.
-  - **Compatibility bar held:** `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` **9/9**
-    (recall_behavioral 1.000, precision 0.991, trap FPs 0) — it authenticates with env keys, so
-    green there is the proof. `go test -race ./...`, `npm run build`, 18 vitest all green.
-  - **Rationale, tradeoffs, and what was deliberately not built:** `DECISIONS.md` 2026-08-15
-    "Gateway keystore: apps own the policy, keys carry the identity".
-  - ✅ **GATEWAY-7a — BUILT 2026-08-16.** The `AIRTRAFFIC_ADMIN_KEY` tier now gates every
-    state-changing control-plane route (`requireAdminWrite`, `internal/server/spine_auth.go`) and
-    is accepted by `requireLocalAdmin` as an alternative to loopback, which is the specific unblock
-    this item named. Reads are never gated. **Unset leaves writes open** — structural, not
-    preference: compose serves the SPA from the control-plane container behind a published port, so
-    a browser is never loopback and a loopback-only default would 401 the whole UI. Because "open"
-    is a real default state it is reported (`"admin_auth"` on `/api/health` and
-    `/api/gateway/status`) and warned at boot rather than implied away. `POST /api/observations`
-    takes a composed gate accepting the admin key *or* the spine key — the gateway pushes batches
-    there. SPA side: `web/src/lib/adminKey.ts` + a sidebar field; `scripts/dev-env.sh` mints it.
-    Tests: `internal/server/admin_auth_test.go`, `web/src/lib/adminKey.test.ts`. Decision:
-    `DECISIONS.md` 2026-08-16. A keystore UI is now buildable and remains unbuilt.
-  - 🔁 **GATEWAY-7a (original text, superseded by the line above)** — **DECIDED 2026-08-15.**
-    No keystore UI, because issuance is loopback-only and compose publishes the control plane
-    behind a port — a browser request arrives from the Docker bridge, not loopback. Opening it to
-    the UI means adding an `AIRTRAFFIC_ADMIN_KEY` tier to `requireLocalAdmin`, the same two-tier
-    ladder `requireSpineKey` already implements. ~30 lines, no data-model change. The owner
-    ratified this as the repo's auth answer (`DECISIONS.md` 2026-08-15, "The control plane stays
-    single-operator; auth is the admin-key tier, not a user model") — the alternative, an
-    authenticated per-human principal at the `Routes()` seam, was considered and rejected. Build it
-    when convenient; nothing gates it.
 - ⬜ **GATEWAY-3** Deferred G-blocks — full detail lives in `docs/plans/TODO-gateway-deferred.md`
   (kept separate, code-referenced; not duplicated here). Summary pointer only:
   - G3 (reversible tokenize + Redis vault), G4 (async monitor + response-side enforcement),
@@ -412,15 +183,6 @@ kept on disk, not deleted — see Appendix).
 Folded from `docs/plans/TODO-cost-drilldown.md` (staged to purgatory 2026-08-07 — content below
 is the full remaining scope, nothing lost; original recoverable per Appendix).
 
-- ✅ **COST-1** `internal/catalog/cost_facets.go` is the single source of truth for per-vendor
-  cost drill-down dimensions (`costFacetsByID`); both the emitter (`internal/emitter/emitter.go`
-  `costBreakdowns`, all 16 vendors) and the synthetic fixture layer
-  (`internal/synthetic/fixtures_cost.go` + `cost_grouping.go`) read it, so they can't disagree.
-  Decision on the data-driven-vs-per-vendor-object shape: `DECISIONS.md` 2026-06-29
-  "Cost facets stay data-driven, not per-vendor Go objects".
-- ✅ **COST-2** Byte-identical synthetic grouping shipped for OpenAI (`/usage`, `/costs`),
-  Anthropic (`usage_report`, `cost_report`), GitHub Copilot (billing/usage, metrics, seats).
-  Tests: `internal/synthetic/fixtures_cost_test.go`.
 - ⬜ **COST-3** Byte-identical synthetic grouping still owed for (emitter drill-in already works
   for all of these via the catalog — only the *replica* endpoint is missing):
   - **Azure OpenAI** — `Microsoft.CostManagement/query` case (`{properties:{columns:[],rows:[]}}`)
@@ -447,9 +209,6 @@ is the full remaining scope, nothing lost; original recoverable per Appendix).
 Live ledger stays at `docs/plans/TODO-vendor-auth.md` (code + UI referenced — see roadmap
 callout). Pointer only:
 
-- ✅ **VENDOR-1** 6 Tier-1 vendors (OpenAI, Anthropic, AWS Bedrock, Azure OpenAI, Google Vertex,
-  GitHub Copilot) have real proxy-config schemas in `web/src/lib/authSchemas.ts` and ship
-  **enabled** by default.
 - ⬜ **VENDOR-2** 10 remaining vendors (Mistral, Databricks, Perplexity, Cohere, Together, Groq,
   xAI, Amazon Q, IBM watsonx, M365 Copilot) ship **disabled** and fall back to URL-only config
   until their schema is built. Suggested shape per vendor + build steps: full detail in
@@ -470,13 +229,12 @@ callout). Pointer only:
   commit message confirms a browser click-through happened since. Not answered.
 - 🔬 **OWED-3** — see §1: phase-1 acceptance checklist never formally re-run/checked off against
   current code.
-- ✅ **OWED-4 — ANSWERED 2026-08-15.** The dependency question G9 was blocked on
-  (Redis vs hand-rolled RESP client vs neither) was put to the owner as part of the storage fork
-  and answered **no third-party dependency; stdlib-only holds** (`DECISIONS.md` 2026-08-15,
-  "Policy persists; the stdlib-only constraint holds; no durable time series"). G9's cross-replica
-  budget counter therefore stays deferred **by ruling** rather than remaining an open fork. Read
-  the consequence precisely: this does not make G9 buildable, `policy.json` is not a step toward
-  it, and per-user vendor budget tuning (§7.5) does not need it and must not be bundled with it.
+- ~~**OWED-4** — G9 blocked on Redis-vs-hand-rolled-RESP-client dependency decision~~ **killed
+  2026-08-15:** answered — no third-party dep; G9 stays deferred, must not bundle with §7.5.
+- ~~**GATEWAY-7a** — no keystore UI; issuance stays loopback-only by design~~ **killed 2026-08-16:**
+  superseded — admin-key tier built, gates every write route.
+- ~~Persisting policy without fixing PIVOT-13's split-brain revert~~ **killed 2026-08-16:**
+  reasoning inverted — persistence removes the disagreement, PIVOT-13 detector still open.
 
 ---
 
@@ -514,55 +272,6 @@ Consequence for the pivot: an expert reads `mode: "synthetic"` and knows; a non-
 "All vendors under 80% of cap." **The only surfaces safe to hand a non-expert today are the
 Gateway Traffic page and the keystore.**
 
-### §7.1 CONFIRMED DEFECT — Healthcare is a one-click org-wide outage — ✅ CLOSED 2026-08-16
-
-> ✅ **PIVOT-1 is closed.** Apply now previews the derived gateway action before it commits, arms
-> nothing on arrival (`selected` starts null), shows the affected-caller count, and carries the ZDR
-> attestation as an unticked-by-default checkbox that writes
-> `vendors.anthropic.zdr_attested`. The rule itself moved to `internal/model/gateway_action.go` and
-> is shared with the gateway, so the preview cannot drift from enforcement; `GET /api/baselines`
-> serves `gateway_action` / `gateway_action_attested` / `requires_zdr_attestation`.
-> **A second defect was found by opening the page in a browser and fixed in the same pass:** with an
-> attestation already in force the dialog previewed `mask` while an unticked box would have sent an
-> empty override map — silently revoking it and flipping the gateway to `block`, i.e. the original
-> defect wearing a confirmation dialog. The checkbox now seeds from the attestation in force.
-> Verified live (`curl` + headless browser, screenshot at
-> `docs/images/rigor-console-apply-preview.png`); pinned by `internal/model/gateway_action_test.go`
-> and 13 assertions in `web/src/pages/RigorConsole.test.tsx`. Decision + what was rejected (hiding
-> the card; re-ordering the 🔒 ramp): `DECISIONS.md` 2026-08-16.
->
-> Not fixed here, deliberately: `PUT /api/policies` is now gated by the admin key **only when one is
-> configured** (GATEWAY-7a) — the roadmap text below calling it "unauthenticated" was true and is now
-> conditional.
-
-**Original finding, kept as the evidence** — verified end-to-end against source 2026-08-15 (not
-executed; read from code):
-`web/src/pages/RigorConsole.tsx:126` calls `api.applyPolicy(selected)` with one argument →
-`web/src/lib/api.ts:410` defaults `overrides = {}` → `Policy.Vendors` is empty →
-`internal/gateway/spine_pull.go:117-119` derives `zdrAttested = false` → healthcare is
-`ZDR:"enforced"` + `PIIRedaction:"on+phi"` (`internal/policy/baselines.go:26-29`) →
-`spine_pull.go:144-146` returns **`actionBlock`**.
-
-The card labelled "Healthcare 🔒🔒🔒 — Maximum rigor" blocks 100% of gateway traffic org-wide
-within one pull interval. **No control anywhere in the UI can set `zdr_attested`**, so from a
-browser Healthcare is unconditionally block, permanently. This is the failure already in the record
-(`docs/plans/TODO-gateway-deferred.md:30`) — an app returning HTTP 200 while every call was dropped.
-
-Three aggravators, same page:
-- `RigorConsole.tsx:116` is `useState<string>('fintech')` — the accent-coloured primary CTA is
-  **armed on arrival** with a posture nobody chose.
-- The severity ramp is **inverted**: buttons render 🔒→🔒🔒→🔒🔒🔒→🔒🔒🔒 while `deriveAction`
-  yields `detect→mask→block→mask`. `gov_infra` sits last, looks strictest, and enforces *less* than
-  healthcare because its `PIIRedaction` is `"on"` and falls to the default branch.
-- No confirmation dialog exists anywhere in the codebase, and `PUT /api/policies` is unauthenticated.
-  *(Both addressed 2026-08-16: a confirmation dialog now exists on this action, and the route is
-  gated by `AIRTRAFFIC_ADMIN_KEY` when one is configured — see GATEWAY-7a.)*
-
-Candidate fixes (not chosen): let the UI send `zdr_attested`; gate Healthcare behind an attestation
-step; or — preferred by the analysis — make Apply **preview the derived gateway action before
-commit**. The words `detect`/`mask`/`block` currently appear nowhere on the page and are the only
-thing Apply changes.
-
 ### §7.2 Tier 0 — instrumentation preconditions (cheap, no decision needed)
 
 - ⬜ **PIVOT-2** **Record the eight silent exits in `proxyRequest`.** `s.record()` fires at only 3
@@ -591,9 +300,6 @@ thing Apply changes.
 
 ### §7.3 Tier 1 — blast radius (the "user opens the wrong thing" ask)
 
-- ✅ **PIVOT-6 — DONE 2026-08-16.** Closed PIVOT-1 (see §7.1): preview-before-commit, armed default
-  dropped, affected-caller count shown, attestation path built. What is still open from this
-  item's neighbourhood is PIVOT-8 (below), which is a different control on a different page.
 - ⛔ **PIVOT-7** **Pattern-pack retraction path — BLOCKS all pack automation.** `ApproveProposal`
   only appends (`internal/harness/flywheel.go:670`); `allow_list` is the one kind that *removes*
   detection; approval is permanent. A stale suppression (`manual-person-m2m-interests`) already
@@ -767,12 +473,6 @@ are **latency and success**.
 - Auto-reverting the pattern pack on a latency regression — considered and declined: reverted rules
   may include `allow_list` entries, so a revert can loosen *or* tighten depending on pack contents,
   and there is no store-side retraction to revert *to*.
-- ~~Persisting the policy without fixing the split-brain revert (PIVOT-13) — that makes the
-  disagreement durable instead of transient.~~ **Resolved 2026-08-16, and the reasoning inverted on
-  contact with the code:** persistence is what *removes* the disagreement, because the control
-  plane no longer forgets on restart and `pullPolicy` no longer returns early on a nil policy in
-  the ordinary case. Persistence shipped with a warning log on the residual case; the drift record
-  remains open as PIVOT-13. Nothing here was made durable that was not already being enforced.
 
 ### §7.8 Analysis provenance
 
@@ -827,3 +527,5 @@ code or UI cites them by path** (folding would strand those citations):
 - `docs/inference-gateway-eli5.md` — code-referenced (`scripts/capture-harness-screenshot.js`).
 - `BUILD_REPORT.md` — a different command's output, regenerated on its own cadence; never a fold
   target.
+- Trimmed to open set 2026-08-18 — 15 closed items, 4 history blocks deleted; full pre-trim file:
+  git show 5dafd447ef5a8e01e13587045a789630d264877b:ROADMAP.md
