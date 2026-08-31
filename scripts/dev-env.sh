@@ -26,7 +26,24 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ENV_FILE=".env"
 ROTATE=0
-[[ "${1:-}" == "--rotate" ]] && ROTATE=1
+
+usage() {
+  sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'
+  echo
+  echo "usage: $(basename "$0") [--rotate]"
+  echo "  --rotate   replace keys that already exist in .env (default: keep them)"
+}
+
+# Anything but a bare invocation or --rotate exits without writing. This script
+# mints secrets, so an unrecognised flag must never fall through to the happy
+# path — a typo'd --rotat used to report "kept" and exit 0.
+case "${1:-}" in
+  "")         ;;
+  --rotate)   ROTATE=1 ;;
+  -h|--help)  usage; exit 0 ;;
+  *)          echo "unknown argument: $1" >&2; echo >&2; usage >&2; exit 2 ;;
+esac
+[[ $# -gt 1 ]] && { echo "too many arguments" >&2; usage >&2; exit 2; }
 
 gen() { openssl rand -hex 24 2>/dev/null || head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n'; }
 
