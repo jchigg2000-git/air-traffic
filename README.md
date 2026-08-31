@@ -349,7 +349,8 @@ What you give up by skipping Presidio, stated plainly: the regex tier recognizes
 **structured** types — `SSN`, `CREDIT_CARD`, `IBAN`, `EMAIL`, `PHONE`, `IP`, `DOB`, `MRN`
 (`internal/gateway/detect/regex.go`). Two carry a real checksum before a hit counts (Luhn on
 `CREDIT_CARD`, ISO 13616 mod-97 on `IBAN`); three more are validated past the raw match (octet
-range on `IP`, a hyphen-adjacency guard on `SSN` and `PHONE`) — and
+range on `IP`, a hyphen-adjacency guard on `SSN` and on the domestic `PHONE`
+pattern; the E.164 one carries none) — and
 recognizes **nothing** unstructured. `PERSON_NAME` and `ADDRESS` are the NER tier's job and go
 undetected here. Expect recall well below the numbers above, which are measured with
 `GATEWAY_DETECTORS=regex,presidio`. Use this path to see the mechanism; use compose to measure it.
