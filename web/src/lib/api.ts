@@ -221,6 +221,15 @@ export interface GatewayStatusEntry {
 export interface GatewayStatus {
   gateways: GatewayStatusEntry[]
   pattern_pack_version: number
+  // Posture and durability, reported rather than assumed by the server
+  // (internal/server/routes_gateway.go). Optional here because an older
+  // control plane will not send them.
+  spine_auth?: string
+  spine_key_unrotated?: boolean
+  admin_auth?: string
+  keystore_version?: number
+  keystore_error?: string
+  policy_error?: string
 }
 
 export interface TruthSpan {

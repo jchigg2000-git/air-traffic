@@ -16,5 +16,17 @@ web/dist/
 # Local secrets minted by scripts/dev-env.sh
 .env
 
-# Claude Code ratchet-up scratch (per-run patches + ledger)
+# Claude Code local scratch and runtime state. These are ignored on the author's
+# machine via .git/info/exclude, which does not travel with a clone — so they are
+# listed here too, or a contributor's `git add -A` sweeps session metadata in.
 .claude/ratchet-up/
+.claude/worktrees/
+.claude/checkpoints/
+.claude/mailbox/
+.claude/routines/.state/
+.claude/agent-registry.json
+.claude/agent-memory-local
+.claude/first-run
+.claude/assistant-daemon-state.json
+.claude/scheduled_tasks.json
+.claude/scheduled_tasks.lock

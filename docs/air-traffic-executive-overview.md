@@ -72,5 +72,5 @@
 <div class="kpis"><div class="kpi"><div class="n">16+</div><div class="l">vendors &amp; agent platforms, one plane</div></div><div class="kpi"><div class="n">1</div><div class="l">policy, ledger &amp; audit trail</div></div><div class="kpi"><div class="n">100%</div><div class="l">of activity visible &amp; attributable</div></div><div class="kpi"><div class="n">5 min</div><div class="l">to apply a baseline everywhere</div></div></div>
 </div>
 <div class="closing"><div class="mk"><img src="../web/public/icons/air-traffic-icon-512.png"/></div><div class="big">One control plane for all of AI.<span class="sm"><span class="acc">Safety you can prove. Visibility you can act on. Spend you can control.</span></span></div></div>
-<div class="fin">Air-Traffic · Enterprise AI Control Plane &amp; Observability · June 2026 — Vendor marks shown for identification only and remain the property of their respective owners (official glyphs via simple-icons; brand-color wordmarks where no glyph exists). Figures illustrative.</div>
+<div class="fin">Air-Traffic · Enterprise AI Control Plane &amp; Observability · June 2026 — Vendor names are rendered as brand-colour text wordmarks throughout; no vendor logos are reproduced. Figures illustrative.</div>
 </section>

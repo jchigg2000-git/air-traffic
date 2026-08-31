@@ -99,6 +99,8 @@ a seed-only control as "enforced."
 | `GET /api/gateway/patterns` · `/status` | active pattern pack (the gateway pulls it) · gateway liveness for the UI |
 | `GET /api/gateway/requests` | per-request proxy traffic, newest first — backs the **Gateway Traffic** screen. Metadata only (types, field paths, offsets, counts, tokens); never a value, never a dollar figure |
 | `GET/POST /api/harness/runs` · `GET /runs/{id}` · `POST /sample` · `GET /ratchet` · `/corpus` · `GET/POST /proposals[/{id}/approve\|reject]` | flywheel harness — **503s without the harness engine** (`requireHarness`). `POST /proposals` authors an owner proposal (the flywheel infers additions from harness misses; it has no ground truth for real traffic, so retiring a false positive is a human call) |
+| `GET/POST /api/apps` · `GET/PATCH /api/apps/{id}` · `GET/POST /api/apps/{id}/keys` · `DELETE /api/keys/{kid}` | keystore admin — loopback **or** `AIRTRAFFIC_ADMIN_KEY`; wrapped by `scripts/keystore.sh` |
+| `GET /api/gateway/keys` | the keystore snapshot a gateway pulls (digests, never secrets) — spine-key gated |
 | `ANY /synthetic/{vendor}/{native-path}` | synthetic vendor surface (dedicated fixture for 7, generic envelope for 9) + `/_harness/*` control. The two mutating control paths — `_harness/scenario` and `_harness/reset` — write the adapter record and carry the operator key |
 
 ### Synthetic surface example

@@ -101,6 +101,11 @@ func (s *Server) handleAdapter(w http.ResponseWriter, r *http.Request) {
 		st := model.Status{State: "healthy", Message: "synthetic surface reachable", CheckedAt: time.Now().UTC()}
 		if !a.Enabled || a.Mode == model.ModeDisabled {
 			st = model.Status{State: "degraded", Message: "adapter disabled", CheckedAt: time.Now().UTC()}
+		} else if a.Mode == model.ModeProxy {
+			// No outbound call is made in proxy mode and the surface 501s
+			// (internal/synthetic/synthetic.go). Reporting "healthy" here would
+			// claim a reachability this check never established.
+			st = model.Status{State: "unverified", Message: "proxy mode is a stub — no upstream call is made, and the surface returns 501", CheckedAt: time.Now().UTC()}
 		} else if a.Scenario != "" && a.Scenario != "healthy" {
 			st = model.Status{State: "degraded", Message: "scenario override active: " + a.Scenario, CheckedAt: time.Now().UTC()}
 		}

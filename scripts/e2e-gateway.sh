@@ -143,8 +143,12 @@ check "ratchet metric self-ingested" \
   "curl -sf 'http://$CP/api/observations?limit=400' | grep -c 'detector_recall_ratchet' >/dev/null"
 check "gateway block events in audit" \
   "curl -sf http://$CP/api/audit | grep -c 'gateway.block' >/dev/null"
-check "proxy_enforced flipped in coverage" \
-  "curl -sf -H 'X-Air-Traffic-Admin-Key: $ADMKEY' -X PUT http://$CP/api/policies -d '{\"baseline\":\"healthcare\",\"vendors\":{\"anthropic\":{\"zdr_attested\":true}}}' | grep -c 'applied_proxy' >/dev/null"
+# Run the curl OUTSIDE check(), which evals its argument: interpolating $ADMKEY into
+# that string would let a key containing a quote break out and execute. The array form
+# never re-enters shell syntax.
+COVERAGE=$(curl -sf "${ADM[@]}" -X PUT http://$CP/api/policies \
+  -d '{"baseline":"healthcare","vendors":{"anthropic":{"zdr_attested":true}}}' | grep -c 'applied_proxy' || true)
+check "proxy_enforced flipped in coverage" '[ "${COVERAGE:-0}" -gt 0 ]'
 check "gateway status fresh" \
   "curl -sf http://$CP/api/gateway/status | grep -c '\"fresh\": true' >/dev/null"
 

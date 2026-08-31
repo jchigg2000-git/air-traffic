@@ -619,7 +619,10 @@ footer { position: relative; z-index: 10; max-width: var(--wrap); margin: 6vh au
           vendor&rsquo;s admin API &mdash; Go stdlib, zero dependencies. No live vendor traffic touches this page.</li>
         <li><b>It is not an inline proxy.</b> Air&#8209;Traffic reads and writes <em>admin/control</em> surfaces. The only
           thing that can ever sit on the request path is an <em>optional</em> gateway &mdash; which is why
-          <code>proxy_enforced</code> capabilities read &ldquo;gateway&#8209;only,&rdquo; not &ldquo;enforced,&rdquo; in Phase 1.</li>
+          <code>proxy_enforced</code> capabilities read as needing that gateway, not as &ldquo;enforced&rdquo;.
+          <i>(Written for Phase&nbsp;1. The inference gateway shipped in Phase&nbsp;3 on 2026&#8209;07&#8209;02 and now
+          runs as a container in the default stack; see README.md. The UI label is &ldquo;Proxy (opt)&rdquo;
+          &mdash; <code>web/src/lib/dispositions.ts</code>.)</i></li>
         <li><b>Token volumes are labeled synthetic.</b> The slider value in §03 is illustrative; the
           green/amber/red thresholds it crosses are the catalog&rsquo;s real ones.</li>
         <li><b>There is a sixth verdict.</b> Beyond the five dispositions a capability can carry, coverage
@@ -720,9 +723,9 @@ footer { position: relative; z-index: 10; max-width: var(--wrap); margin: 6vh au
       ex:"<b>MCP Server Allow/Deny</b> — Claude Code <code>managed-settings.json</code>. Enforcement varies: server_side / mdm_locked / seed_only.",
       claim:"DEPENDS", claimSub:"on the enforcement tier →", granted:true, qualified:true },
     proxy_enforced: { col:"var(--d-proxy)",   label:"proxy_enforced", verb:"only an optional gateway on the request path can enforce it",
-      desc:"The capability cannot be enforced by any admin API. Only an optional inline gateway — off by default, out of scope in Phase 1 — could enforce it. Until that gateway exists, the honest reading is monitor_only.",
+      desc:"The capability cannot be enforced by any admin API. Only an optional inline gateway — off by default; shipped in Phase 3 — could enforce it. Until that gateway exists, the honest reading is monitor_only.",
       ex:"<b>Hard Spend Cap (OpenAI / Bedrock)</b> — no native hard-stop. AWS literally prescribes an API-GW + Lambda + DynamoDB proxy.",
-      claim:"GATEWAY", claimSub:"not enforced in Phase 1", granted:false, qualified:true },
+      claim:"GATEWAY", claimSub:"needs the optional gateway", granted:false, qualified:true },
     monitor_only:   { col:"var(--d-monitor)", label:"monitor_only",   verb:"observe and alert — never set",
       desc:"Air-Traffic can read the state and raise an alert, but it can never change it. Console-only or read-only surfaces live here. It is never faked as enforced.",
       ex:"<b>Anthropic · Workspace Spend Limits</b> — Console-only; there is no SET endpoint to call.",
@@ -1021,7 +1024,7 @@ footer { position: relative; z-index: 10; max-width: var(--wrap); margin: 6vh au
           : "<b>"+e.tier+" · "+e.label+"</b> — "+e.desc+". A default a user can silently override is <b>not</b> enforcement, so the UI is forbidden from stamping it." };
     }
     if (disp === "proxy_enforced") return { big:"GATEWAY-ONLY", sub:"needs optional proxy", grant:false, col:"var(--d-proxy)", denied:true,
-      why:"No admin API can enforce this. Only an optional inline gateway could — and it's out of scope in Phase 1. Honest reading: monitor_only." };
+      why:"No admin API can enforce this. Only an optional inline gateway could — it shipped in Phase 3, off by default. Honest reading: monitor_only." };
     if (disp === "monitor_only") return { big:"OBSERVED", sub:"read-only", grant:false, col:"var(--d-monitor)", denied:false,
       why:"Air-Traffic can read and alert on this, but never set it. It is never rendered as enforced." };
     return { big:"UNVERIFIED", sub:"no confirmed API", grant:false, col:"var(--d-unver)", denied:false,

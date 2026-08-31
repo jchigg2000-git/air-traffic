@@ -383,11 +383,12 @@ guaranteed enforcement; gate Tier-B controls behind an MDM-coverage check.
   (`cmd/air-traffic-gateway`, shipped 2026-07-02) with its own `config.Load()` — a separate,
   independently-booting data-plane service, **never** mounted into `air-traffic-server`.
 - **Files:** `proxy.go` (reverse proxy + streaming), `adapter_anthropic.go` (Anthropic Messages
-  dialect), `server.go` (`POST /v1/messages`, `/healthz`, `/readyz`), `spine_emit.go`
+  dialect), `adapter_openai.go` (OpenAI-compatible dialect, shipped 2026-08-15), `server.go`
+  (`POST /v1/messages`, `POST /v1/chat/completions`, `/healthz`, `/readyz`), `spine_emit.go`
   (observations + leak findings + heartbeat up), `spine_pull.go` (policy + pattern pack down),
   `metrics.go`, `audit.go`, `health.go`, `stream.go`.
 - **Subpackages:** `config/`, `credbroker/` (credential broker), `detect/` (regex + Presidio
-  detectors), `redact/` (mask / reversible tokenize).
+  detectors), `redact/` (mask; reversible tokenize is G3, deferred).
 - Nothing in the control plane imports it, so `air-traffic-server`'s dependency closure stays
   stdlib-only. Build sequence and package layout:
   [Inference Gateway Build Plan](./inference-gateway-build-plan.md).
@@ -753,7 +754,10 @@ the same `AIRTRAFFIC_DATA_DIR` — `ratchet.jsonl`, `corpus/*.json`, `patterns.j
 the harness's, not the store's.) The first exception is the keystore: observations and reports
 are reconstructible and a container recreate is allowed to lose them, but an issued credential is
 not, so apps and keys write through to `keys.json` (mode 0600, digests only, temp-file + rename)
-under `AIRTRAFFIC_DATA_DIR` and reload at boot. A keystore file that will not parse is a hard boot
+under `AIRTRAFFIC_DATA_DIR` and reload at boot. The second is the **applied policy**: `SetPolicy`
+writes through to `policy.json` under the same directory with the same atomic temp-file + rename,
+so a restart cannot leave the gateway enforcing an action the control plane has forgotten
+(`DECISIONS.md` 2026-08-15, "Policy persists"). A keystore file that will not parse is a hard boot
 failure rather than an empty keystore — starting clean would silently invalidate every issued key
 and present to clients as an unexplained 401 storm. The control plane's gateway panels
 (`/api/gateway/*`) are always live and simply render whatever the gateway binary has pushed up the
@@ -830,7 +834,7 @@ the differentiated work is Phase 2 (config distributor) and Phase 3 (real vendor
 | **4 — Policy + drift** ⭐ | Policy-as-code, reconcile across both surfaces, drift, baselines | `policy` engine, baselines library, drift observations | — |
 | **5 — Audit + observability** | One normalized audit stream (OTel GenAI) + SIEM export | `audit` package, audit normalizers per source, export | observation contract |
 | **6 — Hardening** | Durable, authenticated | Postgres store, real `identity`/`secrets` | — |
-| **7 — Gateway (MVP shipped 2026-07-02, optional)** | Runtime enforcement of residual controls (per-request PII/PHI redaction; hard cross-vendor caps still ahead) | separate `cmd/air-traffic-gateway` binary — **MVP shipped**: reverse proxy (`POST /v1/messages`, Anthropic dialect) + inline regex/Presidio detection + mask/tokenize redaction + credential broker + spine push/pull, driven by the `internal/harness` eval/ratchet loop. Remaining [Build Plan](./inference-gateway-build-plan.md) milestones (Redis token vault, cross-vendor hard caps, recall ratchet at scale, horizontal-scale hardening) are future | — |
+| **7 — Gateway (MVP shipped 2026-07-02, optional)** | Runtime enforcement of residual controls (per-request PII/PHI redaction; hard cross-vendor caps still ahead) | separate `cmd/air-traffic-gateway` binary — **MVP shipped**: reverse proxy (`POST /v1/messages` Anthropic dialect + `POST /v1/chat/completions` OpenAI-compatible) + inline regex/Presidio detection + mask/block redaction + credential broker + spine push/pull, driven by the `internal/harness` eval/ratchet loop. Remaining [Build Plan](./inference-gateway-build-plan.md) milestones (Redis token vault, cross-vendor hard caps, recall ratchet at scale, horizontal-scale hardening) are future | — |
 
 **Critical path:** Phases 2–4 are the differentiated core. The config distributor (Phase 2) is the
 highest-value milestone — it is what makes Air-Traffic an *agentic* control plane and not just a
@@ -873,21 +877,22 @@ air-traffic/
 │   │   └── score.go
 │   ├── emitter/                    # ops-observation-batch/v1 generator (mirrors it-scorecard)
 │   ├── audit/                      # ⭐ normalized audit stream (OTel GenAI semconv)
-│   ├── store/                      # in-memory state only (store.go, gateway.go)
+│   ├── store/                      # in-memory + keystore/policy write-through
 │   ├── model/                      # domain types + contract (contract.go, gateway.go, harness.go, policy.go, presidio.go, model.go)
 │   ├── redact/                     # secret/PII redaction (log path)
 │   ├── server/                    # HTTP mux: /api/*, /api/gateway/*, /api/harness/*, /synthetic/*
 │   └── gateway/                    # SHIPPED inference-gateway data plane (§11) — its own binary
 │       ├── proxy.go                #   reverse proxy + streaming
 │       ├── adapter_anthropic.go    #   Anthropic Messages dialect
-│       ├── server.go               #   POST /v1/messages, /healthz, /readyz
+│       ├── adapter_openai.go       #   OpenAI-compatible dialect
+│       ├── server.go               #   POST /v1/{messages,chat/completions}, /healthz, /readyz
 │       ├── spine_emit.go           #   observations + leak findings + heartbeat ↑
 │       ├── spine_pull.go           #   policy + pattern pack ↓
 │       ├── metrics.go              #   audit.go, health.go, stream.go alongside
 │       ├── config/                 #   config.Load() + validation (GATEWAY_* env)
 │       ├── credbroker/             #   credential broker (ref → real vendor key)
 │       ├── detect/                 #   Detector iface + regex + Presidio adapter
-│       └── redact/                 #   mask + reversible tokenize
+│       └── redact/                 #   mask (reversible tokenize = G3, deferred)
 ├── schemas/
 │   └── ops-observation-batch-v1.schema.json   # reused verbatim
 ├── web/                            # React SPA (Flight Deck + /welcome landing + /settings/* surfaces)

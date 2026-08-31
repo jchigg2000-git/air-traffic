@@ -200,4 +200,4 @@ graph LR
 <div class="kpi"><div class="n">5 min</div><div class="l">to apply an industry baseline to the whole estate</div></div>
 </div>
 
-<p class="fin">Air-Traffic · Enterprise AI Control Plane &amp; Observability — Claude Code × GitHub Copilot · June 2026<br/>Vendor names are used descriptively; no vendor marks are reproduced. Air-Traffic brand: <code>web/public/icons/</code>. Figures illustrative — the backend is synthetic.</p>
+<p class="fin">Air-Traffic · Enterprise AI Control Plane &amp; Observability — Claude Code × GitHub Copilot · June 2026<br/>Vendor marks shown for identification only and remain the property of their respective owners (Claude Code and GitHub Copilot glyphs via simple-icons). Air-Traffic brand: <code>web/public/icons/</code>. Figures illustrative — the backend is synthetic.</p>
