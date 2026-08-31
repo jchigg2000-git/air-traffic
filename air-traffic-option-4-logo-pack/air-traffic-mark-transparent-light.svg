@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Air-Traffic holding-pattern mark">
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M184 138 H328 C400 138 400 256 328 256 H184 C112 256 112 374 184 374 H328"
-          stroke="#0B1220" stroke-width="38"/>
-    <path d="M292 320 L344 374 L292 426"
-          stroke="#0891B2" stroke-width="36"/>
-  </g>
-  <circle cx="184" cy="138" r="27" fill="#0891B2"/>
-</svg>

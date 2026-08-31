@@ -23,8 +23,9 @@ type usageScanner interface {
 	totals() (tokensIn, tokensOut int64)
 }
 
-// copyStream relays an Anthropic SSE body. Retained as the dialect-free entry
-// point used by the Messages route and its tests.
+// copyStream relays an Anthropic SSE body with the Anthropic usage scanner.
+// Test-only wrapper: both proxy routes call copyStreamWith directly with the
+// scanner their own dialect supplies (proxy.go).
 func copyStream(w http.ResponseWriter, body io.Reader) (tokensIn, tokensOut int64, err error) {
 	return copyStreamWith(w, body, newAnthropicUsageScanner())
 }

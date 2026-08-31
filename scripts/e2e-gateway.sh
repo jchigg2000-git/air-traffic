@@ -13,6 +13,18 @@ GW=127.0.0.1:${GW_PORT:-8125}
 PASS=0; FAIL=0
 check() { if eval "$2"; then echo "  ok  $1"; PASS=$((PASS+1)); else echo "  FAIL $1"; FAIL=$((FAIL+1)); fi; }
 
+# Every control-plane WRITE below goes through requireAdminWrite
+# (internal/server/spine_auth.go), so once AIRTRAFFIC_ADMIN_KEY is set they 401
+# — and loopback is deliberately not a free pass. scripts/dev-env.sh mints one
+# into .env, so read it the way GWKEY is read rather than assuming the open
+# posture. Defined above the mode branch because both modes need it under -u.
+# Empty is harmless: curl omits a header whose value is empty.
+ADMKEY="${AIRTRAFFIC_ADMIN_KEY:-}"
+if [ -z "$ADMKEY" ] && [ -f .env ]; then
+  ADMKEY=$(sed -n 's/^AIRTRAFFIC_ADMIN_KEY=//p' .env | tail -n1)
+fi
+ADM=(-H "X-Air-Traffic-Admin-Key: $ADMKEY")
+
 if [ "${E2E_COMPOSE:-}" = "1" ]; then
   # Compose mode: assert against an already-running root docker-compose.yml
   # stack instead of booting bare processes. The gateway there pulls policy at
@@ -76,7 +88,7 @@ fi
 sleep 2  # first heartbeat + policy pull
 
 echo "→ apply healthcare baseline (pre-coverage gate: block until ZDR attested)"
-curl -sf -X PUT http://$CP/api/policies -d '{"baseline":"healthcare"}' >/dev/null
+curl -sf "${ADM[@]}" -X PUT http://$CP/api/policies -d '{"baseline":"healthcare"}' >/dev/null
 sleep $PULL_WAIT  # one policy-pull interval
 
 echo "→ direct proxy checks"
@@ -88,7 +100,7 @@ UNAUTH=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://$GW/v1/messages -
 check "bad gateway key rejected (got $UNAUTH)" "[ \"$UNAUTH\" = 401 ]"
 
 echo "→ attest ZDR (block → mask, no restart)"
-curl -sf -X PUT http://$CP/api/policies -d '{"baseline":"healthcare","vendors":{"anthropic":{"zdr_attested":true}}}' >/dev/null
+curl -sf "${ADM[@]}" -X PUT http://$CP/api/policies -d '{"baseline":"healthcare","vendors":{"anthropic":{"zdr_attested":true}}}' >/dev/null
 sleep $PULL_WAIT
 MASKED=$(curl -s -X POST http://$GW/v1/messages \
   -H "Authorization: Bearer $GWKEY" -H 'content-type: application/json' \
@@ -96,7 +108,7 @@ MASKED=$(curl -s -X POST http://$GW/v1/messages \
 check "attested ZDR masks instead of blocking (got $MASKED)" "[ \"$MASKED\" = 200 ]"
 
 echo "→ harness run (120 requests)"
-START_BODY=$(curl -s -X POST http://$CP/api/harness/runs \
+START_BODY=$(curl -s "${ADM[@]}" -X POST http://$CP/api/harness/runs \
   -d '{"count":120,"concurrency":4,"seed":4242,"include_traps":true,"include_presidio_only":true,"include_straddle":true,"replay_percent":10}')
 RUN_ID=$(echo "$START_BODY" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("run",{}).get("id") or sys.exit(f"start failed: {d}"))')
 echo "  run $RUN_ID"
@@ -132,7 +144,7 @@ check "ratchet metric self-ingested" \
 check "gateway block events in audit" \
   "curl -sf http://$CP/api/audit | grep -c 'gateway.block' >/dev/null"
 check "proxy_enforced flipped in coverage" \
-  "curl -sf -X PUT http://$CP/api/policies -d '{\"baseline\":\"healthcare\",\"vendors\":{\"anthropic\":{\"zdr_attested\":true}}}' | grep -c 'applied_proxy' >/dev/null"
+  "curl -sf -H 'X-Air-Traffic-Admin-Key: $ADMKEY' -X PUT http://$CP/api/policies -d '{\"baseline\":\"healthcare\",\"vendors\":{\"anthropic\":{\"zdr_attested\":true}}}' | grep -c 'applied_proxy' >/dev/null"
 check "gateway status fresh" \
   "curl -sf http://$CP/api/gateway/status | grep -c '\"fresh\": true' >/dev/null"
 

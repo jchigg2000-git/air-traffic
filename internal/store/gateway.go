@@ -45,18 +45,6 @@ func (s *Store) InferenceCaptureByRequestID(gatewayRequestID string) (model.Infe
 	return model.InferenceCapture{}, false
 }
 
-func (s *Store) ResetInferenceCaptures(adapterID string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	kept := s.inferCaptures[:0]
-	for _, c := range s.inferCaptures {
-		if adapterID != "" && c.AdapterID != adapterID {
-			kept = append(kept, c)
-		}
-	}
-	s.inferCaptures = kept
-}
-
 // ---- gateway request reports (per-request redaction audits) ----
 
 func (s *Store) AddGatewayReports(reports []model.GatewayRequestReport) {

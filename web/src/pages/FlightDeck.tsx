@@ -12,6 +12,10 @@ import StatusDot from '../components/StatusDot.tsx'
 import Sparkline from '../components/Sparkline.tsx'
 import ApiStateBanner from '../components/ApiStateBanner.tsx'
 
+// Demo constant, NOT policy. No baseline is applied at boot, and the real
+// per-baseline caps differ ($10K general_saas, $50K fintech, none for
+// healthcare/gov_infra — internal/policy/baselines.go). Labelled "notional" on
+// screen so neither page asserts fintech's number as this org's cap.
 const NOTIONAL_ORG_CAP = 50000
 // A last-successful-poll older than this means the board is a frame we can no longer vouch for.
 const FEED_STALE_MS = 15000
@@ -109,7 +113,7 @@ export default function FlightDeck() {
             <Kpi
               label="Total Spend"
               value={fmtUSD(fleet.totalSpend, { compact: true })}
-              sub={`of ${fmtUSD(NOTIONAL_ORG_CAP, { compact: true })} cap`}
+              sub={`of ${fmtUSD(NOTIONAL_ORG_CAP, { compact: true })} notional cap`}
               rag={fleet.totalSpend > NOTIONAL_ORG_CAP * 0.9 ? 'red' : fleet.totalSpend > NOTIONAL_ORG_CAP * 0.7 ? 'amber' : 'green'}
             />
             <Kpi label="Throughput" value={String(fleet.obsPerMin)} sub="obs/min · last 60s" />

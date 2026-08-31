@@ -95,11 +95,15 @@ func (s *Server) requireClientKey(d dialect, next http.HandlerFunc) http.Handler
 	}
 }
 
-// action values the pipeline can run under. mask/block come from config or
-// policy; detect (log-only) and pass exist for policy-driven monitor routes.
-// The first three alias the shared contract constants so the hot path and the
-// control plane's pre-commit preview can never mean different things by the
-// same word. pass is gateway-local: no baseline derives it.
+// action values the pipeline can run under: mask/block come from config or
+// policy, detect is the log-only monitor mode. All three alias the shared
+// contract constants so the hot path and the control plane's pre-commit
+// preview can never mean different things by the same word.
+//
+// pass is gateway-local and currently unreachable — resolveAction only ever
+// yields mask/block/detect, and no baseline derives it (model.GatewayAction).
+// It is kept as the audit default and the name for a future skip-detection
+// route, not because a live path produces it.
 const (
 	actionMask   = model.ActionMask
 	actionBlock  = model.ActionBlock

@@ -128,6 +128,12 @@ export default function GatewayHarness() {
   }
 
   const freshGateway = gateway.data?.gateways.find((g) => g.fresh)
+  // What the gateway itself reports beats what this screen assumes. Falling back
+  // to the regex floor was a lie under compose, where the chain is regex,presidio.
+  const detectorChain =
+    freshGateway?.detectors?.length
+      ? freshGateway.detectors.join(',')
+      : activeRun?.detector_chain || 'unreported'
   const running = activeRun?.status === 'running'
 
   async function startRun() {
@@ -175,7 +181,7 @@ export default function GatewayHarness() {
       {/* status strip */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Chip ok={!!freshGateway} label={freshGateway ? `gateway ${freshGateway.gateway_id} · ${freshGateway.action}` : 'no fresh gateway heartbeat'} />
-        {freshGateway && <Chip ok label={`detectors: ${(gateway.data?.gateways[0]?.vendors ? activeRun?.detector_chain || 'regex' : 'regex')}`} />}
+        {freshGateway && <Chip ok label={`detectors: ${detectorChain}`} />}
         <Chip ok label={`pattern pack v${gateway.data?.pattern_pack_version ?? 0}`} />
         <span className="text-[11px] text-muted">
           All values on this screen are synthetic by construction — displaying them is safe. Retune in v0 = pattern packs, not model training.

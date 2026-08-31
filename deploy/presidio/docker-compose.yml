@@ -1,7 +1,8 @@
 # Self-hosted Presidio analyzer — the gateway's heavy NER detector tier.
 # Self-hosted deliberately: payloads never leave the local boundary
-# (inference-gateway-design.md §6, §11). Port 8126 is claimed in the global
-# port registry (~/Projects/portRegistry.md) for air-traffic-presidio.
+# (inference-gateway-design.md §6, §11). Host port 8126 is this project's
+# Presidio port; the root docker-compose.yml binds it too, so bring that stack
+# down before starting this standalone one (and vice versa).
 #
 #   docker compose -f deploy/presidio/docker-compose.yml up -d
 #

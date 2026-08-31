@@ -152,9 +152,13 @@ func (s *Server) handleGatewayRequests(w http.ResponseWriter, r *http.Request) {
 // talks to the gateway port directly.
 func (s *Server) handleGatewayStatus(w http.ResponseWriter, r *http.Request) {
 	type gatewayStatus struct {
-		GatewayID string              `json:"gateway_id"`
-		BaseURL   string              `json:"base_url"`
-		Action    string              `json:"action"`
+		GatewayID string `json:"gateway_id"`
+		BaseURL   string `json:"base_url"`
+		Action    string `json:"action"`
+		// Detectors is the chain the gateway reports it is running — reported,
+		// not assumed. A heartbeat from an older build carries none, and the UI
+		// says so rather than defaulting to the regex floor.
+		Detectors []string            `json:"detectors,omitempty"`
 		Vendors   map[string][]string `json:"vendors"`
 		LastSeen  time.Time           `json:"last_seen"`
 		Fresh     bool                `json:"fresh"`
@@ -164,7 +168,8 @@ func (s *Server) handleGatewayStatus(w http.ResponseWriter, r *http.Request) {
 	for _, rep := range s.store.ListGatewayEnforcement() {
 		out = append(out, gatewayStatus{
 			GatewayID: rep.GatewayID, BaseURL: rep.BaseURL, Action: rep.Action,
-			Vendors: rep.Vendors, LastSeen: rep.At, Fresh: rep.At.After(cutoff),
+			Detectors: rep.Detectors,
+			Vendors:   rep.Vendors, LastSeen: rep.At, Fresh: rep.At.After(cutoff),
 		})
 	}
 	// The auth posture is reported, not assumed: the honesty model applies to

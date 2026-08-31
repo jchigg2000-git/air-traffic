@@ -163,3 +163,71 @@ func TestStatusReportsAdminPosture(t *testing.T) {
 		t.Errorf("status body = %s", rec.Body.String())
 	}
 }
+
+// The synthetic vendor replica is mounted bare, so its two mutating /_harness
+// control paths are the one place a state change could reach the shared adapter
+// record without passing requireAdminWrite. Both write exactly what
+// PATCH /api/adapters/{id} writes, so both carry the same key.
+//
+// The GET case is the one a method-based gate would miss: /_harness/reset
+// mutates on any method, not just POST.
+var syntheticWriteRoutes = []struct{ method, path string }{
+	{"PUT", "/synthetic/openai/_harness/scenario/429-retry-after"},
+	{"POST", "/synthetic/openai/_harness/reset"},
+	{"GET", "/synthetic/openai/_harness/reset"},
+}
+
+// Reads on the same prefix, plus the vendor surface itself, must stay open —
+// the replica holds nothing real and answering anyone is the point.
+var syntheticReadRoutes = []string{
+	"/synthetic/openai/_harness/manifest",
+	"/synthetic/openai/_harness/calls",
+	"/synthetic/openai/admin/organization/users",
+}
+
+func TestSyntheticHarnessWritesRequireAdminKey(t *testing.T) {
+	srv, _, _ := newTestServer(t)
+	srv.SetAdminKey("adm-test-key")
+	h := srv.Routes()
+
+	for _, rt := range syntheticWriteRoutes {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(rt.method, rt.path, nil))
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("%s %s without key = %d, want 401 (it writes the adapter record)", rt.method, rt.path, rec.Code)
+		}
+
+		ok := httptest.NewRequest(rt.method, rt.path, nil)
+		ok.Header.Set("X-Air-Traffic-Admin-Key", "adm-test-key")
+		rec = httptest.NewRecorder()
+		h.ServeHTTP(rec, ok)
+		if rec.Code == http.StatusUnauthorized {
+			t.Errorf("%s %s with the right key = 401: %s", rt.method, rt.path, rec.Body.String())
+		}
+	}
+}
+
+func TestSyntheticReadsStayOpenWithAdminKey(t *testing.T) {
+	srv, _, _ := newTestServer(t)
+	srv.SetAdminKey("adm-test-key")
+	h := srv.Routes()
+	for _, path := range syntheticReadRoutes {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest("GET", path, nil))
+		if rec.Code == http.StatusUnauthorized {
+			t.Errorf("GET %s = 401; the replica and its read paths are never gated", path)
+		}
+	}
+}
+
+// Unset key keeps the pre-existing posture on these paths too.
+func TestSyntheticHarnessWritesOpenWithoutAdminKey(t *testing.T) {
+	_, _, h := newTestServer(t)
+	for _, rt := range syntheticWriteRoutes {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(rt.method, rt.path, nil))
+		if rec.Code == http.StatusUnauthorized {
+			t.Errorf("%s %s = 401 with no admin key configured; the unset posture must stay open", rt.method, rt.path)
+		}
+	}
+}

@@ -202,7 +202,7 @@ Each `G{n}` is self-contained and independently extractable. Template fields are
 - **Why:** the smallest *useful* PII filter; establishes the pluggable `Detector` seam everything else hangs off.
 - **Scope (in):** `Detector` interface (`Detect(text) → []Span{start,end,type,confidence}`); in-process **RE2** regex engine (email, phone, SSN, credit-card+Luhn, IP, IBAN, MRN/account); request-side **mask** action; protocol adapter walks known text-bearing fields (`messages[].content`, `input`, `prompt`); audit logging that records **type + fact, never value**; golden-corpus precision/recall harness scaffolded.
 - **Out of scope:** reversible tokenization, external engines.
-- **Code surface:** `internal/gateway/detect/{detector,regex}.go`, `internal/gateway/redact/mask.go`, `internal/gateway/audit.go`, `internal/gateway/testdata/corpus/`.
+- **Code surface:** `internal/gateway/detect/{detector,regex}.go`, `internal/gateway/redact/mask.go`, `internal/gateway/audit.go`, `internal/gateway/detect/testdata/corpus/`.
 - **Config introduced:** `DETECTOR=regex`, `REDACT_ACTION=mask`, `AUDIT_SINK`.
 - **Observability emitted:** redaction counts by type; detector latency; precision/recall from the corpus harness.
 - **Acceptance:** raw PII never reaches the mock; audit output contains zero raw values (standing scan); known spans masked; false-positive traps (order-numbers-as-SSN, semver-as-date) pass.

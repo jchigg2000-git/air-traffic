@@ -10,6 +10,10 @@ import ApiStateBanner from '../components/ApiStateBanner.tsx'
 import VendorGlyph, { vendorAccent } from '../components/VendorGlyph.tsx'
 import Sparkline from '../components/Sparkline.tsx'
 
+// Demo constant, NOT policy. No baseline is applied at boot, and the real
+// per-baseline caps differ ($10K general_saas, $50K fintech, none for
+// healthcare/gov_infra — internal/policy/baselines.go). Labelled "notional" on
+// screen so neither page asserts fintech's number as this org's cap.
 const ORG_CAP = 50000
 
 export default function CostExplorer() {
@@ -85,7 +89,7 @@ export default function CostExplorer() {
           <div className="mb-4 panel p-5">
             <div className="flex flex-wrap items-end justify-between gap-2">
               <div>
-                <div className="text-[11px] uppercase tracking-wider text-faint">Total spend (rolling)</div>
+                <div className="text-[11px] uppercase tracking-wider text-faint">Total spend (rolling) · notional cap</div>
                 <div className="text-3xl font-semibold tabular-nums">
                   {fmtUSD(totalSpend)} <span className="text-base font-normal text-muted">/ {fmtUSD(ORG_CAP)}</span>
                 </div>

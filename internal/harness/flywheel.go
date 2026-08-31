@@ -597,9 +597,6 @@ func ruleFromProposal(p model.PatternProposal) (model.PatternRule, error) {
 	return rule, nil
 }
 
-// ApproveProposal moves a proposal into the active pattern pack: version
-// bump, store publish (gateways hot-reload on next pull), durable persist,
-// audit event. Human-in-the-loop by design.
 // AddProposal records an owner-authored proposal. The flywheel's own
 // proposals are recall-driven — they come from harness misses, and it has no
 // ground truth for real application traffic, so it can never infer that a
@@ -644,6 +641,9 @@ func (r *Runner) AddProposal(p model.PatternProposal) (model.PatternProposal, er
 	return p, nil
 }
 
+// ApproveProposal moves a proposal into the active pattern pack: version
+// bump, store publish (gateways hot-reload on next pull), durable persist,
+// audit event. Human-in-the-loop by design.
 func (r *Runner) ApproveProposal(id string) (model.PatternPack, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

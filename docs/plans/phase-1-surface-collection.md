@@ -9,8 +9,8 @@
 Status: **BUILT** — this document is a build-history record of the plan as written, not open work.
 The backend below shipped; current status lives in [`../../ROADMAP.md`](../../ROADMAP.md) §1, which
 wins on any conflict. (Its §13 acceptance checkboxes were never formally re-run line-by-line —
-tracked as `OWED-3` in the roadmap.) · Owner: Justin · Ports: API `8122` (`AIRTRAFFIC_ADDR`), web dev `5202` (Phase 2)
-Sibling reference (read-only): `../it-scorecard`
+tracked as `OWED-3` in the roadmap.) · Ports: API `8122` (`AIRTRAFFIC_ADDR`), web dev `5202` (Phase 2)
+Sibling reference (read-only): it-scorecard — a private predecessor project, not published.
 
 ---
 
@@ -273,6 +273,11 @@ type AuditEvent struct {
 
 ## 4. VendorAdapter interface (`internal/adapter`) — per analysis §5.2
 
+> **Not built as specified.** The 2026-06-29 decision (`DECISIONS.md`) kept the model
+> data-driven: there is no `internal/adapter` package and no `VendorAdapter` interface. The
+> shipped equivalent is the `model.Adapter` record plus per-vendor catalog and fixture entries.
+
+
 ```go
 type VendorAdapter interface {
     // identity & manifest
@@ -514,7 +519,7 @@ Response envelopes match it-scorecard (`{adapters:[...]}`, `{observations:[...]}
 | `AIRTRAFFIC_EMIT_INTERVAL_SECONDS` | `5` | emit cadence |
 | `AIRTRAFFIC_GATEWAY` | `off` | optional gateway (out of Phase 1 scope; mount no-op) |
 
-`.devlauncher.json` registers `HARNESS`-style launch on `8122` (`AIRTRAFFIC_ADDR=127.0.0.1:{port} go run ./cmd/air-traffic-server`).
+`.devlauncher.json` is config for an external dev-launcher tool that is not part of this repo; it registers one service on `8122` (`docker compose up --build`). Nothing in the repo reads it.
 
 ---
 
@@ -523,7 +528,7 @@ Response envelopes match it-scorecard (`{adapters:[...]}`, `{observations:[...]}
 1. `gofmt -l` clean · `go vet ./...` clean · `go build ./...` clean.
 2. **Unit tests** (`*_test.go`, `httptest`):
    - `store_test.go` — seed counts, patch apply, ring-buffer eviction, plaintext-secret rejection.
-   - `emitter_test.go` — one batch per emitting adapter; batch validates against `ops-observation-batch-v1.schema.json`; walk stays within `[min,max]`.
+   - `emitter_test.go` — one batch per emitting adapter; the batch carries the required keys, hand-mirrored from `schemas/ops-observation-batch-v1.schema.json` (no JSON-Schema validator is vendored — stdlib-only); walk stays within `[min,max]`.
    - `adapter_test.go` — every adapter satisfies `VendorAdapter`; manifest dispositions are valid enum values; healthcare baseline excludes non-`baa_signed`.
    - `synthetic_test.go` — **fidelity tests**: each Tier-1 vendor success body has the exact top-level keys/envelope; each scenario emits that vendor's error shape; `_harness/manifest` shape.
    - `routes_test.go` — every `/api/*` route returns expected envelope + status; PUT `/api/policies` returns a coverage report; `/api/drift` reflects an injected override.

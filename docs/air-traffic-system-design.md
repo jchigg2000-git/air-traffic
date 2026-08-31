@@ -8,6 +8,13 @@
 > whole estate through one normalized signal. It is the engineering companion to the
 > research/product spec in [`air-traffic-analysis.md`](./air-traffic-analysis.md).
 >
+> **Naming note (added 2026-08-30):** this document calls the per-vendor abstraction a
+> `VendorAdapter`. **No such Go type exists in the shipped code, and that is deliberate** —
+> the 2026-06-29 decision (`DECISIONS.md`) kept the model data-driven, so a "vendor adapter"
+> is a `model.Adapter` record plus catalog and fixture entries (`internal/catalog/vendors.go`,
+> `internal/synthetic/fixtures_t1.go`), not an interface implemented N times. Read
+> `VendorAdapter` below as the role, not a symbol to grep for.
+>
 > **What Air-Traffic is NOT (by design):** it is **not** an inline inference proxy on the
 > critical path of every model call. Routing all developer/agent traffic through a gateway is
 > a separate, heavier concern with real operational cost (key reissuance, streaming, latency,
@@ -19,7 +26,9 @@
 > proven shape — a Go HTTP service exposing a **control plane** + a **background emitter** that
 > produces a normalized `ops-observation-batch/v1` signal, with a React SPA on top. it-scorecard
 > configures connectors and emits signal; Air-Traffic does the same, and adds a **config
-> distributor** for agentic environments. (`../it-scorecard`, a sibling repo.)
+> distributor** for agentic environments. (it-scorecard is a private predecessor project by the
+> same author; it is not published, and nothing here requires reading it — every pattern it
+> contributes is described in full below.)
 
 ---
 
@@ -328,9 +337,8 @@ guaranteed enforcement; gate Tier-B controls behind an MDM-coverage check.
 - **Mirrors:** it-scorecard's `cmd/harness-server/main.go`.
 
 ### `internal/server` — HTTP layer
-- **Responsibility:** route registration for `/api/*` (control plane), the `/synthetic/*` vendor surfaces, static SPA serving, panic recovery. It **never** mounts the gateway in-process; instead it **always** serves `/api/gateway/{leaks,enforcement,patterns,status}` (`server.go:55–58`), which read data the separate gateway binary **pushes up the spine**.
-- **Routes** (`server.go:43–65`): `/api/health`, `/api/adapters(+/)`, `/api/baselines`, `/api/policies`, `/api/credentials`, `/api/observations`, `/api/audit`, `/api/activity`, `/api/drift`, `/api/cost/facets`, `/api/envconfig`, `/api/gateway/{leaks,enforcement,patterns,status}`, `/api/harness/{runs,runs/,sample,ratchet,corpus,proposals,proposals/}` (503 via `requireHarness` when the engine is absent), `/synthetic/`, and `/`.
-- **Mirrors:** it-scorecard's `internal/server/server.go`, `routes.go`.
+- **Responsibility:** route registration for `/api/*` (control plane), the `/synthetic/*` vendor surfaces, static SPA serving, panic recovery. It **never** mounts the gateway in-process; instead it **always** serves `/api/gateway/*`, which read data the separate gateway binary **pushes up the spine**.
+- **Routes** (see `Server.Routes()` in `internal/server/server.go` for the authoritative list): `/api/health`, `/api/adapters(+/)`, `/api/baselines`, `/api/policies`, `/api/credentials`, `/api/observations`, `/api/audit`, `/api/activity`, `/api/drift`, `/api/cost/facets`, `/api/envconfig`, `/api/gateway/{leaks,enforcement,patterns,status,keys,requests}`, `/api/apps(+/{id}, /{id}/keys)`, `/api/keys/{kid}`, `/api/harness/{runs,runs/,sample,ratchet,corpus,proposals,proposals/}` (503 via `requireHarness` when the engine is absent), `/synthetic/`, and `/`.
 
 ### `internal/catalog` + `internal/synthetic` — vendor & platform surfaces ⭐
 - **Responsibility:** `catalog` (`catalog.go`, `vendors.go`, `cost_facets.go`) holds the vendor/platform registry, capability manifests, and cost facets — the machine-readable form of the analysis doc's vendor tables, each `CapabilityEntry` carrying a disposition. `synthetic` serves per-vendor native-shaped surfaces under `/synthetic/{vendor}/…` so the control plane is demoable with zero credentials.
@@ -732,14 +740,17 @@ gateway credentials, which makes them the most dangerous surface here, so they a
 callers only** and deliberately do *not* honour `AIRTRAFFIC_SPINE_KEY`: the gateway holds that
 key, and a gateway able to mint its own credentials would defeat the point of issuing keys at
 all. The distribution half, `GET /api/gateway/keys`, does ride the spine key — it ships digests
-and metadata, never a secret. Because compose publishes the control plane behind a port, a
-browser or host `curl` arrives from the Docker bridge rather than loopback and is refused; that
-is why administration goes through `scripts/keystore.sh` (which routes the call into the
-container's network namespace) and why there is no keystore UI. Opening one means adding an
-`AIRTRAFFIC_ADMIN_KEY` tier, the same two-tier ladder the spine already uses.
+and metadata, never a secret. Administration takes either a loopback caller or `AIRTRAFFIC_ADMIN_KEY`
+(`requireLocalAdmin`, added 2026-08-16). With no admin key set the posture is loopback-only, and
+because compose publishes the control plane behind a port, a browser or host `curl` arrives from
+the Docker bridge rather than loopback and is refused; that is why administration goes through
+`scripts/keystore.sh` (which routes the call into the container's network namespace). With the key
+set a keystore UI becomes buildable; none has been built.
 
-The store is **in-memory only, with one exception** — there is no `AIRTRAFFIC_STORE`/Postgres
-switch and no in-process gateway toggle. The exception is the keystore: observations and reports
+The store is **in-memory only, with two exceptions** — there is no `AIRTRAFFIC_STORE`/Postgres
+switch and no in-process gateway toggle. (The harness keeps its own durable flywheel state under
+the same `AIRTRAFFIC_DATA_DIR` — `ratchet.jsonl`, `corpus/*.json`, `patterns.json` — but that is
+the harness's, not the store's.) The first exception is the keystore: observations and reports
 are reconstructible and a container recreate is allowed to lose them, but an issued credential is
 not, so apps and keys write through to `keys.json` (mode 0600, digests only, temp-file + rename)
 under `AIRTRAFFIC_DATA_DIR` and reload at boot. A keystore file that will not parse is a hard boot

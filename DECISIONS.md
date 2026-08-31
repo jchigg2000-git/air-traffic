@@ -70,7 +70,7 @@ error envelope, upstream path suffix, and default auth header. Adding a third di
 a walker and a scanner, not another pipeline.
 
 Driver, recorded because it is not derivable from this repo: the owner's own agentic apps
-(`~/Projects/meaning-to-making`, `~/Projects/hf-sandbox`) both reach Hugging Face's router through
+(`meaning-to-making` and `hf-sandbox`, neither public) both reach Hugging Face's router through
 `@huggingface/inference`, which speaks OpenAI wire format. With only the Anthropic route, neither
 app could talk to the gateway at all — "prove it on my own apps" was blocked on a dialect, not on
 policy or detection.
@@ -157,7 +157,7 @@ showed an outage.
 ## 2026-08-15 — meaning-to-making unrouted; hf-sandbox is the reference client
 
 Owner call: Air-Traffic is an enterprise app, and a private single-family creative tool is the
-wrong thing to demonstrate it against. Every change made to `~/Projects/meaning-to-making` was
+wrong thing to demonstrate it against. Every change made to the `meaning-to-making` repo was
 reverted (source, tests, README, and its `.env` routing vars); that repo is no longer a client of
 this gateway and the integration should not be restored.
 

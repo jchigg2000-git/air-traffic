@@ -1,5 +1,5 @@
 // Per-vendor proxy config schemas. Only the six Tier-1 vendors are modeled today
-// (Justin's call); the other ten fall back to URL-only and are tracked in
+// (a deliberate scope cut); the other ten fall back to URL-only and are tracked in
 // docs/plans/TODO-vendor-auth.md. Secrets are entered BY REFERENCE only — raw
 // tokens are rejected (mirrors the credentials store's no-plaintext posture).
 

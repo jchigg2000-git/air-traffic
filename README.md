@@ -1,7 +1,19 @@
 # air-traffic
 
 **Enterprise AI Control Plane** — a unified control + observability *spine* across every
-major AI vendor. Air-Traffic drives vendors' native admin APIs (`vendor_native`), pushes
+major AI vendor.
+
+> **Read this first: no vendor is really contacted.** Air-Traffic talks to a **synthetic
+> replica** of each vendor's admin/control surface that it serves itself, on its own port.
+> Not one of the sixteen adapters holds a live credential or reaches
+> `api.openai.com`, `api.anthropic.com`, or anything else on the internet. Every number, user
+> list, guardrail and dollar figure you see is generated locally. What is real is the shape:
+> the API surfaces, the error envelopes, the policy engine, the emitted signal contract — and
+> the **inference gateway**, whose redaction runs on real request bytes and is measured
+> behaviourally rather than asserted. Treat this as a working spec and a testbed for the
+> integration, not as a production integration.
+
+Air-Traffic's model is that it drives vendors' native admin APIs (`vendor_native`), pushes
 managed config into dev/agent environments and reads it back for drift (`env_managed`), and
 emits a normalized `ops-observation-batch/v1` signal across the developer-workflow, data-policy,
 and budget control planes. It is **not** an inline inference proxy — the one thing that ever
@@ -9,13 +21,17 @@ sits on the request path is the **optional inference gateway**, a separate data-
 (`cmd/air-traffic-gateway`, Phase 3 below) that redacts PII/PHI inline and is what makes the
 `proxy_enforced` disposition true.
 
-Sibling app: [`it-scorecard`](../it-scorecard) — Air-Traffic mirrors its Go + React,
-zero-external-deps, synthetic/proxy/disabled pattern.
-
 ## Phase 1 (this) — synthetic byte-identical backend
 
-Go (stdlib only, zero deps). Serves a **byte-identical synthetic replica** of each vendor's
-admin/control surface plus the control-plane API and the background emitter.
+Go (stdlib only, zero deps). Serves a synthetic replica of each vendor's admin/control surface
+plus the control-plane API and the background emitter.
+
+**What "byte-identical" means here, and what it doesn't.** Seven vendors have a hand-written
+fixture shaped to that vendor's documented response — same envelope, same field names, same
+pagination keys — so a client written against the real API parses it unchanged. It is *not*
+verified against a captured live response; nothing in this repo diffs the two, because that
+would need credentials the project deliberately does not hold. The other nine answer from a
+generic envelope that is correctly shaped and labelled as such (see the table below).
 
 ```bash
 # run the API + synthetic surfaces + emitter (port 8122)
@@ -52,6 +68,12 @@ envelopes, cost facets and emitted signal are real for all sixteen.
 Per-vendor error envelopes are real for **all sixteen** regardless of fixture depth — that is the
 part `/_harness/scenario/*` exercises, and it is the part an integration actually breaks on.
 
+**Six adapters are enabled at boot** — the Tier-1 row (`defaultRoster`, `internal/store/store.go`).
+The other ten, Mistral and its dedicated fixture included, ship **disabled** until their
+per-vendor auth config exists (`docs/plans/TODO-vendor-auth.md`), and answer every synthetic call
+with a vendor-shaped `503`. Turn one on with
+`PATCH /api/adapters/{id}  {"enabled": true}`, or from the Vendors screen.
+
 Each capability carries one of five **dispositions** — `vendor_native` · `env_managed` ·
 `proxy_enforced` · `monitor_only` · `unverified` — and every `env_managed` capability also
 carries an enforcement tier (`server_side` / `mdm_locked` / `seed_only`). The UI never renders
@@ -77,7 +99,7 @@ a seed-only control as "enforced."
 | `GET /api/gateway/patterns` · `/status` | active pattern pack (the gateway pulls it) · gateway liveness for the UI |
 | `GET /api/gateway/requests` | per-request proxy traffic, newest first — backs the **Gateway Traffic** screen. Metadata only (types, field paths, offsets, counts, tokens); never a value, never a dollar figure |
 | `GET/POST /api/harness/runs` · `GET /runs/{id}` · `POST /sample` · `GET /ratchet` · `/corpus` · `GET/POST /proposals[/{id}/approve\|reject]` | flywheel harness — **503s without the harness engine** (`requireHarness`). `POST /proposals` authors an owner proposal (the flywheel infers additions from harness misses; it has no ground truth for real traffic, so retiring a false positive is a human call) |
-| `ANY /synthetic/{vendor}/{native-path}` | **byte-identical** vendor surface + `/_harness/*` control |
+| `ANY /synthetic/{vendor}/{native-path}` | synthetic vendor surface (dedicated fixture for 7, generic envelope for 9) + `/_harness/*` control. The two mutating control paths — `_harness/scenario` and `_harness/reset` — write the adapter record and carry the operator key |
 
 ### Synthetic surface example
 
@@ -86,7 +108,8 @@ curl 127.0.0.1:8122/synthetic/openai/admin/organization/users       # OpenAI {"o
 curl 127.0.0.1:8122/synthetic/anthropic/v1/organizations/workspaces # Anthropic {"data":[…],"has_more":…}
 curl 127.0.0.1:8122/synthetic/bedrock/guardrails                    # AWS {"guardrails":[…],"nextToken":…}
 # inject a scenario; each vendor returns its OWN error envelope
-curl -X PUT 127.0.0.1:8122/synthetic/openai/_harness/scenario/429-retry-after
+curl -X PUT 127.0.0.1:8122/synthetic/openai/_harness/scenario/429-retry-after \
+  -H "X-Air-Traffic-Admin-Key: $AIRTRAFFIC_ADMIN_KEY"   # only needed once a key is set
 ```
 
 ## Architecture
@@ -192,8 +215,10 @@ routes accept **loopback callers only** — a container-network peer does not qu
 **Operator key (`AIRTRAFFIC_ADMIN_KEY`).** The control plane is single-operator by decision — no
 user model, no login, no per-human principal, so an audit row can name the system but never a
 person (`DECISIONS.md` 2026-08-15). What it does have is one key gating every **state-changing**
-route: adapter patch, policy PUT, credential POST, harness run/sample, and proposal
-approve/reject. Reads are never gated — the observability surfaces are the product.
+route: adapter patch, policy PUT, credential POST, harness run/sample, proposal approve/reject,
+and the two mutating synthetic-harness control paths (`_harness/scenario`, `_harness/reset` —
+they write the same adapter record). Reads are never gated — the observability surfaces are the
+product.
 
 ```bash
 ./scripts/dev-env.sh              # mints AIRTRAFFIC_ADMIN_KEY (adm-…) into .env
@@ -226,25 +251,29 @@ their app, and an app carrying a baseline is served under *that* posture while e
 on the applied policy — the gateway's heartbeat stops claiming enforcement if any app is scoped to
 monitor-only, so per-app scoping cannot quietly overstate coverage.
 
-Two things to know about the trust boundary. The admin API is **loopback-only and deliberately not
-the spine key** — the gateway holds that key, and a gateway that can mint its own credentials makes
-the keystore pointless. Since compose publishes the control plane behind a port, a browser (or a
-plain host `curl`) reaches it over the Docker bridge and gets a 401; that is why `scripts/keystore.sh`
-routes the call through the container's netns, and why there is no keystore UI. And revocation is
+Two things to know about the trust boundary. The admin API takes **a loopback caller or
+`AIRTRAFFIC_ADMIN_KEY`, and deliberately not the spine key** — the gateway holds that key, and a
+gateway that can mint its own credentials makes the keystore pointless. With no admin key set the
+posture is loopback-only, and since compose publishes the control plane behind a port, a browser
+(or a plain host `curl`) reaches it over the Docker bridge and gets a 401; that is why
+`scripts/keystore.sh` routes the call through the container's netns, and why there is still no
+keystore UI. And revocation is
 **eventual**: gateways verify against a pulled snapshot, so a revoked key stops working within one
 `GATEWAY_POLICY_PULL_INTERVAL` (15s by default), not instantly. `GATEWAY_CLIENT_KEYS` keeps working
 throughout and is still required at boot; keystore-issued keys are additive, and legacy callers
 report as app `env`.
 
-**What survives a restart, and what deliberately doesn't.** Two things persist to
-`AIRTRAFFIC_DATA_DIR` (the `harness-data` volume) as whole-file atomic JSON writes: the keystore
-(`keys.json` — issued credentials are not reconstructible) and the **applied policy**
-(`policy.json` — the gateway is already enforcing it, so forgetting it here would leave the two
-halves disagreeing while traffic flows). Everything else — observations, gateway request reports,
-drift, audit — is in-memory ring buffers by decision, because a durable time series is what the
-rejected third-party-dependency fork would have bought (`DECISIONS.md` 2026-08-15). A policy
-write that fails is reported on `/api/gateway/status` as `policy_error` rather than swallowed; a
-corrupt `policy.json` warns and boots with none applied instead of refusing to start.
+**What survives a restart, and what deliberately doesn't.** Three things persist to
+`AIRTRAFFIC_DATA_DIR` (the `harness-data` volume): the keystore (`keys.json` — issued credentials
+are not reconstructible), the **applied policy** (`policy.json` — the gateway is already enforcing
+it, so forgetting it here would leave the two halves disagreeing while traffic flows), and the
+**harness flywheel state** (`ratchet.jsonl`, `corpus/*.json`, `patterns.json` — a ratchet that
+resets is not a ratchet, and the promoted corpus is the accumulated regression set). The first two
+are whole-file atomic JSON writes. Everything else — observations, gateway request reports, drift,
+audit — is in-memory ring buffers by decision, because a durable time series is what the rejected
+third-party-dependency fork would have bought (`DECISIONS.md` 2026-08-15). A policy write that
+fails is reported on `/api/gateway/status` as `policy_error` rather than swallowed; a corrupt
+`policy.json` warns and boots with none applied instead of refusing to start.
 
 Images bake built source — after a code change, `docker compose up -d --build <service>`
 (a bare `restart` won't pick it up). Harness state (ratchet series, promoted corpus, pattern
@@ -275,7 +304,8 @@ NER, no cloud inference or compute.
 card, recall ratchet series, flywheel pattern proposals, per-request misses and the promoted
 corpus](docs/images/gateway-harness-readout.png)
 
-*One 200-request run: **100.0% behavioral recall**, 99.0% precision, 0 trap false positives. Read
+*One 200-request run: **100.0% behavioral recall** (99.0% *reported* recall — the gap between the
+two is the honesty check), 97.7% precision, 0 trap false positives. Read
 it top to bottom — a live prompt masked mid-flight (`Jane Doe` → `[PERSON_NAME]`, SSN → `[SSN]`)
 with what the upstream actually received beside what was sent; the per-type TP/FN/FP table; the
 ratchet's run-over-run history; and the flywheel's pattern proposals, which are* human-approved
@@ -298,14 +328,26 @@ ANTHROPIC_UPSTREAM_KEY=sk-ant-synthetic-dev GATEWAY_CLIENT_KEYS=gwk-demo \
 GATEWAY_DETECTORS=regex GATEWAY_REDACT_ACTION=mask \
 go run ./cmd/air-traffic-gateway
 
-# terminal 3 — watch a value get rewritten before it leaves
+# terminal 3 — send a prompt carrying two planted values
 curl -s 127.0.0.1:8125/v1/messages -H 'x-api-key: gwk-demo' -H 'content-type: application/json' \
   -d '{"model":"claude-3-5-sonnet","max_tokens":64,"messages":[{"role":"user","content":"Wire it to SSN 123-45-6789, callback 555-123-4567"}]}'
+
+# ...then read what the upstream ACTUALLY received. This is the line that proves it:
+curl -s 127.0.0.1:8122/synthetic/anthropic/_harness/inference
 ```
 
-What you give up by skipping Presidio, stated plainly: the regex tier recognizes exactly seven
-**structured** types — `SSN`, `CREDIT_CARD`, `IBAN`, `EMAIL`, `PHONE`, `DOB`, `MRN`
-(`internal/gateway/detect/regex.go`), four of them checksum-gated before a hit counts — and
+The first call returns the mock upstream's reply and tells you nothing — the redaction happened
+on the way out, so the response looks the same either way. The second is the evidence:
+`"body"` is the request bytes as the upstream saw them, and it reads
+`Wire it to SSN [SSN], callback [PHONE]`. Proving redaction by inspecting what the far side
+received, rather than trusting the proxy's own report of itself, is the same behavioural standard
+the harness scores against.
+
+What you give up by skipping Presidio, stated plainly: the regex tier recognizes exactly eight
+**structured** types — `SSN`, `CREDIT_CARD`, `IBAN`, `EMAIL`, `PHONE`, `IP`, `DOB`, `MRN`
+(`internal/gateway/detect/regex.go`). Two carry a real checksum before a hit counts (Luhn on
+`CREDIT_CARD`, ISO 13616 mod-97 on `IBAN`); three more are validated past the raw match (octet
+range on `IP`, a hyphen-adjacency guard on `SSN` and `PHONE`) — and
 recognizes **nothing** unstructured. `PERSON_NAME` and `ADDRESS` are the NER tier's job and go
 undetected here. Expect recall well below the numbers above, which are measured with
 `GATEWAY_DETECTORS=regex,presidio`. Use this path to see the mechanism; use compose to measure it.
@@ -344,8 +386,11 @@ as the bearer token, and set `HF_UPSTREAM_TOKEN` (or point `OPENAI_UPSTREAM_BASE
 supply that vendor's key). That upstream credential has **no compose fallback on purpose** — unset,
 the route returns 502 locally rather than sending a placeholder to a real vendor.
 
-## License
+## Contributing, security, license
 
-Proprietary — Copyright (c) 2026 Justin Higgins. All rights reserved.
-Not open source. See [LICENSE](LICENSE); no rights are granted without a separate written
-agreement. Access is permission to look, not permission to use.
+Pull requests are welcome — [`CONTRIBUTING.md`](CONTRIBUTING.md) has the check suite and the
+handful of deliberate constraints that will otherwise look like bugs. Before running this
+anywhere but your own machine, read [`SECURITY.md`](SECURITY.md): with `AIRTRAFFIC_ADMIN_KEY`
+unset the writes are open, and compose binds `0.0.0.0`.
+
+MIT — Copyright (c) 2026 Justin Higgins. See [LICENSE](LICENSE).

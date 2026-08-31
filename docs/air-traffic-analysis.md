@@ -5,6 +5,13 @@
 > **Application:** Air-Traffic — unified control plane and observability layer for enterprise AI.  
 > **Architecture note:** Air-Traffic's API is modeled on the `it-scorecard` connector/emitter pattern: each vendor/platform is a `VendorAdapter` (a typed connector) that emits `ops-observation-batch/v1` signal in synthetic or proxy mode. Controls the vendor does not natively expose are fulfilled by **pushing managed configuration into the dev/agent environment** (`EnvManaged`) — not by intercepting traffic. An inline gateway (`ProxyEnforced`) exists only as an optional module for two runtime-only controls. Every capability carries its disposition, so coverage is always explicit and auditable.
 
+> **Naming note (added 2026-08-30):** this document calls the per-vendor abstraction a
+> `VendorAdapter`. **No such Go type exists in the shipped code, and that is deliberate** —
+> the 2026-06-29 decision (`DECISIONS.md`) kept the model data-driven, so a "vendor adapter"
+> is a `model.Adapter` record plus catalog and fixture entries (`internal/catalog/vendors.go`,
+> `internal/synthetic/fixtures_t1.go`), not an interface implemented N times. Read
+> `VendorAdapter` below as the role, not a symbol to grep for.
+
 ---
 
 ## Table of Contents
@@ -914,7 +921,7 @@ import (
     "context"
     "time"
 
-    "it-scorecard/internal/model" // reuse ops-observation-batch/v1 model directly
+    "air-traffic/internal/model" // ops-observation-batch/v1 model (contract inherited from it-scorecard)
 )
 
 // SignalKind declares how a control or observation is fulfilled.

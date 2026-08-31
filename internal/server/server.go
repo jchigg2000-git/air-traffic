@@ -1,5 +1,5 @@
 // Package server wires the Air-Traffic HTTP API, the synthetic vendor surfaces,
-// and the SPA fallback (Phase 2). Stdlib-only, mirrors it-scorecard.
+// and the SPA fallback (Phase 2). Stdlib-only.
 package server
 
 import (
@@ -36,7 +36,15 @@ func New(st *store.Store, log *slog.Logger) *Server {
 	for _, e := range audit.Seed() {
 		st.AddAudit(e)
 	}
-	return &Server{store: st, log: log, synthetic: synthetic.New(st, log)}
+	srv := &Server{store: st, log: log, synthetic: synthetic.New(st, log)}
+	// The two mutating /synthetic/{vendor}/_harness paths write the same
+	// adapter record PATCH /api/adapters/{id} does, so they carry the same
+	// key. The closure reads adminKey at request time, so SetAdminKey may
+	// still be called after New.
+	srv.synthetic.SetAdminGuard(func(r *http.Request) bool {
+		return srv.adminKey == "" || validKey(r, srv.adminKey)
+	})
+	return srv
 }
 
 // SetHarness attaches the optional harness engine (keeps New's signature for
@@ -89,6 +97,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/harness/proposals", s.requireAdminWrite(s.handleHarnessProposals))
 	mux.HandleFunc("/api/harness/proposals/", s.requireAdminWrite(s.handleHarnessProposals))
 
+	// The vendor replica answers anyone by design — it holds nothing real. Its
+	// two mutating control paths (_harness/scenario, _harness/reset) are the
+	// exception and carry the operator key via SetAdminGuard in New.
 	mux.Handle("/synthetic/", s.synthetic)
 
 	// SPA fallback (Phase 2): serve web/dist if present.
@@ -107,9 +118,12 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"service":            "air-traffic",
-		"message":            "Air-Traffic control plane API. Frontend ships in Phase 2.",
-		"api":                []string{"/api/health", "/api/adapters", "/api/baselines", "/api/policies", "/api/observations", "/api/audit", "/api/drift", "/api/envconfig"},
+		"service": "air-traffic",
+		"message": "Air-Traffic control plane API. The SPA is not built here — web/dist is gitignored. " +
+			"Run `cd web && npm install && npm run build` from the repo root and reload, or " +
+			"`docker compose up -d --build`, which bakes it in.",
+		"api":                []string{"/api/health", "/api/adapters", "/api/activity", "/api/baselines", "/api/policies", "/api/observations", "/api/audit", "/api/drift", "/api/envconfig", "/api/cost/facets"},
+		"api_reference":      "README.md#http-api",
 		"synthetic_surfaces": "/synthetic/{vendor}/{native-path}",
 	})
 }

@@ -211,6 +211,8 @@ export interface GatewayStatusEntry {
   gateway_id: string
   base_url: string
   action: string
+  /** The chain the gateway reports running. Absent on a pre-2026-08 heartbeat. */
+  detectors?: string[]
   vendors: Record<string, string[]>
   last_seen: string
   fresh: boolean

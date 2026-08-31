@@ -13,7 +13,6 @@ const (
 	pe = model.DispProxyEnforced
 	mo = model.DispMonitorOnly
 	uv = model.DispUnverified
-	us = model.DispUnsupported
 )
 
 // ---- Tier 1: deep, byte-identical admin surfaces ----

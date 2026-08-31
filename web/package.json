@@ -2,7 +2,7 @@
   "name": "air-traffic-web",
   "private": true,
   "version": "0.1.0",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "author": "Justin Higgins",
   "type": "module",
   "scripts": {

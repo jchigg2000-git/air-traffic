@@ -20,9 +20,32 @@ import (
 type Handler struct {
 	store *store.Store
 	log   *slog.Logger
+	// adminGuard gates the two /_harness sub-paths that WRITE the shared
+	// adapter record (scenario, reset). Nil leaves them open, matching the
+	// control plane's "unset admin key ⇒ writes open" posture. Deliberately
+	// method-agnostic: /_harness/reset mutates on any method, so wrapping the
+	// mux entry in a write-method check would miss a plain GET.
+	adminGuard func(*http.Request) bool
 }
 
 func New(st *store.Store, log *slog.Logger) *Handler { return &Handler{store: st, log: log} }
+
+// SetAdminGuard installs the predicate that authorizes the mutating /_harness
+// control paths. Reads (manifest, calls, inference) stay open, as does the
+// vendor surface itself.
+func (h *Handler) SetAdminGuard(fn func(*http.Request) bool) { h.adminGuard = fn }
+
+// allowHarnessWrite reports whether a mutating /_harness call may proceed,
+// writing the 401 itself when it may not.
+func (h *Handler) allowHarnessWrite(w http.ResponseWriter, r *http.Request) bool {
+	if h.adminGuard == nil || h.adminGuard(r) {
+		return true
+	}
+	writeJSON(w, http.StatusUnauthorized, map[string]any{
+		"error": "this route changes adapter state and requires the operator key (X-Air-Traffic-Admin-Key)",
+	})
+	return false
+}
 
 // FixtureFunc produces a byte-identical success body for one vendor path.
 // Returns HTTP status, the JSON-serializable body, and extra response headers.
@@ -172,6 +195,9 @@ func (h *Handler) handleHarness(w http.ResponseWriter, r *http.Request, a model.
 			writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "use PUT"})
 			return
 		}
+		if !h.allowHarnessWrite(w, r) {
+			return
+		}
 		name := strings.TrimPrefix(nativePath, "/_harness/scenario/")
 		if name == "/_harness/scenario" || name == nativePath {
 			var body struct {
@@ -187,6 +213,9 @@ func (h *Handler) handleHarness(w http.ResponseWriter, r *http.Request, a model.
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"adapter": updated})
 	case strings.HasPrefix(nativePath, "/_harness/reset"):
+		if !h.allowHarnessWrite(w, r) {
+			return
+		}
 		h.store.ResetCalls(a.ID)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	case strings.HasPrefix(nativePath, "/_harness/calls"):

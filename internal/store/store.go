@@ -73,9 +73,10 @@ func New() *Store {
 	return s
 }
 
-// defaultRoster is the set of vendors enabled at boot. Justin's choice: the six
-// Tier-1 deep adapters are on; the other ten ship disabled until their per-vendor
-// auth config is built (docs/plans/TODO-vendor-auth.md). Do NOT auto-toggle these.
+// defaultRoster is the set of vendors enabled at boot: the six Tier-1 deep
+// adapters are on; the other ten ship disabled until their per-vendor auth
+// config is built (docs/plans/TODO-vendor-auth.md). Changing the roster is an
+// explicit operator action (PATCH /api/adapters/{id}), never a default.
 var defaultRoster = map[string]bool{
 	"openai": true, "anthropic": true, "bedrock": true,
 	"azure_openai": true, "vertex": true, "github_copilot": true,

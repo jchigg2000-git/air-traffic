@@ -9,8 +9,10 @@ Status: **BUILT** — this document is a build-history record of the plan as wri
 Every screen below shipped; current status lives in [`../../ROADMAP.md`](../../ROADMAP.md) §2, which
 wins on any conflict. · Web dev port `5202` · API `8122`
 Stack mirrors it-scorecard: **Vite + React + TypeScript + Tailwind v4 + TanStack Query + React Router**.
-Brand: navy `#0B1220` + cyan `#0891B2`/`#38D5EA`; assets in `air-traffic-option-4-logo-pack/`,
-vendor glyphs in `air-traffic-option-4-logo-pack/vendor/` (inline path data — no counterfeit logos).
+Brand: navy `#0B1220` + cyan `#0891B2`/`#38D5EA`; app icons in `web/public/icons/`, the mark
+inlined as SVG in `web/src/components/Brand.tsx`. Vendor glyphs are brand-colour monogram chips
+(`web/src/components/VendorGlyph.tsx`) — deliberately not the real marks, and no vendor logo
+files are vendored into this repo.
 
 ---
 

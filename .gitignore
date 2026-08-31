@@ -15,3 +15,6 @@ web/dist/
 
 # Local secrets minted by scripts/dev-env.sh
 .env
+
+# Claude Code ratchet-up scratch (per-run patches + ledger)
+.claude/ratchet-up/

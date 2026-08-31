@@ -21,7 +21,7 @@
 > - **Decisions**: `DECISIONS.md` (append-only log; roadmap items cite it by date + title)
 
 > **Closed work is not in this file.** An item is deleted at the edit that closes it — there is no
-> ✅ status. What shipped is recorded by the closing commit and `CHANGELOG.md`. To resurrect or
+> ✅ status. What shipped is recorded by the closing commit. To resurrect or
 > cite a deleted item: `git log -S'<ID>' -- ROADMAP.md`, then `git show <sha>:ROADMAP.md`.
 
 **Legend:** ⏳ in progress · ⬜ not started · 🔶 shipped but UNVERIFIED · 🔬 verification owed ·
@@ -52,25 +52,6 @@ budget) · Appendix
 > browser** (headless Chromium) and its screenshots are in `docs/images/` — that is the OWED-2
 > class of verification, done for this change at least.
 >
-> **What landed — a 14-item captured-gap list, closed except where noted.**
-> - **PIVOT-1 is closed** (§7.1). Apply now previews the derived gateway action before commit,
->   arms nothing on arrival, names the blast radius, and carries the **ZDR attestation** the SPA
->   previously had no control for. The derivation moved to `internal/model/gateway_action.go`,
->   shared by both binaries, and `GET /api/baselines` exposes `gateway_action` /
->   `gateway_action_attested` / `requires_zdr_attestation`. `DECISIONS.md` 2026-08-16.
-> - **The admin-key tier is built** (GATEWAY-7a). `AIRTRAFFIC_ADMIN_KEY` gates every
->   state-changing route; reads stay open; `requireLocalAdmin` accepts it as an alternative to
->   loopback. **Unset ⇒ writes stay open**, warned at boot and reported as `"admin_auth": "open"`.
-> - **Policy persists** to `policy.json` under `AIRTRAFFIC_DATA_DIR`, verified on the compose
->   stack across a real `docker compose restart control-plane`.
-> - A **client organization's name was scrubbed** from `docs/inference-gateway-build-plan.md`.
-> - Docs: absolute `/Users/...` paths gone from 4 files (2 were image `src`s, so those decks were
->   rendering broken anywhere else), harness + rigor screenshots embedded in the README, a
->   regex-only no-Docker quick path documented **and run verbatim**, Tier-2 replica fidelity
->   corrected, phase-1/2 plan `Status:` headers un-staled, `LICENSE` added (proprietary, Justin
->   Higgins), ARIA added to the four bare console screens, gateway upstream connect/TLS/response-
->   header timeouts bounded without breaking streaming.
->
 > **▶ NEXT ACTION:** §7.2's four cheap instrumentation fixes (PIVOT-2 → PIVOT-5) are now the
 > strongest candidates — PIVOT-2 especially, since every rate in §7.4 is computed over a
 > denominator missing an entire failure class until it lands. §3's deferred G-blocks, §4's vendor
@@ -95,8 +76,8 @@ budget) · Appendix
 > - The **Gateway Traffic** page and the Gateway Harness `allow_list` chip remain browser-unverified
 >   (OWED-2). Only the Rigor Console was opened this pass.
 > - **Observations/reports store is still in-memory** (carried from the GATEWAY-5 pass,
->   2026-08-15) — only `policy.json` and the keystore (`keys.json`) persist across restarts;
->   unconfirmed whether this has since been addressed.
+>   2026-08-15) — `policy.json`, the keystore (`keys.json`) and the harness flywheel state
+>   (`ratchet.jsonl`, `corpus/*.json`, `patterns.json`) are what persist across restarts.
 
 ---
 
@@ -121,11 +102,13 @@ budget) · Appendix
 
 ## §2 Phase 2 — Frontend SPA
 
-- ⬜ **PHASE2-3a** Next `/ratchet-up landing-page` run must fix `web/src/pages/landing/Hero.tsx`
-  (~`:30-40`): the "spine online" and "emitter · ops-observation-batch/v1 · 5s" badges pulse
-  unconditionally with zero data binding and cannot go false — a violation of that page's own
-  Correctness axis. Left untouched this pass because `/welcome` is a ratcheted champion; it must
-  be changed through the ledger, and the run must still beat the reigning score.
+- ⬜ **PHASE2-3a** `web/src/pages/landing/Hero.tsx` (~`:30-40`): the "spine online" and
+  "emitter · ops-observation-batch/v1 · 5s" badges pulse unconditionally with zero data binding
+  and cannot go false — a violation of that page's own Correctness axis. Bind them to
+  `/api/gateway/status` and the observation feed, or make them visibly static. The bar is that
+  `/welcome` must not lose visual quality in the process. (This page was last shaped through a
+  local `/ratchet-up` ledger under `.claude/ratchet-up/`, which is gitignored and not part of
+  the published repo — see `DECISIONS.md` 2026-08-18.)
 - ⬜ **PHASE2-3b** Residual, non-blocking: `web/src/components/VendorGlyph.tsx` brand hues for
   bedrock/mistral/m365/groq (`#FF9900`, `#FA520F`, `#D83B01`, `#F55036`) sit in the same band as
   `--amber`/`--unverified`, so a decorative glyph can camouflage a real status dot in the same
@@ -490,7 +473,7 @@ derived from retained traffic — the system retains none.
 
 Fold pass run 2026-08-07 via `/roadmap --no-delete` as part of a repo-wide doc-consolidation
 sweep. **Nothing was deleted from disk this pass** (`--no-delete`); a separate doc-consolidation
-step staged two files to `~/Projects/purgatory/air-traffic/` afterward (see that tool's manifest
+step staged two files to a local out-of-repo purgatory folder afterward (see that tool's manifest
 for exact destinations):
 
 - `docs/handoff.md` (45 lines, folded into the §0 HISTORY block) —

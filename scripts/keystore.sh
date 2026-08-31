@@ -2,10 +2,11 @@
 # Administer the gateway keystore: register apps, issue keys against them,
 # revoke.
 #
-# The admin API is loopback-only by design — key minting is the one surface
-# that creates credentials, and it deliberately does NOT share the gateway's
-# spine key (a gateway that can push reports must not be able to mint itself a
-# credential). That posture is why this script exists: when the control plane
+# The admin API takes a loopback caller or AIRTRAFFIC_ADMIN_KEY — key minting is
+# the one surface that creates credentials, and it deliberately does NOT share
+# the gateway's spine key (a gateway that can push reports must not be able to
+# mint itself a credential). With no admin key set the posture is loopback-only,
+# and that is why this script exists: when the control plane
 # runs in compose, a request from your shell reaches the container over the
 # Docker bridge, not loopback, so plain `curl 127.0.0.1:8122` gets a 401. This
 # routes the call through the container's own network namespace instead.
@@ -17,6 +18,7 @@
 #   ./scripts/keystore.sh issue hf-sandbox user-42 [route] [expires-in-days]
 #   ./scripts/keystore.sh keys hf-sandbox
 #   ./scripts/keystore.sh revoke <key-id>
+#   ./scripts/keystore.sh snapshot                          # what the gateway pulls
 #
 # The issued key is printed once. It is stored as a SHA-256 digest and cannot
 # be recovered afterwards.
@@ -35,6 +37,7 @@ call() {
   local method="$1" path="$2" body="${3:-}"
   local url="http://127.0.0.1:$CP_PORT$path"
   local args=(-sS -X "$method" -H 'Content-Type: application/json')
+  [[ -n "${SPINE_HDR:-}" ]] && args+=(-H "$SPINE_HDR")
   [[ -n "$body" ]] && args+=(-d "$body")
 
   if [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$CP_PORT/api/apps" || true)" == "200" ]]; then
@@ -86,8 +89,15 @@ case "$cmd" in
     call DELETE "/api/keys/$kid"
     ;;
   snapshot)
-    # What the gateway pulls. Digests, never secrets.
-    call GET /api/gateway/keys
+    # What the gateway pulls. Digests, never secrets. Unlike the /api/apps
+    # routes this one is spine-gated (requireSpineKey), and that check runs
+    # BEFORE the loopback fallback — so the key is required even from inside
+    # the container's netns whenever AIRTRAFFIC_SPINE_KEY is set.
+    SPINEKEY="${AIRTRAFFIC_SPINE_KEY:-}"
+    if [[ -z "$SPINEKEY" && -f .env ]]; then
+      SPINEKEY=$(sed -n 's/^AIRTRAFFIC_SPINE_KEY=//p' .env | tail -n1)
+    fi
+    SPINE_HDR="X-Air-Traffic-Key: $SPINEKEY" call GET /api/gateway/keys
     ;;
   *)
     sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'

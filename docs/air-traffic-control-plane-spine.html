@@ -622,8 +622,9 @@ footer { position: relative; z-index: 10; max-width: var(--wrap); margin: 6vh au
           <code>proxy_enforced</code> capabilities read &ldquo;gateway&#8209;only,&rdquo; not &ldquo;enforced,&rdquo; in Phase 1.</li>
         <li><b>Token volumes are labeled synthetic.</b> The slider value in §03 is illustrative; the
           green/amber/red thresholds it crosses are the catalog&rsquo;s real ones.</li>
-        <li><b>There is a sixth disposition.</b> Beyond the five, the catalog also uses <code>unsupported</code> for
-          a capability a vendor simply does not have &mdash; so the UI never invents one.</li>
+        <li><b>There is a sixth verdict.</b> Beyond the five dispositions a capability can carry, coverage
+          reconciliation reports <code>unsupported</code> for a control a vendor simply does not have
+          &mdash; so the UI never invents one.</li>
         <li><b><code>seed_only</code> is humility in code.</b> A managed default a user can override is
           <em>drift&#8209;detect only</em>. The UI is forbidden from rendering it as &ldquo;enforced&rdquo; &mdash; the rule you
           watched fire in §05.</li>

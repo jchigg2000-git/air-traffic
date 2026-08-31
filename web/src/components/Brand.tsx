@@ -1,5 +1,5 @@
-// Air-Traffic holding-pattern mark — the real logo-pack icon
-// (air-traffic-option-4-logo-pack/air-traffic-icon-dark.svg), inlined so it scales.
+// Air-Traffic holding-pattern mark — the same artwork as the app icons in
+// web/public/icons/, inlined as SVG so it scales.
 export default function Brand({ size = 26, withText = true }: { size?: number; withText?: boolean }) {
   return (
     <span className="inline-flex items-center gap-2.5">
