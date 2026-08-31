@@ -6,16 +6,16 @@ _Generated 2026-06-29 from Claude Code session logs + git history. Scope: the fi
 ## Build sequence
 | When (local, −05:00) | Phase | Trigger (commit / subject) |
 |---|---|---|
-| 2026-06-29 11:52 | Scaffold | `e251528` Initial commit |
-| 2026-06-29 17:20 | Spec/assets | `30caaf2` docs: Air-Traffic specs, executive PDFs, brand assets (69 files) |
-| 2026-06-29 17:37 | Plan | `d7934ef` docs: Phase 1 & Phase 2 build plans |
-| 2026-06-29 17:54 | Backend | `3bd5bda` feat: Phase 1 — synthetic byte-identical vendor control-surface backend |
-| 2026-06-29 18:09 | Frontend | `f404481` feat: Phase 2 — control & observability SPA (Flight Deck + config screens) |
-| 2026-06-29 18:35 | Polish | `2d8678a` feat(web): real logo-pack brand mark + favicon, settings gear |
-| 2026-06-29 18:55 | Feature | `ece88f2` feat(web): vendor pane fills height, per-row toggle, endpoint modal |
-| 2026-06-29 18:59 | Feature | `5a4dda9` feat(web): saving an endpoint flips the adapter to proxy mode |
-| 2026-06-29 19:20 | Feature | `1e480ae` feat: per-vendor proxy auth (top 6) + default roster (6 on/10 off) |
-| 2026-06-29 21:05 | Feature | `396e6ee` feat: cost & usage drill-down + Rigor Console preset narrative |
+| 2026-06-29 11:52 | Scaffold | `f6f81b0` Initial commit |
+| 2026-06-29 17:20 | Spec/assets | `bf86f4e` docs: Air-Traffic specs, executive PDFs, brand assets (69 files) |
+| 2026-06-29 17:37 | Plan | `3199b69` docs: Phase 1 & Phase 2 build plans |
+| 2026-06-29 17:54 | Backend | `31f4f30` feat: Phase 1 — synthetic byte-identical vendor control-surface backend |
+| 2026-06-29 18:09 | Frontend | `35e72c7` feat: Phase 2 — control & observability SPA (Flight Deck + config screens) |
+| 2026-06-29 18:35 | Polish | `b916ca8` feat(web): real logo-pack brand mark + favicon, settings gear |
+| 2026-06-29 18:55 | Feature | `2de0ab9` feat(web): vendor pane fills height, per-row toggle, endpoint modal |
+| 2026-06-29 18:59 | Feature | `0173791` feat(web): saving an endpoint flips the adapter to proxy mode |
+| 2026-06-29 19:20 | Feature | `0e86c35` feat: per-vendor proxy auth (top 6) + default roster (6 on/10 off) |
+| 2026-06-29 21:05 | Feature | `5968a83` feat: cost & usage drill-down + Rigor Console preset narrative |
 
 Build-sequence rows are anchored to git commits; session `first_prompt` records were mostly slash-commands (`/model`, `/clear`, `cd ..`) and added no usable trigger text beyond the commits.
 
@@ -44,7 +44,7 @@ Models: `claude-opus-4-8` (≈$152.95, 98% of spend) + `claude-sonnet-4-6` (≈$
 | Mid-level dev estimate | ~90 dev-days (~720 h) |
 | Actual active build time | 7h 3m |
 | Speed-up multiplier | ~100× |
-Assumptions: ~150 net committed lines/day including testing & debugging. **Caveat — treat the multiplier as an upper bound:** a large share of the 13.6K net lines is *not* hand-authored logic — `30caaf2` alone is 69 files of specs/PDFs/brand assets, and Phase 1 is explicitly "synthetic byte-identical" vendor fixtures. A scope-based estimate of the genuinely hand-written Go backend + React SPA would land lower, so the true speed-up is meaningfully under 100×; the number is reported transparently, not defended.
+Assumptions: ~150 net committed lines/day including testing & debugging. **Caveat — treat the multiplier as an upper bound:** a large share of the 13.6K net lines is *not* hand-authored logic — `bf86f4e` alone is 69 files of specs/PDFs/brand assets, and Phase 1 is explicitly "synthetic byte-identical" vendor fixtures. A scope-based estimate of the genuinely hand-written Go backend + React SPA would land lower, so the true speed-up is meaningfully under 100×; the number is reported transparently, not defended.
 
 ## Steering
 | Metric | Count |

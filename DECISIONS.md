@@ -396,7 +396,7 @@ work in `ROADMAP.md` §1, to be built against real API documentation.
 The 2026-08-07 fold entry recorded `docs/plans/phase-1-surface-collection.md` and
 `phase-2-frontend.md` as carrying stale `PLANNED` status headers, and `ROADMAP.md` repeated it.
 Both now read `Status: **BUILT** — this document is a build-history record of the plan as written,
-not open work` (`phase-1-surface-collection.md:9`, `phase-2-frontend.md:8`), corrected in 6a2eb27;
+not open work` (`phase-1-surface-collection.md:9`, `phase-2-frontend.md:8`), corrected in 7a4e36e;
 `phase-3-inference-gateway.md:3` has declared its built status since it was written. The 2026-08-07
 entry stands as written — this only records that the condition it described is gone, so no later
 pass re-opens it as drift. `ROADMAP.md` §1/§2/§3 remain the live status on any conflict.

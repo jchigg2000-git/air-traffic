@@ -46,7 +46,7 @@ budget) · Appendix
 >
 > **State:** everything below was **built and verified this pass** — full toolchain present
 > (go 1.26.5 then; `go.mod` has since pinned toolchain go1.26.7 to clear reachable stdlib CVEs,
-> 88ddcb7 — node 24.14.1, docker 29.5.3). `gofmt` clean, `go vet` clean, `go test -race ./...`
+> 6c2d936 — node 24.14.1, docker 29.5.3). `gofmt` clean, `go vet` clean, `go test -race ./...`
 > green, `npm run build` + the full **vitest suite** green (51 tests across 7 files at last count,
 > 2026-08-30; was 18 across 3), `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` **9/9** (recall_behavioral
 > 1.000, precision 0.991, trap FPs 0), compose stack rebuilt and healthy. The Rigor Console was
@@ -478,9 +478,9 @@ step staged two files to a local out-of-repo purgatory folder afterward (see tha
 for exact destinations):
 
 - `docs/handoff.md` (45 lines, folded into the §0 HISTORY block) —
-  `git show e4604d4:docs/handoff.md`
+  `git show 165b8df:docs/handoff.md`
 - `docs/plans/TODO-cost-drilldown.md` (60 lines, folded into §4 in full — nothing summarized away) —
-  `git show e4604d4:docs/plans/TODO-cost-drilldown.md`
+  `git show 165b8df:docs/plans/TODO-cost-drilldown.md`
 
 **Deliberately not folded / not migrated — kept as separate, standalone files, because other
 code or UI cites them by path** (folding would strand those citations):
@@ -494,7 +494,7 @@ code or UI cites them by path** (folding would strand those citations):
   `docs/plans/phase-3-inference-gateway.md` — all three linked directly from `README.md` as
   "Plans:" / "what shipped vs deferred" build-history records. All three now declare their built
   status in the doc itself (`phase-1-surface-collection.md:9`, `phase-2-frontend.md:8`,
-  `phase-3-inference-gateway.md:3`), corrected in 6a2eb27; this roadmap's §1/§2/§3 remain the live
+  `phase-3-inference-gateway.md:3`), corrected in 7a4e36e; this roadmap's §1/§2/§3 remain the live
   status and still win on any conflict, because they carry the open items those records don't track.
 - `docs/inference-gateway-design.md`, `docs/inference-gateway-build-plan.md` — reference/spec
   docs (README-linked as "Design:" / "sequencing:"); they reason about the gateway's architecture
@@ -515,4 +515,4 @@ code or UI cites them by path** (folding would strand those citations):
 - `BUILD_REPORT.md` — a different command's output, regenerated on its own cadence; never a fold
   target.
 - Trimmed to open set 2026-08-18 — 15 closed items, 4 history blocks deleted; full pre-trim file:
-  git show 5dafd447ef5a8e01e13587045a789630d264877b:ROADMAP.md
+  git show 3acf8cf3ab706590b7fdca7d63b63ee9daba2549:ROADMAP.md
