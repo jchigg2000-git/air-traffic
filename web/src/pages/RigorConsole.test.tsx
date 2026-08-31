@@ -176,3 +176,33 @@ describe('an attestation already in force', () => {
     expect(screen.getByRole('radio', { name: /Healthcare/ })).toHaveTextContent(/on your ZDR attestation/i)
   })
 })
+
+// The banner speaks for both queries at once, so it must not deny data the
+// other one delivered: with adapters down and baselines up, four profile cards
+// are on screen underneath it.
+describe('one query down, the other up', () => {
+  it('calls the feed stale instead of calling the page empty', async () => {
+    vi.resetModules()
+    vi.doMock('../lib/api.ts', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('../lib/api.ts')>()
+      return {
+        ...actual,
+        api: {
+          baselines: () => Promise.resolve({ baselines: BASELINES, zdr_attested: false }),
+          adapters: () => Promise.reject(new Error('adapters boom')),
+          gatewayRequests: () => Promise.resolve([]),
+          applyPolicy: vi.fn(),
+        },
+      }
+    })
+    const { default: HalfDownConsole } = await import('./RigorConsole.tsx')
+    renderPage(<HalfDownConsole />)
+
+    // Content that the banner would be denying.
+    expect(await screen.findByRole('radio', { name: /Healthcare/ })).toBeInTheDocument()
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/showing the last data received/)
+    expect(alert).not.toHaveTextContent(/no data has loaded yet/)
+    vi.doUnmock('../lib/api.ts')
+  })
+})

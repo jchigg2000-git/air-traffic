@@ -68,7 +68,7 @@ var (
 	// The same shapes embedded mid-value, for the places a credential rides
 	// inside a larger string instead of being one: a base_url's userinfo or
 	// query. The leading boundary keeps ordinary hostnames and paths out of it
-	// ("tasks-key.example.com" contains "sk-" but not at a boundary).
+	// ("risk-engine.example.com" contains "sk-" but not at a boundary).
 	embeddedSecret = regexp.MustCompile(`(^|[^A-Za-z0-9])(sk-|sk_live_|ghp_|gho_|github_pat_|AKIA|ASIA|xoxb-|ya29\.)`)
 )
 

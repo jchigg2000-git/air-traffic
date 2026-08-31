@@ -47,8 +47,8 @@ budget) · Appendix
 > **State:** everything below was **built and verified this pass** — full toolchain present
 > (go 1.26.5 then; `go.mod` has since pinned toolchain go1.26.7 to clear reachable stdlib CVEs,
 > 6c2d936 — node 24.14.1, docker 29.5.3). `gofmt` clean, `go vet` clean, `go test -race ./...`
-> green, `npm run build` + the full **vitest suite** green (51 tests across 7 files at last count,
-> 2026-08-30; was 18 across 3), `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` **9/9** (recall_behavioral
+> green, `npm run build` + the full **vitest suite** green (61 tests across 10 files at last count,
+> 2026-08-31; was 18 across 3), `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` **9/9** (recall_behavioral
 > 1.000, precision 0.991, trap FPs 0), compose stack rebuilt and healthy. The Rigor Console was
 > also **opened in a real browser** (headless Chromium) and its screenshots are in `docs/images/` —
 > that is the OWED-2 class of verification, done for this change at least.
@@ -107,9 +107,10 @@ budget) · Appendix
   and cannot go false — a violation of that page's own Correctness axis. Bind them to
   `/api/gateway/status` and the observation feed, or make them visibly static. The bar is that
   `/welcome` must not lose visual quality in the process. (This page was last shaped through a
-  local `/ratchet-up` ledger under `.claude/ratchet-up/`, which is gitignored and not part of
-  the published repo — see `DECISIONS.md` 2026-08-15 "Flight Deck: an element may not claim
-  liveness it cannot disprove", scope ruling 2.)
+  local `/ratchet-up` ledger under `.claude/ratchet-up/`, now gitignored and gone from the working
+  tree but still in the published history, since it was tracked until the release-prep commit —
+  see `DECISIONS.md` 2026-08-15 "Flight Deck: an element may not claim liveness it cannot
+  disprove", scope ruling 2.)
 - ⬜ **PHASE2-3b** Residual, non-blocking: `web/src/components/VendorGlyph.tsx` brand hues for
   bedrock/mistral/m365/groq (`#FF9900`, `#FA520F`, `#D83B01`, `#F55036`) sit in the same band as
   `--amber`/`--unverified`, so a decorative glyph can camouflage a real status dot in the same
@@ -258,14 +259,16 @@ Gateway Traffic page and the keystore.**
 
 ### §7.2 Tier 0 — instrumentation preconditions (cheap, no decision needed)
 
-- ⬜ **PIVOT-2** **Record the eight silent exits in `proxyRequest`.** `s.record()` fires at only 3
-  of 11 exits (`internal/gateway/proxy.go:245`, `:256`, `:325`). Auth failure (`:89`), no upstream
-  (`:172`), oversized body (`:178`), bad JSON (`:206`), mask failure (`:265`), credential
-  resolution failure (`:279`), request-build failure (`:286`) and upstream unreachable (`:298`) all
-  return with zero rows and zero metrics (`metrics.observe` is reachable only via `record`,
-  `internal/gateway/audit.go:66-67`). The heartbeat keeps beating on its own timer claiming
-  enforcement throughout. **A route failing 100% of requests is indistinguishable from an idle
-  one** — and compose ships `HF_UPSTREAM_TOKEN` with no default by design
+- ⬜ **PIVOT-2** **Record the nine silent exits on the proxy path.** Counted 2026-08-31,
+  `s.record()` fires at 3 of the 12 ways a request leaves `internal/gateway/proxy.go`: the
+  fail-closed detector abort, the policy block, and the success path. Auth failure (in
+  `requireClientKey`, one frame up), no upstream for the route, oversized body, bad JSON,
+  mask-rewrite failure, credential resolution failure, unusable upstream base URL, request-build
+  failure and upstream unreachable all return with zero rows and zero metrics (`metrics.observe`
+  is reachable only via `record`, `internal/gateway/audit.go:66-67`). Those counts are as-of, not
+  live — grep `d.writeErr(` for the current set. The heartbeat keeps beating on its own timer
+  claiming enforcement throughout. **A route failing 100% of requests is indistinguishable from
+  an idle one** — and compose ships `HF_UPSTREAM_TOKEN` with no default by design
   (`DECISIONS.md` 2026-08-15), so that is the likeliest real failure. Lands FIRST: every rate in
   §7.4 is otherwise computed over a denominator missing an entire failure class.
 - ⬜ **PIVOT-3** **Heartbeat carries effective action + pulled policy/pack/keystore versions + a
@@ -296,8 +299,9 @@ Gateway Traffic page and the keystore.**
   instruction — it gates only §7.4's PIVOT-9 remedy path, which is itself agent-proposed.)
 - ⬜ **PIVOT-8** **Make an `allow_list` Approve look different from an additive Approve.** Today the
   irreversible button is byte-identical in size, colour and position to the reversible one
-  (`web/src/pages/GatewayHarness.tsx:441`), under a header reading *"human-approved only — nothing
-  auto-applies"* — reassurance where a warning belongs.
+  (the `decide(p, 'approve')` button in `web/src/pages/GatewayHarness.tsx`, `:464` as of
+  2026-08-31), under a header reading *"human-approved only — nothing auto-applies"* —
+  reassurance where a warning belongs.
 - ⬜ **PIVOT-8a** **Surface that the Vendors "Enabled" toggle blinds drift detection.**
   `internal/policy/drift.go:17` and `:56` exclude disabled adapters from *both* drift loops, so
   flipping one of sixteen bare switches silently stops divergence detection for that vendor with no
@@ -357,7 +361,7 @@ are **latency and success**.
   (`internal/gateway/spine_pull.go:110-112`) — the gateway keeps enforcing while the control plane
   believes nothing is applied, and nothing compares them. `gatewayDrift`'s `expected` flips false
   (`internal/policy/drift.go:49-52`), *silencing the one check that would have noticed*. When the
-  gateway later restarts it falls to `actionMask` (`proxy.go:148`) — a third posture matching
+  gateway later restarts it falls to `actionMask` (`proxy.go:158`) — a third posture matching
   neither belief. Detection needs no persistence: policy nil + a gateway reporting a non-default
   enforcing action = one comparison, one drift record. Pairs with the policy-persistence work
   ratified in `DECISIONS.md` 2026-08-15 — **persistence and heartbeat version-reporting land

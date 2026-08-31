@@ -302,6 +302,11 @@ export interface RunScore {
   by_engine: Record<string, number>
   joined_reports: number
   orphan_requests: number
+  /** Seeded values held out of recall_behavioral: the request was neither
+   *  blocked nor joined to an upstream capture, so nothing is known about
+   *  whether they leaked. Non-zero means recall_behavioral covers only part of
+   *  the run — and when it covers none of it, the figure is 0, not 1. */
+  capture_orphans: number
 }
 
 export interface HarnessRun {
@@ -353,6 +358,12 @@ export interface RatchetPoint {
   recall_behavioral: number
   request_count: number
   seed: number
+  /**
+   * Non-zero means this point's recall_behavioral was scored over an incomplete
+   * capture set — unverified, not a detection collapse. Mirrors
+   * model.RatchetPoint.CaptureOrphans; see RunScore.capture_orphans.
+   */
+  capture_orphans: number
 }
 
 export interface CorpusEntry {

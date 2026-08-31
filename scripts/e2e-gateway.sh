@@ -121,11 +121,17 @@ curl -sf http://$CP/api/harness/runs/$RUN_ID | python3 -c '
 import json, sys
 run = json.load(sys.stdin)["run"]
 s = run["score"]
-print("  status=%s recall_behavioral=%.3f precision=%.3f trap_fps=%d orphans=%d promoted=%d"
-      % (run["status"], s["recall_behavioral"], s["precision"], s["trap_fps"], s["orphan_requests"], run["promoted_count"]))
+print("  status=%s recall_behavioral=%.3f precision=%.3f trap_fps=%d orphans=%d capture_orphans=%d promoted=%d"
+      % (run["status"], s["recall_behavioral"], s["precision"], s["trap_fps"], s["orphan_requests"],
+         s["capture_orphans"], run["promoted_count"]))
 assert run["status"] == "done"
 assert s["trap_fps"] == 0, "traps fired"
 assert s["orphan_requests"] == 0, "join incomplete"
+# A seeded value whose request was neither blocked nor captured leaves the
+# behavioral-recall denominator entirely (internal/harness/score.go), so any
+# capture orphan means recall was scored over only the part that joined. Gate
+# on it or a run that captured almost nothing still reports a clean recall.
+assert s["capture_orphans"] == 0, "recall scored over an incomplete capture set"
 '
 check "harness run scored" "true"
 

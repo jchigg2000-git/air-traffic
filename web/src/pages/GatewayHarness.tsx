@@ -68,8 +68,9 @@ function Chip({ ok, label }: { ok: boolean; label: string }) {
   )
 }
 
-function ScoreCard({ label, value, tone }: { label: string; value: string; tone?: 'good' | 'bad' | 'plain' }) {
-  const color = tone === 'good' ? 'var(--green)' : tone === 'bad' ? 'var(--red)' : 'var(--fg)'
+function ScoreCard({ label, value, tone }: { label: string; value: string; tone?: 'good' | 'bad' | 'plain' | 'unverified' }) {
+  const color =
+    tone === 'good' ? 'var(--green)' : tone === 'bad' ? 'var(--red)' : tone === 'unverified' ? 'var(--unverified)' : 'var(--fg)'
   return (
     <div className="panel-2 px-3 py-2">
       <div className="text-xl font-semibold tabular-nums" style={{ color }}>{value}</div>
@@ -187,14 +188,18 @@ export default function GatewayHarness() {
       {/* status strip — every chip here reports the DATA plane, so none of them may
           speak while the control plane that reports on it is unreachable. */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
+        {/* The dot and the label read off the same fact: what the last status
+            response said. Gating the label on gateway.error instead put a GREEN
+            dot under the words "gateway status unknown" whenever a refetch
+            failed over data that was still on screen. */}
         <Chip
           ok={!!freshGateway}
           label={
-            gateway.error
-              ? 'gateway status unknown'
-              : freshGateway
-                ? `gateway ${freshGateway.gateway_id} · ${freshGateway.action}`
-                : 'no fresh gateway heartbeat'
+            freshGateway
+              ? `gateway ${freshGateway.gateway_id} · ${freshGateway.action}`
+              : gateway.data
+                ? 'no fresh gateway heartbeat'
+                : 'gateway status unknown'
           }
         />
         {freshGateway && <Chip ok label={`detectors: ${detectorChain}`} />}
@@ -204,7 +209,9 @@ export default function GatewayHarness() {
           All values on this screen are synthetic by construction — displaying them is safe. Retune in v0 = pattern packs, not model training.
         </span>
       </div>
-      {!freshGateway && !gateway.error && (
+      {/* Only say this once a status response has actually reported no fresh
+          gateway — with nothing loaded, this screen knows nothing either way. */}
+      {gateway.data && !freshGateway && (
         <div className="mb-4 panel p-3 text-xs text-muted">
           Start the data plane first: <code className="font-mono">go run ./cmd/air-traffic-gateway</code> (see docs/plans/phase-3-inference-gateway.md for env).
         </div>
@@ -351,12 +358,32 @@ export default function GatewayHarness() {
         <div className="mb-5 panel p-4">
           <h3 className="mb-3 text-sm font-semibold">Score</h3>
           <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
-            <ScoreCard label="recall (behavioral)" value={pct(score.recall_behavioral)} tone={score.recall_behavioral >= 0.95 ? 'good' : 'bad'} />
+            {/* Orphaned values are excluded from the denominator server-side
+                (model.RunScore.CaptureOrphans), so a run where nothing joined
+                scores 0.0 — a red number that reads as total failure when the
+                truth is that nothing was measured. Say that instead. */}
+            {score.capture_orphans > 0 ? (
+              <ScoreCard
+                label={`recall (behavioral) · ${score.capture_orphans} unjoined`}
+                value="unverified"
+                tone="unverified"
+              />
+            ) : (
+              <ScoreCard label="recall (behavioral)" value={pct(score.recall_behavioral)} tone={score.recall_behavioral >= 0.95 ? 'good' : 'bad'} />
+            )}
             <ScoreCard label="recall (reported)" value={pct(score.recall_reported)} />
             <ScoreCard label="precision" value={pct(score.precision)} tone={score.precision >= 0.97 ? 'good' : 'bad'} />
             <ScoreCard label="trap FPs" value={String(score.trap_fps)} tone={score.trap_fps === 0 ? 'good' : 'bad'} />
             <ScoreCard label="join coverage" value={`${score.joined_reports}/${score.joined_reports + score.orphan_requests}`} />
           </div>
+          {score.capture_orphans > 0 && (
+            <p className="mb-4 text-[11px] leading-relaxed" style={{ color: 'var(--unverified)' }}>
+              {score.capture_orphans} seeded value{score.capture_orphans === 1 ? '' : 's'} on unblocked requests never
+              joined an upstream capture, so nothing is known about whether that data reached the vendor. Values in
+              that state are held out of behavioral recall rather than counted as caught, which is why this run reads
+              as unverified instead of scored. The join-coverage card counts gateway reports — a different join.
+            </p>
+          )}
           <table className="w-full text-left text-xs">
             <thead className="text-[10px] uppercase tracking-wide text-faint">
               <tr><th className="pb-1">type</th><th>tp</th><th>fn</th><th>fp</th><th>behavioral misses</th></tr>

@@ -1,5 +1,5 @@
 # Build Report — air-traffic, day one
-_Generated 2026-06-29 from Claude Code session logs + git history. Scope: the first day only — commits 1–10 of the 36 now on `main`, 148 of 208 tracked files. Everything built after 2026-06-29 (the inference gateway, the redaction harness, the flywheel) is outside this report and is not counted anywhere below._
+_Generated 2026-06-29 from Claude Code session logs + git history. Scope: the first day only — the first ten commits on `main`, ending at `5968a83`, and the 148 files tracked as of that commit. Everything built after 2026-06-29 (the inference gateway, the redaction harness, the flywheel) is outside this report and is not counted anywhere below._
 
 **At a glance:** the day-one build ran ~7.1 active hours across 5 sessions for ~$155. Data is complete for that window — live transcripts and git history both present; no archive logs and no repo rename detected. The speed-up multiplier under **Human-effort equivalent** is the one number here that does not hold up; it is kept with its own caveat rather than quoted at the top.
 

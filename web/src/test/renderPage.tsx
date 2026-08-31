@@ -5,16 +5,19 @@ import { MemoryRouter } from 'react-router-dom'
 import type { Baseline } from '../lib/api.ts'
 
 // Console pages need a router and a query client. Retries off so a rejected
-// query surfaces its error state immediately instead of after backoff.
+// query surfaces its error state immediately instead of after backoff. The
+// client comes back with the render result so a test can drive a refetch — the
+// only way to reach the state where a query holds data AND an error.
 export function renderPage(ui: ReactElement) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   })
-  return render(
+  const result = render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>{ui}</MemoryRouter>
     </QueryClientProvider>,
   )
+  return Object.assign(result, { qc })
 }
 
 /** The four shipped baselines, carrying the server-derived gateway actions. */

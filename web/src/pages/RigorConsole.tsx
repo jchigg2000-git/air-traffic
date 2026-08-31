@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, qk, type Adapter, type Baseline, type CoverageReport } from '../lib/api.ts'
+import { api, ApiError, qk, type Adapter, type Baseline, type CoverageReport } from '../lib/api.ts'
 import PageHeader from '../components/PageHeader.tsx'
 import Modal from '../components/Modal.tsx'
 import { dispMeta } from '../lib/dispositions.ts'
@@ -224,7 +224,10 @@ export default function RigorConsole() {
         }
       />
 
-      <ApiStateBanner error={baselines.error || adapters.error} hasData={!!baselines.data && !!adapters.data} className="mb-4" />
+      {/* Either query alone puts content on screen — profile cards from baselines,
+          the coverage bars from adapters — so `&&` here had the banner denying data
+          the operator was looking at. */}
+      <ApiStateBanner error={baselines.error || adapters.error} hasData={!!baselines.data || !!adapters.data} className="mb-4" />
 
       {/* profile selector */}
       {(baselines.isLoading || adapters.isLoading) && (
@@ -451,9 +454,27 @@ function ApplyConfirmation({
           </p>
         )}
 
-        <ApiStateBanner error={error} hasData />
+        {error != null && <ApplyError error={error} />}
       </div>
     </Modal>
+  )
+}
+
+// A failed Apply is not one failure. A 401 means the control plane answered —
+// asking whether it is running on :8122 sends the operator to check a process
+// that is plainly up, when what is missing is the operator key. The three
+// branches say only what each status actually establishes.
+function ApplyError({ error }: { error: unknown }) {
+  const status = error instanceof ApiError ? error.status : 0
+  return (
+    <div className="panel border-red/40 px-4 py-3 text-sm text-red" role="alert">
+      {status === 401
+        ? 'Rejected before anything was applied: this control plane requires the operator key. Set it under Operator key in the sidebar, then apply again.'
+        : status > 0
+          ? `The control plane answered ${status} — no coverage report came back. Check the audit trail before re-applying.`
+          : 'Could not reach the control plane (is the server running on :8122?).'}{' '}
+      <span className="text-xs text-muted">{String(error)}</span>
+    </div>
   )
 }
 

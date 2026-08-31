@@ -1,5 +1,7 @@
 # air-traffic
 
+[![CI](https://github.com/jchigg2000-git/air-traffic/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jchigg2000-git/air-traffic/actions/workflows/ci.yml)
+
 **Enterprise AI Control Plane** — a unified control + observability *spine* across every
 major AI vendor.
 
@@ -10,7 +12,7 @@ major AI vendor.
 > list, guardrail and dollar figure you see is generated locally. What is real is the shape:
 > the API surfaces, the error envelopes, the policy engine, the emitted signal contract — and
 > the **inference gateway**, whose redaction runs on real request bytes and is measured
-> behaviourally rather than asserted. Treat this as a working spec and a testbed for the
+> behaviorally rather than asserted. Treat this as a working spec and a testbed for the
 > integration, not as a production integration. The vendor names and marks used throughout
 > belong to their respective owners; this project is not affiliated with or endorsed by any
 > of them.
@@ -23,7 +25,21 @@ sits on the request path is the **optional inference gateway**, a separate data-
 (`cmd/air-traffic-gateway`, Phase 3 below) that redacts PII/PHI inline and is what makes the
 `proxy_enforced` disposition true.
 
-## Phase 1 (this) — synthetic byte-identical backend
+## Quickstart
+
+```bash
+docker compose up -d --build                 # control plane :8122 + gateway :8125 + Presidio :8126
+open http://127.0.0.1:8122/settings/harness  # the SPA is baked into the image; Flight Deck is at /
+```
+
+![The Gateway Harness readout: try-a-prompt redaction diff, run configuration, behavioral score
+card, recall ratchet series, flywheel pattern proposals, per-request misses and the promoted
+corpus](docs/images/gateway-harness-readout.png)
+
+Compose falls back to throwaway keys, so that is the whole setup. The screen above is the redaction
+harness — what it measures, and how, is Phase 3 below.
+
+## Phase 1 — synthetic byte-identical backend
 
 Go (stdlib only, zero deps). Serves a synthetic replica of each vendor's admin/control surface
 plus the control-plane API and the background emitter.
@@ -32,21 +48,20 @@ plus the control-plane API and the background emitter.
 fixture shaped to that vendor's documented response — same envelope, same field names, same
 pagination keys — so a client written against the real API parses it unchanged. It is *not*
 verified against a captured live response; nothing in this repo diffs the two, because that
-would need credentials the project deliberately does not hold. The other nine answer from a
-generic envelope that is correctly shaped and labelled as such (see the table below).
+would need credentials the project deliberately does not hold. The other nine are covered below.
 
 ```bash
-# run the API + synthetic surfaces + emitter (port 8122)
+# API + synthetic surfaces + emitter (port 8122) — JSON only until `web/dist` exists, which is
+# gitignored: `cd web && npm run build` writes it and the same binary then serves the SPA
 go run ./cmd/air-traffic-server
 
 # tests
 go test ./...
 ```
 
-CI (`.github/workflows/ci.yml`) runs on every push and PR: Go gofmt + vet + build +
-`test -race`, a stdlib-only guard (the build fails if a `go.sum` ever appears), the
-redaction log-leak guard as its own job, the web typecheck/build/vitest suite, and both
-Docker image targets.
+CI (`.github/workflows/ci.yml`, badge above) runs four jobs on every push and PR: Go gofmt, vet,
+build and `test -race` plus a stdlib-only guard (the build fails if a `go.sum` ever appears), the
+redaction log-leak guard on its own, web typecheck/build/vitest, and both Docker targets.
 
 Env: `AIRTRAFFIC_ADDR` (default `127.0.0.1:8122`), `AIRTRAFFIC_EMIT` (`on`),
 `AIRTRAFFIC_EMIT_INTERVAL_SECONDS` (`5`).
@@ -56,7 +71,7 @@ Env: `AIRTRAFFIC_ADDR` (default `127.0.0.1:8122`), `AIRTRAFFIC_EMIT` (`on`),
 Tier is the *research* depth of the capability manifest; **fidelity** is what the synthetic
 replica actually returns, and the two are not the same thing. Seven vendors have a dedicated
 byte-identical fixture; the rest answer from a generic envelope
-(`internal/synthetic/errors.go` `genericFixture`) that is correctly shaped and honestly labelled
+(`internal/synthetic/errors.go` `genericFixture`) that is correctly shaped and honestly labeled
 rather than vendor-exact. That gap is stated here rather than rounded up — the manifests, error
 envelopes, cost facets and emitted signal are real for all sixteen.
 
@@ -312,16 +327,13 @@ misses → promoted corpus → curated pattern proposals → human approval → 
 restart) → re-run → the ratchet climbs. Everything is local — synthetic traffic, self-hosted
 NER, no cloud inference or compute.
 
-![The Gateway Harness readout: try-a-prompt redaction diff, run configuration, behavioral score
-card, recall ratchet series, flywheel pattern proposals, per-request misses and the promoted
-corpus](docs/images/gateway-harness-readout.png)
-
-*One 200-request run: **100.0% behavioral recall** (99.0% *reported* recall — the gap between the
-two is the honesty check), 97.7% precision, 0 trap false positives. Read
-it top to bottom — a live prompt masked mid-flight (`Jane Doe` → `[PERSON_NAME]`, SSN → `[SSN]`)
-with what the upstream actually received beside what was sent; the per-type TP/FN/FP table; the
-ratchet's run-over-run history; and the flywheel's pattern proposals, which are* human-approved
-only — nothing auto-applies. *An annotated walkthrough of the same screen is at
+*The readout at the top of this README is one 200-request run: **100.0% behavioral recall**
+(99.0% *reported* recall — the gap between the two is the honesty check), 97.7% precision, 0 trap
+false positives. Read it top to bottom — a live prompt masked mid-flight (`Jane Doe` →
+`[PERSON_NAME]`, SSN → `[SSN]`) with what the upstream actually received beside what was sent;
+the per-type TP/FN/FP table; the ratchet's run-over-run history; and the flywheel's pattern
+proposals, which are* human-approved only — nothing auto-applies. *An annotated walkthrough of
+the same screen is at
 [`docs/images/gateway-harness-readout-annotated.png`](docs/images/gateway-harness-readout-annotated.png),
 and the concepts behind it are explained without jargon in
 [`docs/inference-gateway-eli5.md`](docs/inference-gateway-eli5.md).*
@@ -352,7 +364,7 @@ The first call returns the mock upstream's reply and tells you nothing — the r
 on the way out, so the response looks the same either way. The second is the evidence:
 `"body"` is the request bytes as the upstream saw them, and it reads
 `Wire it to SSN [SSN], callback [PHONE]`. Proving redaction by inspecting what the far side
-received, rather than trusting the proxy's own report of itself, is the same behavioural standard
+received, rather than trusting the proxy's own report of itself, is the same behavioral standard
 the harness scores against.
 
 What you give up by skipping Presidio, stated plainly: the regex tier recognizes exactly eight

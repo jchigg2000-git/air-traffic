@@ -1,13 +1,16 @@
 // Branded monogram chips — deliberately NOT counterfeit vendor logos; the chip carries
 // the brand colour and the initials stay honest about not being the real marks.
 //
-// The initials are NOT drawn in the raw brand colour. In each theme only two of the
-// sixteen clear 4.5:1 at 11px against their own 18% tint — #FF9900 is 1.9:1 in light,
+// The initials are NOT drawn in the raw brand colour. Measured over the hero gradient,
+// the worst backdrop, only two of the sixteen clear 4.5:1 at 11px against their own 18%
+// tint in either theme (over the flatter panel backdrop dark gets a third, anthropic, at
+// 4.50:1 — which is why the numbers below are quoted against the hero). #FF9900 is 1.9:1 in light,
 // #1A1A1A is 1.0:1 in dark — so the text is mixed toward the theme foreground, which
-// darkens it in light and lightens it in dark off one number. 45% is the most brand that
-// clears 4.5:1 for every entry in both themes; the worst case is 4.76:1 (bedrock and
-// amazon_q, light, over the hero gradient). Per-vendor `fg` overrides were the previous
-// attempt: each one fixed one theme and broke the other.
+// darkens it in light and lightens it in dark off one number. The ceiling is 47% (worst
+// entry 4.53:1); 48% drops it to 4.41:1 and fails. The mix is 45% — two points of
+// deliberate headroom, worst case 4.76:1 (bedrock and amazon_q, light, over the hero
+// gradient). Per-vendor `fg` overrides were the previous attempt: each one fixed one
+// theme and broke the other.
 
 const BRAND: Record<string, { c: string; mark: string }> = {
   openai: { c: '#10A37F', mark: 'ai' },

@@ -167,6 +167,10 @@ code{font-family:var(--font-mono)}
 .deck td{padding:10px 14px;border-bottom:1px solid var(--line);color:var(--muted)}
 .deck tr:last-child td{border-bottom:0}
 .deck td.v{color:var(--fg);font-weight:600}
+/* .deck clips with overflow:hidden to keep its rounded corners, and under
+   ~560px the table's min-content width beats the viewport — the right-hand
+   columns were cut with no way to reach them. */
+.tscroll{overflow-x:auto}
 .deck .wm{font-weight:800;letter-spacing:-.02em}
 .pill{display:inline-block;font:700 10px var(--font-mono);padding:3px 8px;border-radius:99px;border:1px solid}
 .pill.ok{color:var(--native);border-color:rgba(22,163,74,.35);background:rgba(22,163,74,.09)}
@@ -279,6 +283,7 @@ code{font-family:var(--font-mono)}
 <div class="hero">
 <div class="deck">
 <div class="bar"><span class="gdot"></span>Air-Traffic · Flight Deck<span class="right">policy: Fintech 🔒🔒 · 16 vendors · synced 12s ago</span></div>
+<div class="tscroll">
 <table>
 <tr><th>Vendor</th><th>Policy</th><th>Strongest control</th><th>Spend MTD</th><th>Drift</th></tr>
 <tr><td class="v"><span class="wm" style="color:#0D0D0D">OpenAI&nbsp;</span></td><td><span class="pill ok">✓ synced</span></td><td>Spend alerts + audit <span class="b native">Native</span></td><td>$11.2K</td><td>none</td></tr>
@@ -288,6 +293,7 @@ code{font-family:var(--font-mono)}
 <tr><td class="v"><span class="wm" style="color:#6E7681">Copilot&nbsp;</span>GitHub Copilot</td><td><span class="pill ok">✓ synced</span></td><td>Review gate <span class="b env">Env</span></td><td>seats</td><td>none</td></tr>
 <tr><td class="v"><span class="wm" style="color:#4285F4">Gemini&nbsp;</span>Google Vertex</td><td><span class="pill wn">⚠ 1 gap</span></td><td>Model Armor <span class="b native">Native</span></td><td>$1.9K</td><td>safety unset</td></tr>
 </table>
+</div>
 </div>
 <div class="kpis"><div class="kpi"><div class="n">16</div><div class="l">vendors &amp; agent platforms, one plane</div></div><div class="kpi"><div class="n">1</div><div class="l">policy, ledger &amp; audit trail</div></div><div class="kpi"><div class="n">0</div><div class="l">controls rendered as "enforced" that aren't — a seed-only control can never claim it</div></div><div class="kpi"><div class="n">5 min</div><div class="l">to apply a baseline everywhere</div></div></div>
 </div>

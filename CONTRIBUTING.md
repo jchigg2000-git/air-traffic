@@ -40,14 +40,17 @@ go test -race ./...
 
 cd web
 npm ci
+npm audit --omit=dev --audit-level=high   # production tree only; a dev advisory is not a gate
 npm run build       # tsc --noEmit && vite build
 npm test            # vitest run
 ```
 
-All of it should be clean. `.github/workflows/ci.yml` runs exactly this in four jobs — `go`,
-`log-leak-guard`, `web`, `docker` — so anything that fails locally fails there too. The Go tests
-need no network, no database and no Docker; the ones that exercise the gateway stand up their own
-listeners on ephemeral ports.
+All of it should be clean. `.github/workflows/ci.yml` runs those same commands across four jobs —
+`go`, `log-leak-guard`, `web`, `docker` — plus three checks you cannot run as a one-liner: a guard
+that fails the build if a `go.sum` appears, the redaction log-leak test as its own signal, and both
+Docker image targets. Anything that fails locally fails there too. The Go tests need no network, no
+database and no Docker; the ones that exercise the gateway stand up their own listeners on
+ephemeral ports.
 
 The Go floor is whatever `go.mod` says, currently **go 1.26** with the toolchain pinned to
 **go1.26.7** — the pin is deliberate and is there to pick up stdlib security fixes, so don't relax
@@ -59,9 +62,10 @@ deploy/presidio/docker-compose.yml up -d` brings up the NER tier alone. Neither 
 
 ## Getting it running
 
-See the Quickstart in [README.md](README.md). Short version: `go run ./cmd/air-traffic-server` and
-open <http://127.0.0.1:8122/>. For the SPA in dev, `cd web && npm install && npm run dev` on
-:5202. For the whole stack including the inference gateway, `docker compose up -d --build`.
+See the Quickstart in [README.md](README.md). Short version: `docker compose up -d --build`, then
+open <http://127.0.0.1:8122/>. `go run ./cmd/air-traffic-server` serves the API only until
+`cd web && npm run build` writes the gitignored `web/dist`; for the SPA in dev, `npm run dev` on
+:5202.
 
 You need no credential of any kind to run the control plane, the synthetic surfaces, the SPA or
 the test suite. The only thing that ever wants a real vendor key is the inference gateway pointed
@@ -76,7 +80,7 @@ A few things about this codebase are deliberate and will look like bugs if you d
 
 **The backend is synthetic, and that is the product rather than a placeholder.** Nothing in the
 control plane makes an outbound call to a vendor. `/synthetic/{vendor}/{native-path}` serves a
-replica the binary hosts itself — a hand-written fixture for seven vendors, a labelled generic
+replica the binary hosts itself — a hand-written fixture for seven vendors, a labeled generic
 envelope for the other nine — and adapter `proxy` mode is a deliberate stub
 that returns `501 proxy_not_normalized` (`internal/synthetic/synthetic.go`). A change that gives
 an adapter a real network path is a conversation before it is a pull request. The one component
@@ -104,7 +108,7 @@ because live source cites them by path; keep them current in place.
 before a port is bound (`internal/gateway/config/config.go`). This is why the config is more
 ceremonious than it first appears; don't simplify it by accepting an inline key.
 
-**Redaction is proven behaviourally, not asserted.** The harness sends seeded synthetic PII
+**Redaction is proven behaviorally, not asserted.** The harness sends seeded synthetic PII
 through the gateway and then checks what the *upstream capture actually received* — a test that
 only inspects the gateway's own report of itself proves nothing. The matching guarantee, that a
 redacted value never reaches a log line or the audit stream, has its own CI job

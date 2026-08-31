@@ -820,7 +820,7 @@ spine.
   hard caps need Redis cross-pod counters with a DB fail-closed mode — a hard cap that silently
   fails open is worse than no cap because it reads as enforced.
 
-- **Identity & secrets stop at two shared keys.** Administration takes a loopback caller or `AIRTRAFFIC_ADMIN_KEY`, the spine routes take `AIRTRAFFIC_SPINE_KEY` (§12) — and that is the whole of it. There is no IdP integration and so no per-user identity, no roles, and no attribution of an admin action to a person; there is no KMS integration and no `internal/identity`/`internal/secrets` package, so distribution-channel credentials are held by reference only and never resolved. Production needs a real IdP + KMS at the hardening phase (§10 lists both as intended-not-built).
+- **Identity & secrets stop at two shared keys.** Keystore administration takes a loopback caller or `AIRTRAFFIC_ADMIN_KEY` (`requireLocalAdmin`); every other write route takes that key alone — `requireAdminWrite` never looks at the caller's address, so with the key unset those writes are open to whoever can reach the port (SECURITY.md). The spine routes take `AIRTRAFFIC_SPINE_KEY` (§12) — and that is the whole of it. There is no IdP integration and so no per-user identity, no roles, and no attribution of an admin action to a person; there is no KMS integration and no `internal/identity`/`internal/secrets` package, so distribution-channel credentials are held by reference only and never resolved. Production needs a real IdP + KMS at the hardening phase (§10 lists both as intended-not-built).
 
 ---
 

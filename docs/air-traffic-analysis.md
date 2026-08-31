@@ -448,9 +448,9 @@ Air-Traffic organizes every control and observable into three planes. Each plane
 | Control | Stub | Notes |
 |---|---|---|
 | Seat management (assign/revoke) | VendorNative | `GET /enterprises/{enterprise}/copilot/billing/seats`; `POST/DELETE /orgs/{org}/copilot/billing/selected_users` |
-| Feature policy controls (Chat, CLI, Cloud Agent, Extensions) | VendorNative (portal only) | Enterprise AI Controls tab; **no documented REST API for policy toggles** — portal-only confirmed |
-| Model selection policy | VendorNative (portal) | Enterprise configures available models via AI Controls tab; no confirmed REST API |
-| MCP server policy | VendorNative (portal) | MCP section in AI Controls tab (GA); controls MCP in Copilot; **does NOT govern GitHub MCP server in third-party host apps** |
+| Feature policy controls (Chat, CLI, Cloud Agent, Extensions) | MonitorOnly | Enterprise AI Controls tab; **no documented REST API for policy toggles** — portal-only confirmed, so the posture can be verified but not set |
+| Model selection policy | MonitorOnly | Enterprise configures available models via AI Controls tab; no confirmed REST API |
+| MCP server policy | EnvManaged | MCP section in AI Controls tab (GA); controls MCP in Copilot; **does NOT govern GitHub MCP server in third-party host apps**. Carried as a registry-only allow-list (`mcp_allow_deny`, server-side), not driven over an admin API |
 | Content exclusions (file/repo paths) | VendorNative | Full REST API: `GET/PUT /enterprises/{enterprise}/copilot/content_exclusion`; also `GET/PUT /orgs/{org}/copilot/content_exclusion`; repo + file path glob patterns |
 | Agentic code-review level / test gate | EnvManaged | GitHub branch protection (required reviewers) + required status checks (test-coverage gate) — config, not a Copilot setting |
 
@@ -500,10 +500,10 @@ Air-Traffic organizes every control and observable into three planes. Each plane
 | Control | Stub | Notes |
 |---|---|---|
 | License assignment | VendorNative | Microsoft 365 Admin Center + Graph API group-based licensing: `POST /groups/{id}/assignLicense` |
-| App-level Copilot toggle | VendorNative (portal) | M365 Admin Center: enable/disable Copilot per app (Teams, Word, Excel, Outlook); no confirmed Graph API for per-app toggles |
+| App-level Copilot toggle | MonitorOnly | M365 Admin Center: enable/disable Copilot per app (Teams, Word, Excel, Outlook); no confirmed Graph API for per-app toggles |
 | Copilot Studio agents governance | VendorNative | Copilot Studio admin center: approve/block custom agents; security and governance docs |
 | Plugin/extension policy | Unverified | Audit logs show `CreatePlugin`/`DeletePlugin`; REST API for plugin policy management not confirmed |
-| Web search enablement | VendorNative (portal) | Configurable in M365 Admin Center; API status unverified |
+| Web search enablement | Unverified | Configurable in M365 Admin Center; no admin API confirmed, so it is not claimed as natively driven |
 | MCP integration controls | Unverified | No org-level MCP policy API |
 
 #### Data-Policy Controls
@@ -561,7 +561,7 @@ Air-Traffic organizes every control and observable into three planes. Each plane
 
 | Control | Stub | Notes |
 |---|---|---|
-| Training opt-out | VendorNative | Dashboard toggle: Settings → Data Controls |
+| Training opt-out | MonitorOnly | Dashboard toggle: Settings → Data Controls; no API to set it |
 | ZDR | MonitorOnly | Enterprise only; must email support@cohere.com to request |
 | 30-day default log retention | VendorNative | Policy-enforced; prompts/generations auto-deleted after 30 days on SaaS |
 | PII stripping before training | VendorNative | Platform filters PII before any training use |
@@ -572,7 +572,7 @@ Air-Traffic organizes every control and observable into three planes. Each plane
 
 | Control | Stub | Notes |
 |---|---|---|
-| Monthly spending limit (dashboard) | VendorNative | Configurable: Billing & Usage → Spending Limit tab |
+| Monthly spending limit (dashboard) | MonitorOnly | Dashboard only: Billing & Usage → Spending Limit tab; no API to set it |
 | Per-key spend cap | ProxyEnforced | No per-key limits; org-level only |
 | Programmatic billing/usage API | MonitorOnly | No confirmed admin REST endpoint for spend management |
 
@@ -710,8 +710,8 @@ Very limited enterprise surface. Spend controls are UI-only.
 
 | Plane | Feature | Stub | Notes |
 |---|---|---|---|
-| Budget | Monthly org-level spend cap | VendorNative (UI only) | Dashboard (Settings → Billing → Limits); no programmatic API |
-| Budget | Alert thresholds at 50%/75%/90% | VendorNative (UI only) | Dashboard |
+| Budget | Monthly org-level spend cap | MonitorOnly | Dashboard (Settings → Billing → Limits); no programmatic API |
+| Budget | Alert thresholds at 50%/75%/90% | MonitorOnly | Dashboard only; no programmatic API |
 | Developer-Workflow | Org-level rate limits (shared) | VendorNative | All API keys in org share limits |
 | Data-Policy | Training opt-out | Unverified | Not documented in public docs |
 
@@ -727,7 +727,7 @@ Strongest governance story for regulated industries. Deep but complex.
 | Developer-Workflow | Agent catalog publishing + centralized credential management | VendorNative | watsonx Orchestrate |
 | Developer-Workflow | Multi-tenancy with isolated tenants | VendorNative | watsonx.ai v2.4 |
 | Data-Policy | Hybrid multi-vendor GRC governance framework | VendorNative | watsonx.governance |
-| Budget | Usage controls in admin UI | VendorNative | watsonx.ai v2.4 |
+| Budget | Usage controls in admin UI | MonitorOnly | watsonx.ai v2.4; admin UI only |
 | Observability | Agent Monitoring & Insights (decision/behavior/performance tracking, threshold alerts) | VendorNative | Q1 2026 |
 
 #### xAI (Grok Business / Enterprise)

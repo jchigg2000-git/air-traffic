@@ -179,6 +179,17 @@ func TestFullLoopFlywheelRatchet(t *testing.T) {
 	if points[1].PackVersion != 1 || points[0].PackVersion != 0 {
 		t.Errorf("ratchet pack versions = %d, %d", points[0].PackVersion, points[1].PackVersion)
 	}
+	// The series has to carry the orphan count, not just the rate. Without it a
+	// run whose captures never joined publishes a 0.0 that reads as a detection
+	// collapse rather than an absent measurement.
+	for i, pt := range points {
+		if pt.CaptureOrphans != 0 {
+			t.Errorf("ratchet point %d: capture orphans = %d, want 0 for a fully joined run", i, pt.CaptureOrphans)
+		}
+	}
+	if points[1].RecallBehavioral != s2.RecallBehavioral {
+		t.Errorf("ratchet point recall %.3f != scored recall %.3f", points[1].RecallBehavioral, s2.RecallBehavioral)
+	}
 
 	// Leak guard at the control plane: no seeded value in audit or reports.
 	values := []string{}

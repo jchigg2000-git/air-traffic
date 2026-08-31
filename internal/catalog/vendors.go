@@ -165,7 +165,7 @@ func githubCopilot() Definition {
 		cap("usage_billing", "AI Credit Usage Billing", bg, vn, "1 credit = $0.01", "/enterprises/{e}/billing/usage"),
 		cap("metrics", "Copilot Metrics", bg, vn, "28-day rolling, 1-yr history", "/enterprises/{e}/copilot/metrics"),
 		cap("audit_logs", "Audit Log + Agent Control Plane", ob, vn, "actor_is_agent, agent_session.task (GA Feb 2026)", ""),
-		note(cap("feature_policy", "Feature/Model/MCP Policy", dw, vn, "AI Controls tab; portal-only", ""), "no documented REST API for toggles"),
+		note(cap("feature_policy", "Feature/Model/MCP Policy", dw, mo, "AI Controls tab; portal-only", ""), "no documented REST API for toggles"),
 		capEnv("code_review_gate", "Agentic Code-Review Gate", dw, model.EnforcementServerSide, "GitHub branch protection + required status checks", ""),
 		cap("training_opt_out", "Training Opt-Out", dp, vn, "Business/Enterprise default", ""),
 		cap("public_code_filter", "Public Code Filter", dp, vn, "duplicate detection policy", ""),
@@ -199,7 +199,7 @@ func m365Copilot() Definition {
 		cap("data_residency", "Advanced Data Residency", dp, vn, "ADR + Multi-Geo", ""),
 		cap("training_opt_out", "Training Opt-Out", dp, vn, "Microsoft Product Terms", ""),
 		cap("spend_cap", "Token-Level Spend Cap", bg, mo, "license-priced; no budgeting", ""),
-		cap("app_toggle", "Per-App Copilot Toggle", dw, vn, "Admin Center; portal-only", ""),
+		cap("app_toggle", "Per-App Copilot Toggle", dw, mo, "Admin Center; portal-only", ""),
 		cap("mcp_controls", "MCP Integration Controls", dw, uv, "no org-level MCP policy API", ""),
 	}
 	m := budgetMetrics("m365_copilot", "https://graph.microsoft.com/v1.0/reports")
@@ -215,7 +215,7 @@ func mistral() Definition {
 		cap("mcp_connectors", "Per-Workspace MCP Connectors", dw, vn, "rare native MCP control", ""),
 		cap("billing", "Billing API", bg, vn, "Preview", "/beta/admin/billing"),
 		cap("analytics", "Usage / Analytics API", bg, vn, "Preview", "/beta/admin/analytics"),
-		cap("spend_limits", "Per-Workspace Spend Limits", bg, vn, "Admin Panel", ""),
+		cap("spend_limits", "Per-Workspace Spend Limits", bg, vn, "Admin Panel + billing endpoint", ""),
 		cap("training_opt_out", "Training Opt-Out", dp, vn, "Teams/Enterprise default", ""),
 		cap("retention", "Chat Retention Policy", dp, vn, "30-90d / 180d / 1yr", ""),
 		note(cap("model_access", "Per-Workspace Model Access", dw, pe, "no model-level allow/deny", ""), "confirmed negative"),
@@ -262,7 +262,7 @@ func cohere() Definition {
 		note(cap("per_key_cap", "Per-Key Spend Cap", bg, pe, "org-level only", ""), "no per-key limits"),
 	}
 	m := budgetMetrics("cohere", "https://api.cohere.com/v1")
-	m = append(m, stateMetric("training_opt_out", "Training Opt-Out", dp, vn))
+	m = append(m, stateMetric("training_opt_out", "Training Opt-Out", dp, mo))
 	return Definition{ID: "cohere", Vendor: "Cohere", DisplayName: "Cohere", Family: "api-platform", APIVersion: "v1", Tier: 2, BAASigned: false, Capabilities: caps, Metrics: m}
 }
 

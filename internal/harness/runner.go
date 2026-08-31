@@ -213,6 +213,7 @@ func (r *Runner) execute(run *model.HarnessRun, gwURL string) {
 		Precision:     score.Precision, RecallReported: score.RecallReported,
 		RecallBehavioral: score.RecallBehavioral,
 		RequestCount:     run.Total, Seed: run.Config.Seed,
+		CaptureOrphans: score.CaptureOrphans,
 	}
 	if err := r.persist.appendRatchet(point); err != nil {
 		r.log.Warn("ratchet persist failed", "error", err)

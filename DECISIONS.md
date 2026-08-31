@@ -276,7 +276,7 @@ was absent only because loopback-only admin is unreachable from a browser over t
 
 **What this rules out, said plainly rather than left implicit:** there is no authenticated human
 principal, so `model.AuditEvent.Actor` keeps its hardcoded literals (`"air-traffic:admin"` at
-`routes.go:67`, `reconcile.go:60`, `routes_keystore.go:215`, `flywheel.go:678`) — an audit row can
+`routes.go:72`, `reconcile.go:60`, `routes_keystore.go:222`, `flywheel.go:677`) — an audit row can
 name the system but never a person. Any future feature whose safety argument depends on
 "we can see who did this" is not available under this decision.
 
@@ -399,4 +399,7 @@ Both now read `Status: **BUILT** — this document is a build-history record of 
 not open work` (`phase-1-surface-collection.md:9`, `phase-2-frontend.md:8`), corrected in 7a4e36e;
 `phase-3-inference-gateway.md:3` has declared its built status since it was written. The 2026-08-07
 entry stands as written — this only records that the condition it described is gone, so no later
-pass re-opens it as drift. `ROADMAP.md` §1/§2/§3 remain the live status on any conflict.
+pass re-opens it as drift. Line anchors inside it and two of the 2026-08-15 entries were repointed
+in place to where the cited code now sits, here and in the pass before: a `file:line` is a pointer,
+not a claim, and nothing an entry argues or concludes was edited. `ROADMAP.md` §1/§2/§3 remain the
+live status on any conflict.

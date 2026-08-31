@@ -90,6 +90,9 @@ func TestLoadRejectsCredentialInBaseURL(t *testing.T) {
 		{"query param", "https://api.example.com/v1?api_key=sk-live-REALSECRET", "inline credential"},
 		{"percent-encoded query param", "https://api.example.com/v1?api_key=%73k-live-REALSECRET", "inline credential"},
 		{"clean", "https://api.example.com/v1?api-version=2026-03-10", ""},
+		// The worked example on embeddedSecret: "sk-" is present but not at a
+		// boundary, so the host must still boot.
+		{"secret shape mid-word", "https://risk-engine.example.com/v1", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

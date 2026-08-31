@@ -54,6 +54,8 @@ call() {
 
 json_str() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 
+usage() { sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; }
+
 cmd="${1:-help}"
 case "$cmd" in
   apps)
@@ -97,9 +99,23 @@ case "$cmd" in
     if [[ -z "$SPINEKEY" && -f .env ]]; then
       SPINEKEY=$(sed -n 's/^AIRTRAFFIC_SPINE_KEY=//p' .env | tail -n1)
     fi
+    # Last resort: the same throwaway default docker-compose.yml hands the
+    # control plane when nothing sets the key, so `snapshot` works in the stock
+    # one-command demo. Once dev-env.sh has minted a real key it is in .env and
+    # this line is never reached.
+    SPINEKEY="${SPINEKEY:-spine-dev-insecure}"
     SPINE_HDR="X-Air-Traffic-Key: $SPINEKEY" call GET /api/gateway/keys
     ;;
+  help|-h|--help)
+    usage
+    ;;
+  # A typo'd subcommand must never look like a successful no-op — the same rule
+  # dev-env.sh applies to its flags. `keystore.sh reovke <kid>` used to print
+  # help, make no call, and exit 0.
   *)
-    sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'
+    echo "unknown subcommand: $cmd" >&2
+    echo >&2
+    usage >&2
+    exit 2
     ;;
 esac

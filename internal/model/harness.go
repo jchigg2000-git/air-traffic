@@ -105,6 +105,12 @@ type RatchetPoint struct {
 	RecallBehavioral float64   `json:"recall_behavioral"`
 	RequestCount     int       `json:"request_count"`
 	Seed             int64     `json:"seed"`
+	// CaptureOrphans carries RunScore.CaptureOrphans onto the series. Without
+	// it a run whose captures never joined contributes a RecallBehavioral of 0
+	// that reads like a collapse in detection rather than an absent
+	// measurement — the same conflation CaptureOrphans exists to prevent on the
+	// run itself. Non-zero means this point is unverified, not bad.
+	CaptureOrphans int `json:"capture_orphans"`
 }
 
 // CorpusEntry is one promoted miss: already synthetic, so no surrogate step

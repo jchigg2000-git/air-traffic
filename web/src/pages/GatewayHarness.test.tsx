@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen } from '@testing-library/react'
+// Type-only: a value import here would evaluate the hoisted vi.mock factory
+// before the consts it closes over exist.
+import type { HarnessRun, RunScore } from '../lib/api.ts'
 import { renderPage } from '../test/renderPage.tsx'
 
 // The harness holds the only irreversible control in the product: approving an
@@ -40,23 +43,30 @@ const PROPOSALS = [
   },
 ]
 
+const STATUS = {
+  gateways: [{ gateway_id: 'gw@test', base_url: 'http://127.0.0.1:8125', action: 'mask', vendors: {}, last_seen: '', fresh: true }],
+  pattern_pack_version: 2,
+  spine_auth: 'loopback_only',
+  spine_key_unrotated: false,
+  admin_auth: 'open',
+  keystore_version: 0,
+  keystore_error: '',
+  policy_error: '',
+}
+
+// Both are flipped mid-file: `statusFails` reproduces a control-plane blip over
+// data already on screen, `RUNS` supplies a scored run.
+let statusFails = false
+let RUNS: HarnessRun[] = []
+
 vi.mock('../lib/api.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/api.ts')>()
   return {
     ...actual,
     api: {
-      gatewayStatus: () =>
-        Promise.resolve({
-          gateways: [{ gateway_id: 'gw@test', base_url: 'http://127.0.0.1:8125', action: 'mask', vendors: {}, last_seen: '', fresh: true }],
-          pattern_pack_version: 2,
-          spine_auth: 'loopback_only',
-          spine_key_unrotated: false,
-          admin_auth: 'open',
-          keystore_version: 0,
-          keystore_error: '',
-          policy_error: '',
-        }),
-      harnessRuns: () => Promise.resolve([]),
+      gatewayStatus: () => (statusFails ? Promise.reject(new Error('control plane blip')) : Promise.resolve(STATUS)),
+      harnessRuns: () => Promise.resolve(RUNS),
+      harnessResults: () => Promise.resolve([]),
       harnessRatchet: () => Promise.resolve([]),
       harnessProposals: () => Promise.resolve(PROPOSALS),
       harnessCorpus: () => Promise.resolve([]),
@@ -68,9 +78,44 @@ vi.mock('../lib/api.ts', async (importOriginal) => {
   }
 })
 
+/** A finished run carrying the score fields under test; the rest is filler. */
+function doneRun(score: Partial<RunScore>): HarnessRun {
+  return {
+    id: 'r-scored',
+    config: { count: 200, concurrency: 4, seed: 7, include_traps: true, include_presidio_only: true, include_straddle: true, replay_percent: 20 },
+    status: 'done',
+    total: 200,
+    completed: 200,
+    masked: 200,
+    blocked: 0,
+    detect_only: 0,
+    passed: 0,
+    errors: 0,
+    pack_version: 2,
+    detector_chain: 'regex,presidio',
+    promoted_count: 0,
+    started_at: '2026-08-30T00:00:00Z',
+    score: {
+      precision: 1,
+      recall_reported: 1,
+      recall_behavioral: 0,
+      trap_fps: 0,
+      response_leaks: 0,
+      by_type: {},
+      by_engine: {},
+      joined_reports: 200,
+      orphan_requests: 0,
+      capture_orphans: 0,
+      ...score,
+    },
+  }
+}
+
 const { default: GatewayHarness } = await import('./GatewayHarness.tsx')
 
 beforeEach(() => {
+  statusFails = false
+  RUNS = []
   approveProposal.mockReset().mockResolvedValue(PROPOSALS)
   rejectProposal.mockReset().mockResolvedValue(PROPOSALS)
   startHarnessRun.mockReset().mockResolvedValue({ id: 'r1' })
@@ -150,5 +195,52 @@ describe('a dead control plane is not a dead gateway', () => {
     expect(screen.queryByText(/pattern pack v0/)).not.toBeInTheDocument()
     expect(screen.getByText(/pattern pack unknown/)).toBeInTheDocument()
     vi.doUnmock('../lib/api.ts')
+  })
+})
+
+// A failed refetch leaves react-query holding the last good status alongside an
+// error. Reading the chip's label off the error while its dot read off the data
+// put a GREEN dot next to the words "gateway status unknown".
+describe('a status refetch that fails over data already on screen', () => {
+  it('keeps the dot and the label saying the same thing', async () => {
+    const { qk } = await import('../lib/api.ts')
+    const { qc } = renderPage(<GatewayHarness />)
+    const chip = await screen.findByText(/gateway gw@test/)
+    expect(chip.firstElementChild?.getAttribute('style')).toContain('var(--green)')
+
+    statusFails = true
+    await act(() => qc.refetchQueries({ queryKey: qk.gatewayStatus }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/showing the last data received/)
+    // Still green, because the data behind it is still the last thing the
+    // control plane said — so it may not claim to know nothing.
+    const after = screen.getByText(/gateway gw@test/)
+    expect(after.firstElementChild?.getAttribute('style')).toContain('var(--green)')
+    expect(screen.queryByText(/gateway status unknown/)).not.toBeInTheDocument()
+  })
+})
+
+// Orphaned values are held out of the behavioral denominator server-side
+// (model.RunScore.CaptureOrphans), so a run where no capture joined scores 0.0.
+// Printing that as a red 0.0% beside a full join-coverage figure is exactly the
+// misreading the field exists to prevent.
+describe('a run whose captures never joined', () => {
+  it('reports behavioral recall as unverified rather than as a number', async () => {
+    RUNS = [doneRun({ recall_behavioral: 0, capture_orphans: 200 })]
+    renderPage(<GatewayHarness />)
+    expect(await screen.findByText('unverified')).toBeInTheDocument()
+    expect(screen.queryByText('0.0%')).not.toBeInTheDocument()
+    expect(screen.getByText(/held out of behavioral recall/)).toBeInTheDocument()
+    // Join coverage is a different join and still reports what it knows — the
+    // pairing that made the red 0.0% read as a catastrophe.
+    expect(screen.getByText('join coverage').previousElementSibling).toHaveTextContent('200/200')
+  })
+
+  it('prints the figure when every seeded value was verified', async () => {
+    RUNS = [doneRun({ recall_behavioral: 0.97, capture_orphans: 0 })]
+    renderPage(<GatewayHarness />)
+    expect(await screen.findByText('97.0%')).toBeInTheDocument()
+    expect(screen.queryByText('unverified')).not.toBeInTheDocument()
+    expect(screen.queryByText(/held out of behavioral recall/)).not.toBeInTheDocument()
   })
 })

@@ -69,6 +69,12 @@ code{font-family:var(--font-mono);font-size:.88em}
 .cover h1{font:700 clamp(32px,4.6vw,52px)/1.06 var(--font-display);margin:0;letter-spacing:-.02em}
 .cover .acc{color:#5fd8ea}
 .cover .sub{margin-top:20px;max-width:68ch;font-size:16.5px;line-height:1.62;color:#b6c7dc}
+.disclose{
+  margin-top:22px;max-width:80ch;padding:13px 15px;border-radius:0 12px 12px 0;
+  border-left:3px solid #fbbf24;background:rgba(251,191,36,.10);
+  font-size:12.8px;line-height:1.62;color:#c2d3e6;
+}
+.disclose b{color:#fff}
 .cover .chips{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}
 .cover .foot{display:flex;align-items:flex-end;gap:20px;margin-top:26px;padding-top:18px;border-top:1px solid rgba(150,180,220,.18)}
 .cover .wm{font:800 15px/1 var(--font-sans);letter-spacing:-.01em;color:#fff}
@@ -201,6 +207,12 @@ pre.code code{font:inherit}
 .bar2{height:7px;border-radius:99px;background:var(--panel);border:1px solid var(--line);overflow:hidden}
 .bar2 i{display:block;height:100%;background:var(--accent)}
 
+/* ---------- phone-width table scroll ----------
+   .ctrl and .dash clip with overflow:hidden to keep their rounded corners, and
+   under ~560px these tables' min-content width beats the viewport — the
+   explanation column was cut mid-word with no way to reach it. */
+.tscroll{overflow-x:auto}
+
 /* ---------- two-up ---------- */
 .two{display:grid;grid-template-columns:1fr 1fr;gap:26px}
 .two ul{margin:0;padding-left:18px}
@@ -228,6 +240,8 @@ p.fin{max-width:var(--wrap);margin:0 auto;padding-top:14px;border-top:1px solid 
 @media print{
   body{padding:0;background:#fff}
   .cover,.sheet{box-shadow:none;border-radius:0;margin:0;max-width:none;break-after:page}
+  /* the last sheet's forced break put the footnote alone on a trailing page */
+  .sheet:last-of-type{break-after:auto}
   p.fin{break-before:avoid}
 }
 </style>
@@ -245,6 +259,7 @@ p.fin{max-width:var(--wrap);margin:0 auto;padding-top:14px;border-top:1px solid 
 <span class="vchip claude"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></svg>Claude Code</span>
 <span class="vchip copilot"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.922 16.997C23.061 18.492 18.063 22.02 12 22.02 5.937 22.02.939 18.492.078 16.997A.641.641 0 0 1 0 16.741v-2.869a.883.883 0 0 1 .053-.22c.372-.935 1.347-2.292 2.605-2.656.167-.429.414-1.055.644-1.517a10.098 10.098 0 0 1-.052-1.086c0-1.331.282-2.499 1.132-3.368.397-.406.89-.717 1.474-.952C7.255 2.937 9.248 1.98 11.978 1.98c2.731 0 4.767.957 6.166 2.093.584.235 1.077.546 1.474.952.85.869 1.132 2.037 1.132 3.368 0 .368-.014.733-.052 1.086.23.462.477 1.088.644 1.517 1.258.364 2.233 1.721 2.605 2.656a.841.841 0 0 1 .053.22v2.869a.641.641 0 0 1-.078.256Zm-11.75-5.992h-.344a4.359 4.359 0 0 1-.355.508c-.77.947-1.918 1.492-3.508 1.492-1.725 0-2.989-.359-3.782-1.259a2.137 2.137 0 0 1-.085-.104L4 11.746v6.585c1.435.779 4.514 2.179 8 2.179 3.486 0 6.565-1.4 8-2.179v-6.585l-.098-.104s-.033.045-.085.104c-.793.9-2.057 1.259-3.782 1.259-1.59 0-2.738-.545-3.508-1.492a4.359 4.359 0 0 1-.355-.508Zm2.328 3.25c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm-5 0c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm3.313-6.185c.136 1.057.403 1.913.878 2.497.442.544 1.134.938 2.344.938 1.573 0 2.292-.337 2.657-.751.384-.435.558-1.15.558-2.361 0-1.14-.243-1.847-.705-2.319-.477-.488-1.319-.862-2.824-1.025-1.487-.161-2.192.138-2.533.529-.269.307-.437.808-.438 1.578v.021c0 .265.021.562.063.893Zm-1.626 0c.042-.331.063-.628.063-.894v-.02c-.001-.77-.169-1.271-.438-1.578-.341-.391-1.046-.69-2.533-.529-1.505.163-2.347.537-2.824 1.025-.462.472-.705 1.179-.705 2.319 0 1.211.175 1.926.558 2.361.365.414 1.084.751 2.657.751 1.21 0 1.902-.394 2.344-.938.475-.584.742-1.44.878-2.497Z"/></svg>GitHub Copilot</span>
 </div>
+<div class="disclose"><b>Read this first: no vendor is really contacted.</b> Air-Traffic drives a <b>synthetic replica</b> of each vendor's admin surface that it serves itself, on its own port — Anthropic's and GitHub's included. No adapter holds a live credential or reaches the internet, so every figure in this brief (spend, MDM coverage, audited events) is generated locally. What is real is the shape: the API surfaces, the managed artifacts each platform understands, the enforcement tiers, the emitted signal contract. Treat this as a working spec and a testbed, not as a production integration.</div>
 <div class="spacer"></div>
 <div class="foot"><div><div class="wm">Air-Traffic</div><div class="meta">Enterprise AI Control Plane &amp; Observability</div></div><div class="spacer"></div><div class="meta">Executive Brief · June 2026</div></div>
 </div>
@@ -296,6 +311,7 @@ p.fin{max-width:var(--wrap);margin:0 auto;padding-top:14px;border-top:1px solid 
 <div class="cards">
 <div class="ctrl claude">
 <div class="hd"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 10.5h3v3h-3v3h-1.5v3H18v-3h-1.5v3H15v-3H9v3H7.5v-3H6v3H4.5v-3H3v-3H0v-3h3v-6h18Zm-15 0h1.5v-3H6Zm10.5 0H18v-3h-1.5z"/></svg><span class="name">Claude Code</span><span class="meta">ANTHROPIC · managed-settings.json + Admin/Analytics API</span></div>
+<div class="tscroll">
 <table>
 <tr><td class="k">MCP servers — allow / deny</td><td class="d"><span class="b env">EnvManaged</span><span class="tier B">B</span></td><td class="n"><code>allowedMcpServers</code> / <code>deniedMcpServers</code> / <code>allowManagedMcpServersOnly</code> — locked on MDM-managed devices</td></tr>
 <tr><td class="k">Shared hooks</td><td class="d"><span class="b env">EnvManaged</span><span class="tier B">B</span></td><td class="n"><code>allowManagedHooksOnly</code>, <code>allowedHttpHookUrls</code> — org-injected pre/post hooks</td></tr>
@@ -306,11 +322,13 @@ p.fin{max-width:var(--wrap);margin:0 auto;padding-top:14px;border-top:1px solid 
 <tr><td class="k">Drift read-back</td><td class="d"><span class="b native">VendorNative</span></td><td class="n"><code>claude doctor</code> reports each effective setting + its source</td></tr>
 </table>
 </div>
+</div>
 <div class="ctrl copilot">
 <div class="hd"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.922 16.997C23.061 18.492 18.063 22.02 12 22.02 5.937 22.02.939 18.492.078 16.997A.641.641 0 0 1 0 16.741v-2.869a.883.883 0 0 1 .053-.22c.372-.935 1.347-2.292 2.605-2.656.167-.429.414-1.055.644-1.517a10.098 10.098 0 0 1-.052-1.086c0-1.331.282-2.499 1.132-3.368.397-.406.89-.717 1.474-.952C7.255 2.937 9.248 1.98 11.978 1.98c2.731 0 4.767.957 6.166 2.093.584.235 1.077.546 1.474.952.85.869 1.132 2.037 1.132 3.368 0 .368-.014.733-.052 1.086.23.462.477 1.088.644 1.517 1.258.364 2.233 1.721 2.605 2.656a.841.841 0 0 1 .053.22v2.869a.641.641 0 0 1-.078.256Zm-11.75-5.992h-.344a4.359 4.359 0 0 1-.355.508c-.77.947-1.918 1.492-3.508 1.492-1.725 0-2.989-.359-3.782-1.259a2.137 2.137 0 0 1-.085-.104L4 11.746v6.585c1.435.779 4.514 2.179 8 2.179 3.486 0 6.565-1.4 8-2.179v-6.585l-.098-.104s-.033.045-.085.104c-.793.9-2.057 1.259-3.782 1.259-1.59 0-2.738-.545-3.508-1.492a4.359 4.359 0 0 1-.355-.508Zm2.328 3.25c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm-5 0c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm3.313-6.185c.136 1.057.403 1.913.878 2.497.442.544 1.134.938 2.344.938 1.573 0 2.292-.337 2.657-.751.384-.435.558-1.15.558-2.361 0-1.14-.243-1.847-.705-2.319-.477-.488-1.319-.862-2.824-1.025-1.487-.161-2.192.138-2.533.529-.269.307-.437.808-.438 1.578v.021c0 .265.021.562.063.893Zm-1.626 0c.042-.331.063-.628.063-.894v-.02c-.001-.77-.169-1.271-.438-1.578-.341-.391-1.046-.69-2.533-.529-1.505.163-2.347.537-2.824 1.025-.462.472-.705 1.179-.705 2.319 0 1.211.175 1.926.558 2.361.365.414 1.084.751 2.657.751 1.21 0 1.902-.394 2.344-.938.475-.584.742-1.44.878-2.497Z"/></svg><span class="name">GitHub Copilot</span><span class="meta">GITHUB · org / enterprise AI Controls + REST</span></div>
+<div class="tscroll">
 <table>
 <tr><td class="k">MCP server access</td><td class="d"><span class="b env">EnvManaged</span><span class="tier A">A</span></td><td class="n">registry-only allowlist, enforced <strong>server-side</strong> — user cannot add unlisted servers</td></tr>
-<tr><td class="k">Feature policies</td><td class="d"><span class="b env">EnvManaged</span><span class="tier A">A</span></td><td class="n">Chat / CLI / Cloud Agent / Extensions on-off via Enterprise AI Controls</td></tr>
+<tr><td class="k">Feature policies</td><td class="d"><span class="b monitor">MonitorOnly</span></td><td class="n">Chat / CLI / Cloud Agent / Extensions on-off in the Enterprise AI Controls tab — portal-only, no documented REST API, so Air-Traffic verifies and alerts, it cannot set them</td></tr>
 <tr><td class="k">Content exclusions</td><td class="d"><span class="b native">VendorNative</span></td><td class="n">REST <code>/orgs/{org}/copilot/content_exclusion</code> — repos &amp; path globs</td></tr>
 <tr><td class="k">Code-review gate</td><td class="d"><span class="b env">EnvManaged</span><span class="tier A">A</span></td><td class="n">branch-protection / rulesets: required human reviewers, enforced at merge</td></tr>
 <tr><td class="k">Test-coverage gate</td><td class="d"><span class="b env">EnvManaged</span><span class="tier A">A</span></td><td class="n">required status checks (e.g. <code>coverage-90</code>) before an agent commit lands</td></tr>
@@ -318,6 +336,7 @@ p.fin{max-width:var(--wrap);margin:0 auto;padding-top:14px;border-top:1px solid 
 <tr><td class="k">Usage metrics</td><td class="d"><span class="b native">VendorNative</span></td><td class="n"><code>/copilot/metrics</code> — 28-day rolling, by team / language / editor</td></tr>
 <tr><td class="k">Agentic audit</td><td class="d"><span class="b native">VendorNative</span></td><td class="n"><code>agent_session.task</code> events, <code>actor:Copilot</code> (GA Feb 2026), commit→session, 180-day</td></tr>
 </table>
+</div>
 </div>
 </div>
 </section>
@@ -330,7 +349,7 @@ p.fin{max-width:var(--wrap);margin:0 auto;padding-top:14px;border-top:1px solid 
 <p class="lead">"Governed" is not one thing. Air-Traffic grades every control by how hard it is to bypass — and never paints a soft control green.</p>
 
 <div class="ladder">
-<div class="lad A"><div class="g">A</div><div class="body"><div class="t">Server-side enforced — non-bypassable</div><div class="s">GitHub / GitLab branch protection &amp; rulesets (code-review + test-coverage gates), Copilot MCP registry-only allowlist, feature policies. Enforced on the vendor's servers; a developer simply cannot override it locally. <strong>Start here.</strong></div></div></div>
+<div class="lad A"><div class="g">A</div><div class="body"><div class="t">Server-side enforced — non-bypassable</div><div class="s">GitHub / GitLab branch protection &amp; rulesets (code-review + test-coverage gates), Copilot MCP registry-only allowlist. Enforced on the vendor's servers; a developer simply cannot override it locally. Copilot's AI Controls feature policies are server-side too, but portal-only — Air-Traffic verifies them, it cannot set them. <strong>Start here.</strong></div></div></div>
 <div class="lad B"><div class="g">B</div><div class="body"><div class="t">MDM-locked client config — enforced on managed devices</div><div class="s">Claude Code <code>managed-settings.json</code> (MCP, hooks, permissions, skill exec) takes top precedence over user &amp; project settings — <em>but only when the file is present</em>. Real enforcement requires the device to be MDM-enrolled (Jamf / Intune / Kandji).</div></div></div>
 <div class="lad C"><div class="g">C</div><div class="body"><div class="t">Seed + drift-detect only — monitored, not enforced</div><div class="s">Local client settings on unmanaged devices. Air-Traffic distributes the config and <strong>alerts on divergence</strong>, but cannot prevent an override. The UI labels these plainly — they are never shown as "enforced."</div></div></div>
 </div>
@@ -367,7 +386,7 @@ p.fin{max-width:var(--wrap);margin:0 auto;padding-top:14px;border-top:1px solid 
   </div>
 </div>
 
-<div class="callout"><b>What is <em>not</em> here:</b> there is no gateway intercepting <code>/v1/messages</code> or Copilot completions. Spend is <em>monitored</em> from the vendors' usage APIs and capped <em>softly</em>; only if you ever need a hard, mid-request, cross-vendor cutoff do you switch on the optional gateway module — and nothing else depends on it.</div>
+<div class="callout"><b>What is <em>not</em> here:</b> nothing above sits on the request path — the control plane never intercepts <code>/v1/messages</code> or Copilot completions. Spend is <em>monitored</em> from the vendors' usage APIs and capped <em>softly</em>; only if you ever need a hard, mid-request, cross-vendor cutoff do you route clients through the separate gateway binary — and nothing else depends on it. <i>(Written for Phase 1. The inference gateway shipped in Phase 3 on 2026-07-02, terminates <code>/v1/messages</code> itself, and now runs as a container in the default stack; traffic reaches it only if a client is pointed at it. See README.md.)</i></div>
 </section>
 
 <section class="sheet">
@@ -412,6 +431,7 @@ p.fin{max-width:var(--wrap);margin:0 auto;padding-top:14px;border-top:1px solid 
 
 <div class="dash">
 <div class="bar"><span class="dot g"></span>Air-Traffic · Flight Deck<span class="right">policy: Fintech 🔒🔒 · synced 12s ago</span></div>
+<div class="tscroll">
 <table>
 <tr><th>Platform</th><th>Policy sync</th><th>Top enforcement</th><th>Spend (MTD)</th><th>Drift</th></tr>
 <tr><td><span class="vchip claude sm"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></svg>Claude Code</span></td><td><span class="pill ok">✓ synced</span></td><td>MCP + hooks <span class="b env">EnvManaged</span><span class="tier B">B</span></td><td>$6,240</td><td>none</td></tr>
@@ -420,6 +440,7 @@ p.fin{max-width:var(--wrap);margin:0 auto;padding-top:14px;border-top:1px solid 
 <tr><td>Platform Eng — laptops MDM-enrolled</td><td colspan="2">42 / 44 managed <span class="pill wn">2 unmanaged → monitored</span></td><td colspan="2"><div class="bar2"><i style="width:95%"></i></div></td></tr>
 <tr><td>Agentic actions audited (30d)</td><td colspan="2">18,402 events · 0 unattributed</td><td colspan="2"><div class="bar2"><i style="width:100%"></i></div></td></tr>
 </table>
+</div>
 </div>
 
 <div class="callout">Drilling into any row opens the change history: who set it, when, the before/after, and whether it's holding. Every cell traces back to a normalized audit event — the same <code>ops-observation-batch/v1</code> stream a SIEM can ingest.</div>
