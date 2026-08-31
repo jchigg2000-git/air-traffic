@@ -1,10 +1,18 @@
-// Branded monogram chips — deliberately NOT counterfeit vendor logos; brand-color
-// initials read cleanly and stay honest about not being the real marks.
+// Branded monogram chips — deliberately NOT counterfeit vendor logos; the chip carries
+// the brand colour and the initials stay honest about not being the real marks.
+//
+// The initials are NOT drawn in the raw brand colour. In each theme only two of the
+// sixteen clear 4.5:1 at 11px against their own 18% tint — #FF9900 is 1.9:1 in light,
+// #1A1A1A is 1.0:1 in dark — so the text is mixed toward the theme foreground, which
+// darkens it in light and lightens it in dark off one number. 45% is the most brand that
+// clears 4.5:1 for every entry in both themes; the worst case is 4.76:1 (bedrock and
+// amazon_q, light, over the hero gradient). Per-vendor `fg` overrides were the previous
+// attempt: each one fixed one theme and broke the other.
 
-const BRAND: Record<string, { c: string; mark: string; fg?: string }> = {
+const BRAND: Record<string, { c: string; mark: string }> = {
   openai: { c: '#10A37F', mark: 'ai' },
   anthropic: { c: '#D97757', mark: 'An' },
-  bedrock: { c: '#FF9900', mark: 'aws', fg: '#111' },
+  bedrock: { c: '#FF9900', mark: 'aws' },
   azure_openai: { c: '#0078D4', mark: 'Az' },
   vertex: { c: '#4285F4', mark: 'Ve' },
   github_copilot: { c: '#6E7681', mark: 'GH' },
@@ -15,8 +23,8 @@ const BRAND: Record<string, { c: string; mark: string; fg?: string }> = {
   cohere: { c: '#39594D', mark: 'Co' },
   together: { c: '#0F6FFF', mark: 'Tg' },
   groq: { c: '#F55036', mark: 'Gq' },
-  xai: { c: '#1A1A1A', mark: 'xA', fg: '#fff' },
-  amazon_q: { c: '#FF9900', mark: 'Q', fg: '#111' },
+  xai: { c: '#1A1A1A', mark: 'xA' },
+  amazon_q: { c: '#FF9900', mark: 'Q' },
   watsonx: { c: '#0F62FE', mark: 'Wx' },
 }
 
@@ -29,7 +37,7 @@ export default function VendorGlyph({ id, size = 28 }: { id: string; size?: numb
         height: size,
         background: `color-mix(in srgb, ${b.c} 18%, transparent)`,
         border: `1px solid color-mix(in srgb, ${b.c} 55%, transparent)`,
-        color: b.fg ?? b.c,
+        color: `color-mix(in srgb, ${b.c} 45%, var(--fg))`,
         fontSize: size * 0.4,
       }}
       className="inline-flex shrink-0 items-center justify-center rounded-md font-mono font-semibold leading-none"

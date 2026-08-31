@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"air-traffic/internal/catalog"
+	"github.com/jchigg2000-git/air-traffic/internal/catalog"
 )
 
 func round2(v float64) float64 { return float64(int64(v*100+0.5)) / 100 }

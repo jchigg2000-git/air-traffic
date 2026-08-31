@@ -55,7 +55,7 @@ export default function Audit() {
         }
       />
 
-      <ApiStateBanner error={audit.error} className="mb-4" />
+      <ApiStateBanner error={audit.error} hasData={!!audit.data} className="mb-4" />
       {/* A CSS grid, not a <table>, so the table semantics are declared
           explicitly — otherwise a screen reader reads 5 unrelated spans per
           event and the column meanings are lost entirely. */}

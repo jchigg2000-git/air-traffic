@@ -10,10 +10,10 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"air-traffic/internal/audit"
-	"air-traffic/internal/harness"
-	"air-traffic/internal/store"
-	"air-traffic/internal/synthetic"
+	"github.com/jchigg2000-git/air-traffic/internal/audit"
+	"github.com/jchigg2000-git/air-traffic/internal/harness"
+	"github.com/jchigg2000-git/air-traffic/internal/store"
+	"github.com/jchigg2000-git/air-traffic/internal/synthetic"
 )
 
 // Server holds dependencies for the HTTP handlers.

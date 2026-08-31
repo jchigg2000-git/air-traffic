@@ -11,8 +11,8 @@ import (
 	"net/http"
 	"time"
 
-	"air-traffic/internal/model"
-	"air-traffic/internal/policy"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/policy"
 )
 
 // requireLocalAdmin restricts a route to callers on this host.

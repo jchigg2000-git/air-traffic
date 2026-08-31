@@ -6,10 +6,12 @@ There is no sign-in, no account, and no per-human principal. The control plane i
 single-operator by decision, which means an audit row can name the system but never a person
 (`DECISIONS.md`, 2026-08-15).
 
-Reads are **never** gated — the observability surfaces are the product. Writes are gated by one
-shared operator key, `AIRTRAFFIC_ADMIN_KEY`, covering adapter patch, policy PUT, credential POST,
-harness run/sample, proposal approve/reject (`internal/server/spine_auth.go`), and the two
-mutating synthetic-harness control paths (`internal/synthetic/synthetic.go`).
+No read is gated by the operator key — the observability surfaces are the product. (The four
+`/api/gateway/*` spine routes, two of them reads, carry a separate gate — `AIRTRAFFIC_SPINE_KEY`,
+below.) Writes are gated by one shared operator key, `AIRTRAFFIC_ADMIN_KEY`, covering adapter
+patch, policy PUT, credential POST, harness run/sample, proposal approve/reject
+(`internal/server/spine_auth.go`), and the two mutating synthetic-harness control paths
+(`internal/synthetic/synthetic.go`).
 
 **With `AIRTRAFFIC_ADMIN_KEY` unset, those writes are open to anyone who can reach the port.**
 That is the posture the repo ships in and the one the one-command compose demo runs in. It is
@@ -18,11 +20,15 @@ stated rather than hidden: both binaries warn on every boot, and `GET /api/healt
 an open install can change the applied policy — and therefore what the inference gateway enforces
 on live traffic.
 
-**Binding differs between the two ways of running it.** `go run ./cmd/air-traffic-server` binds
-`127.0.0.1:8122` and the gateway binds `127.0.0.1:8125` — loopback only. **`docker compose up`
-sets `AIRTRAFFIC_ADDR=0.0.0.0:8122` and `GATEWAY_LISTEN_ADDR=0.0.0.0:8125` and publishes both
-ports**, because the SPA is served from the container and a browser arrives over the Docker
-bridge rather than loopback. That is the demo posture, not a deployment posture.
+**Binding differs between the two ways of running it; host exposure does not.**
+`go run ./cmd/air-traffic-server` binds `127.0.0.1:8122` and the gateway binds `127.0.0.1:8125`.
+Under compose both bind `0.0.0.0` *inside the container* (`AIRTRAFFIC_ADDR`,
+`GATEWAY_LISTEN_ADDR`) — they have to, or neither a peer container nor the published port could
+reach them — but every `ports:` entry in `docker-compose.yml` is pinned to the loopback
+interface (`127.0.0.1:8122:8122`, `127.0.0.1:8125:8125`, `127.0.0.1:8126:3000`), so nothing is
+reachable from off the host either way. **That prefix is the only thing holding the line:** drop
+it — publish `8122:8122` — and an install whose writes are open by default is answering the
+whole network.
 
 Compose also falls back to throwaway shared secrets — `gwk-demo` for `GATEWAY_CLIENT_KEYS` and
 `spine-dev-insecure` for `AIRTRAFFIC_SPINE_KEY` — so the stack comes up in one command. Both
@@ -98,9 +104,9 @@ chain should have caught.
   applied policy (`policy.json`) and the harness flywheel state (`ratchet.jsonl`, `corpus/*.json`,
   `patterns.json`).
 - **The synthetic vendor surfaces are unauthenticated and answer anyone.** They serve fabricated
-  data and hold nothing real. Their two mutating control paths — `_harness/scenario` and
-  `_harness/reset` — are the exception: those write the shared adapter record and carry the
-  operator key.
+  data and hold nothing real. Their two mutating control paths are the exception, and both carry
+  the operator key: `_harness/scenario` writes the shared adapter record, `_harness/reset` drops
+  that adapter's recorded calls.
 - **`GATEWAY_CLIENT_KEYS` authenticates but does not identify.** Callers using it are attributed
   as app `env`. Per-caller attribution is what the keystore adds.
 

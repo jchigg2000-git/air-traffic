@@ -8,7 +8,7 @@ import { useClock } from '../lib/useClock.ts'
 import Brand from '../components/Brand.tsx'
 import VendorGlyph, { vendorAccent } from '../components/VendorGlyph.tsx'
 import DispositionChip from '../components/DispositionChip.tsx'
-import StatusDot from '../components/StatusDot.tsx'
+import StatusDot, { RAG_MEANING } from '../components/StatusDot.tsx'
 import Sparkline from '../components/Sparkline.tsx'
 import ApiStateBanner from '../components/ApiStateBanner.tsx'
 
@@ -89,7 +89,7 @@ export default function FlightDeck() {
         </div>
       </header>
 
-      <ApiStateBanner error={error} className="mt-6" />
+      <ApiStateBanner error={error} hasData={!!fleet} className="mt-6" />
 
       {loading && !error && (
         <div className="mt-8 grid animate-pulse gap-3">
@@ -198,7 +198,7 @@ function FeedPill({
       style={{ borderColor: `color-mix(in srgb, var(--${rag}) 45%, transparent)` }}
     >
       <StatusDot rag={rag} pulse={rag !== 'green'} />
-      {rag === 'green' ? 'All systems nominal' : rag === 'amber' ? 'Attention' : 'Action required'}
+      {rag === 'green' ? 'All systems nominal' : RAG_MEANING[rag]}
     </span>
   )
 }
@@ -254,7 +254,9 @@ function BoardRow({ v, now }: { v: VendorRollup; now: number }) {
         </span>
         <span className="flex items-center gap-2">
           {v.emitting ? (
-            <StatusDot rag={v.worstRag} pulse={v.worstRag !== 'green'} />
+            // The only dot in the product with no word beside it — the column is too narrow
+            // for one — so it has to say what it means itself.
+            <StatusDot rag={v.worstRag} pulse={v.worstRag !== 'green'} standalone />
           ) : (
             <>
               <StatusDot rag="off" />

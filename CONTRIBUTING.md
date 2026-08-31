@@ -17,13 +17,18 @@ license agreement to sign and no copyright assignment.
 2. You retain your own copyright in your contribution — nothing here is an assignment, and you
    may continue to use your own work however you like.
 
-## Sign your commits
+## Signing your commits (optional)
 
-Add a `Signed-off-by` line to each commit as a record of the two points above:
+`git commit -s` adds a `Signed-off-by` line as a record of the two points above, and it is
+welcome:
 
 ```bash
 git commit -s -m "your message"
 ```
+
+It is not required, and no PR will be held for it. Nothing in CI checks for a DCO line, and not
+one commit in this repo's own history carries one — a rule the maintainer has never followed is
+worse than no rule, so this is a preference rather than a gate.
 
 ## Before you open a PR
 

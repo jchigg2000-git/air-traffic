@@ -5,7 +5,7 @@ package redact
 import (
 	"sort"
 
-	"air-traffic/internal/gateway/detect"
+	"github.com/jchigg2000-git/air-traffic/internal/gateway/detect"
 )
 
 // Mask replaces each span with its typed placeholder ([SSN], [EMAIL], …),

@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"air-traffic/internal/catalog"
-	"air-traffic/internal/model"
-	"air-traffic/internal/store"
+	"github.com/jchigg2000-git/air-traffic/internal/catalog"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/store"
 )
 
 func quietLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }

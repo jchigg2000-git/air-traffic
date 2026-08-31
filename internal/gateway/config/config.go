@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"air-traffic/internal/redact"
+	"github.com/jchigg2000-git/air-traffic/internal/redact"
 )
 
 // Upstream is one proxied vendor route: where to forward, which credential
@@ -65,6 +65,11 @@ var (
 	refScheme = regexp.MustCompile(`^(env|vault|kms):\S+$`)
 	// Shapes of raw credentials that must never appear as a config value.
 	rawSecret = regexp.MustCompile(`^(sk-|sk_live_|ghp_|gho_|github_pat_|AKIA|ASIA|xoxb-|ya29\.)`)
+	// The same shapes embedded mid-value, for the places a credential rides
+	// inside a larger string instead of being one: a base_url's userinfo or
+	// query. The leading boundary keeps ordinary hostnames and paths out of it
+	// ("tasks-key.example.com" contains "sk-" but not at a boundary).
+	embeddedSecret = regexp.MustCompile(`(^|[^A-Za-z0-9])(sk-|sk_live_|ghp_|gho_|github_pat_|AKIA|ASIA|xoxb-|ya29\.)`)
 )
 
 // Load reads and validates the gateway configuration from the environment.
@@ -171,6 +176,17 @@ func parseUpstreams(raw string) (map[string]Upstream, error) {
 		if err != nil || u.Scheme == "" || u.Host == "" {
 			return nil, fmt.Errorf("GATEWAY_UPSTREAMS[%s].base_url %q is not an absolute URL", route, up.BaseURL)
 		}
+		// A base_url is a credential slot too: userinfo (https://svc:sk-…@host)
+		// and query parameters (?api_key=sk-…) both carry one past a check that
+		// only looks at credential_ref. Userinfo is rejected outright — the
+		// gateway presents credentials as headers, so there is no legitimate
+		// reason for one to be in the URL, secret-shaped or not.
+		if u.User != nil {
+			return nil, fmt.Errorf("GATEWAY_UPSTREAMS[%s].base_url carries userinfo credentials; pass them as credential_ref (env:NAME)", route)
+		}
+		if embeddedSecret.MatchString(up.BaseURL) || embeddedSecret.MatchString(decodedQuery(u)) {
+			return nil, fmt.Errorf("GATEWAY_UPSTREAMS[%s].base_url carries an inline credential; refusing to start (want credential_ref: env:NAME)", route)
+		}
 		if rawSecret.MatchString(up.CredentialRef) {
 			return nil, fmt.Errorf("GATEWAY_UPSTREAMS[%s].credential_ref looks like a raw credential; refusing to start (want env:NAME)", route)
 		}
@@ -184,6 +200,25 @@ func parseUpstreams(raw string) (map[string]Upstream, error) {
 		}
 	}
 	return upstreams, nil
+}
+
+// decodedQuery flattens a URL's query values after percent-decoding, so a
+// credential hidden as %73k-live-… is checked in the form it will be sent.
+func decodedQuery(u *url.URL) string {
+	q, err := url.ParseQuery(u.RawQuery)
+	if err != nil {
+		return u.RawQuery
+	}
+	var b strings.Builder
+	for k, vs := range q {
+		for _, v := range vs {
+			b.WriteString(k)
+			b.WriteByte('=')
+			b.WriteString(v)
+			b.WriteByte('&')
+		}
+	}
+	return b.String()
 }
 
 func env(key, fallback string) string {

@@ -13,7 +13,7 @@ import (
 	"net/http"
 	"time"
 
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 const heartbeatInterval = 15 * time.Second

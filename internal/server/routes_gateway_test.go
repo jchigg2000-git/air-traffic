@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"air-traffic/internal/model"
-	"air-traffic/internal/store"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/store"
 )
 
 func newTestServer(t *testing.T) (*Server, *store.Store, http.Handler) {

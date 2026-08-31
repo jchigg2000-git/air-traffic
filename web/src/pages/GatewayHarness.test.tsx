@@ -119,3 +119,36 @@ describe('the run control', () => {
     expect(startHarnessRun).not.toHaveBeenCalled()
   })
 })
+
+describe('a dead control plane is not a dead gateway', () => {
+  it('reports the outage instead of telling the operator to start the data plane', async () => {
+    vi.resetModules()
+    const failing = () => Promise.reject(new Error('boom'))
+    vi.doMock('../lib/api.ts', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('../lib/api.ts')>()
+      return {
+        ...actual,
+        api: {
+          gatewayStatus: failing,
+          harnessRuns: failing,
+          harnessRatchet: failing,
+          harnessProposals: failing,
+          harnessCorpus: failing,
+          approveProposal: vi.fn(),
+          rejectProposal: vi.fn(),
+          startHarnessRun: vi.fn(),
+          runSample: vi.fn(),
+        },
+      }
+    })
+    const { default: BrokenHarness } = await import('./GatewayHarness.tsx')
+    renderPage(<BrokenHarness />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/no data has loaded yet/)
+    // The gateway may well be fine; nothing here knows either way.
+    expect(screen.queryByText(/Start the data plane first/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/pattern pack v0/)).not.toBeInTheDocument()
+    expect(screen.getByText(/pattern pack unknown/)).toBeInTheDocument()
+    vi.doUnmock('../lib/api.ts')
+  })
+})

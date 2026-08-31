@@ -6,7 +6,7 @@ package envconfig
 import (
 	"time"
 
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 // Render produces a byte-faithful ManagedArtifact for the given platform from policy intent.

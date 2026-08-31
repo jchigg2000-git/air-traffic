@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, qk } from '../lib/api.ts'
 import type { GatewayRedaction, HarnessRun, HarnessRunConfig, PatternProposal, SampleResult } from '../lib/api.ts'
 import PageHeader from '../components/PageHeader.tsx'
+import ApiStateBanner from '../components/ApiStateBanner.tsx'
 import Sparkline from '../components/Sparkline.tsx'
 import RedactionDiff from '../components/RedactionDiff.tsx'
 
@@ -127,6 +128,9 @@ export default function GatewayHarness() {
     }
   }
 
+  // A dead control plane is not a dead gateway: without this the page reports on a
+  // data plane it never managed to ask about.
+  const controlPlaneError = gateway.error || runs.error || proposals.error || ratchet.error
   const freshGateway = gateway.data?.gateways.find((g) => g.fresh)
   // What the gateway itself reports beats what this screen assumes. Falling back
   // to the regex floor was a lie under compose, where the chain is regex,presidio.
@@ -178,16 +182,29 @@ export default function GatewayHarness() {
         }
       />
 
-      {/* status strip */}
+      <ApiStateBanner error={controlPlaneError} hasData={!!gateway.data || !!runs.data || !!proposals.data} className="mb-4" />
+
+      {/* status strip — every chip here reports the DATA plane, so none of them may
+          speak while the control plane that reports on it is unreachable. */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Chip ok={!!freshGateway} label={freshGateway ? `gateway ${freshGateway.gateway_id} · ${freshGateway.action}` : 'no fresh gateway heartbeat'} />
+        <Chip
+          ok={!!freshGateway}
+          label={
+            gateway.error
+              ? 'gateway status unknown'
+              : freshGateway
+                ? `gateway ${freshGateway.gateway_id} · ${freshGateway.action}`
+                : 'no fresh gateway heartbeat'
+          }
+        />
         {freshGateway && <Chip ok label={`detectors: ${detectorChain}`} />}
-        <Chip ok label={`pattern pack v${gateway.data?.pattern_pack_version ?? 0}`} />
+        {/* v0 is a real pack version, so a failed fetch must not fall back to it and go green. */}
+        <Chip ok={!!gateway.data} label={gateway.data ? `pattern pack v${gateway.data.pattern_pack_version}` : 'pattern pack unknown'} />
         <span className="text-[11px] text-muted">
           All values on this screen are synthetic by construction — displaying them is safe. Retune in v0 = pattern packs, not model training.
         </span>
       </div>
-      {!freshGateway && (
+      {!freshGateway && !gateway.error && (
         <div className="mb-4 panel p-3 text-xs text-muted">
           Start the data plane first: <code className="font-mono">go run ./cmd/air-traffic-gateway</code> (see docs/plans/phase-3-inference-gateway.md for env).
         </div>

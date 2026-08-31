@@ -2,7 +2,7 @@
 // the reconcile/coverage engine, and drift detection.
 package policy
 
-import "air-traffic/internal/model"
+import "github.com/jchigg2000-git/air-traffic/internal/model"
 
 // Baselines returns the four named industry-rigor profiles (analysis §6).
 func Baselines() []model.Baseline {

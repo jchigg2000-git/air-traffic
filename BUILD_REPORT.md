@@ -1,7 +1,7 @@
-# Build Report — air-traffic
-_Generated 2026-06-29 from Claude Code session logs + git history._
+# Build Report — air-traffic, day one
+_Generated 2026-06-29 from Claude Code session logs + git history. Scope: the first day only — commits 1–10 of the 36 now on `main`, 148 of 208 tracked files. Everything built after 2026-06-29 (the inference gateway, the redaction harness, the flywheel) is outside this report and is not counted anywhere below._
 
-**At a glance:** built in ~7.1 active hours across 5 sessions, ~$155, roughly ~100× faster than a solo human estimate. Data is complete — live transcripts and git history both present; no archive logs and no repo rename detected.
+**At a glance:** the day-one build ran ~7.1 active hours across 5 sessions for ~$155. Data is complete for that window — live transcripts and git history both present; no archive logs and no repo rename detected. The speed-up multiplier under **Human-effort equivalent** is the one number here that does not hold up; it is kept with its own caveat rather than quoted at the top.
 
 ## Build sequence
 | When (local, −05:00) | Phase | Trigger (commit / subject) |
@@ -56,7 +56,7 @@ Assumptions: ~150 net committed lines/day including testing & debugging. **Cavea
 The flagged corrections were content/scope tweaks ("use the claude sunburst instead", "condense it for executive [audience]", "dial that back just a hair", "not limited to just those two vendors — full coverage"), i.e. steering the executive-doc narrative and vendor coverage rather than fixing broken code. 5 interrupts against 51 prompts is a clean run.
 
 ## Retrospective
-This was a one-day sprint that went the distance: from an empty repo at 11:52 to a running zero-dependency Go backend, a React control SPA, and a 16-vendor adapter matrix by 21:05 — about seven active hours of work, almost entirely on Opus 4.8. The shape of the spend tells the story honestly: 98% of the dollars and 234M of the 240M tokens are cache reads, the signature of a long agentic loop steadily re-reading a big cached context as it builds feature on feature. Output tokens (~977K) are the actual writing; everything else is the model holding the whole project in its head turn after turn.
+This was a one-day sprint that went the distance: from an empty repo at 11:52 to a running zero-dependency Go backend, a React control SPA, and a 16-vendor adapter matrix by 21:05 — about seven active hours of work, almost entirely on Opus 4.8. The shape of the spend tells the story honestly: 234M of the 238M tokens — and 75% of the dollars — are cache reads, the signature of a long agentic loop steadily re-reading a big cached context as it builds feature on feature. Output tokens (~977K) are the actual writing; everything else is the model holding the whole project in its head turn after turn.
 
 The wheel got yanked only gently. The four course-corrections were all about *presentation* — swap the logo to the Claude sunburst, broaden the executive doc past two vendors, condense for executives, soften the "you must be a CISO to get this" framing — not "you broke the build." That maps to a build where the engineering ran clean and the judgment calls were about how to pitch it. Five interrupts across 51 prompts is a low rein rate.
 

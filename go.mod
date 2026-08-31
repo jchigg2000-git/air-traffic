@@ -1,4 +1,4 @@
-module air-traffic
+module github.com/jchigg2000-git/air-traffic
 
 go 1.26
 

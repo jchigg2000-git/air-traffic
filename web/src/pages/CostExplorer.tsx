@@ -79,7 +79,7 @@ export default function CostExplorer() {
         }
       />
 
-      <ApiStateBanner error={error} className="mb-4" />
+      <ApiStateBanner error={error} hasData={!!fleet} className="mb-4" />
 
       {!fleet && !error && <div className="h-64 animate-pulse panel" />}
 

@@ -9,7 +9,7 @@ package synthetic
 import (
 	"strings"
 
-	"air-traffic/internal/catalog"
+	"github.com/jchigg2000-git/air-traffic/internal/catalog"
 )
 
 // facetByField returns the supported cost facet a vendor groups cost/usage by under the

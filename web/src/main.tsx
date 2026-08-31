@@ -3,10 +3,13 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App.tsx'
+import { safeStorage } from './lib/safeStorage.ts'
 import './index.css'
 
-// Restore theme before first paint.
-const saved = localStorage.getItem('at-theme')
+// Restore theme before first paint. This runs before createRoot, so a browser
+// that refuses storage must not throw here — the whole app would be a blank
+// #root with no fallback.
+const saved = safeStorage.get('at-theme')
 if (saved === 'light') document.documentElement.classList.remove('dark')
 else document.documentElement.classList.add('dark')
 

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 
-	"air-traffic/internal/model"
-	"air-traffic/internal/store"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/store"
 )
 
 // requestOutcome is what the runner records per request before scoring.
@@ -59,7 +59,19 @@ func scoreRun(st *store.Store, runID string, outcomes []requestOutcome) (model.R
 		// Behavioral recall: a seeded value present raw in the upstream
 		// capture is a leak, whatever the detector claimed. Blocked requests
 		// never reached upstream — everything counts as caught.
+		//
+		// A request that was neither blocked nor captured is neither leak nor
+		// catch: the mock upstream never recorded what it received, so nothing
+		// is known about this value. Counting those as caught is how a run
+		// whose captures never joined at all reports a flawless 1.00 — the
+		// exact failure this number exists to catch. They leave the
+		// denominator and are reported as capture orphans instead.
+		verified := hasCapture || res.Action == "block"
 		for _, truth := range o.Item.Truth {
+			if !verified {
+				score.CaptureOrphans++
+				continue
+			}
 			behavioralTotal++
 			leaked := hasCapture && strings.Contains(capture.Body, truth.Value)
 			if leaked {

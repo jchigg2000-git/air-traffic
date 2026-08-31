@@ -77,6 +77,37 @@ func TestLoadRejectsNonRefCredential(t *testing.T) {
 	}
 }
 
+// A base_url is the other place a credential fits: the package doc promises an
+// inline credential anywhere in the config kills the boot, and for a while that
+// promise only inspected credential_ref.
+func TestLoadRejectsCredentialInBaseURL(t *testing.T) {
+	cases := []struct {
+		name    string
+		baseURL string
+		wantErr string
+	}{
+		{"userinfo", "https://svc:sk-live-REALSECRET@api.anthropic.com", "userinfo credentials"},
+		{"query param", "https://api.example.com/v1?api_key=sk-live-REALSECRET", "inline credential"},
+		{"percent-encoded query param", "https://api.example.com/v1?api_key=%73k-live-REALSECRET", "inline credential"},
+		{"clean", "https://api.example.com/v1?api-version=2026-03-10", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("GATEWAY_UPSTREAMS", `{"anthropic":{"base_url":"`+tc.baseURL+`","credential_ref":"env:ANTHROPIC_UPSTREAM_KEY"}}`)
+			_, err := Load()
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Load: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("want %q rejection, got %v", tc.wantErr, err)
+			}
+		})
+	}
+}
+
 func TestLoadRequiresUpstreams(t *testing.T) {
 	t.Setenv("GATEWAY_UPSTREAMS", "")
 	if _, err := Load(); err == nil {

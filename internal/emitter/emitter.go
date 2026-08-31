@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"time"
 
-	"air-traffic/internal/catalog"
-	"air-traffic/internal/model"
-	"air-traffic/internal/store"
+	"github.com/jchigg2000-git/air-traffic/internal/catalog"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/store"
 )
 
 // Emitter walks catalog metric defs and emits synthetic batches.

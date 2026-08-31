@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"air-traffic/internal/gateway/config"
+	"github.com/jchigg2000-git/air-traffic/internal/gateway/config"
 )
 
 // newTestGatewayServer builds a *Server against upstreamURL with a caller

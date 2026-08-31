@@ -3,7 +3,7 @@ package catalog
 import (
 	"testing"
 
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 func validDisposition(d model.Disposition) bool {

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 // gatewayStaleAfter is 3× the default heartbeat interval: one missed beat is
@@ -189,9 +189,20 @@ func (s *Server) handleGatewayStatus(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.PolicyPersistError(); err != nil {
 		policyErr = err.Error()
 	}
+	// And the pattern pack, whose failure mode is the same shape: the approved
+	// rules are live in memory and on every gateway, and gone at the next
+	// restart. Empty when no harness is attached — there is then nothing that
+	// persists packs to fail.
+	patternErr := ""
+	if s.harness != nil {
+		if err := s.harness.PatternPersistError(); err != nil {
+			patternErr = err.Error()
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"gateways":             out,
 		"pattern_pack_version": s.store.GetPatternPack().Version,
+		"pattern_error":        patternErr,
 		"spine_auth":           s.spineAuthMode(),
 		"spine_key_unrotated":  devSpineKeys[s.spineKey],
 		"admin_auth":           s.adminAuthMode(),

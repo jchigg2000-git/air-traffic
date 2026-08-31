@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light" />
+<title>Executive Overview · Air-Traffic</title>
+<meta name="description" content="One control plane for all of AI — govern, observe and budget every AI vendor from one tower. Executive overview of Air-Traffic's coverage model, three control planes and honest enforcement labelling. The backend is a synthetic replica; no vendor is contacted." />
+<meta name="theme-color" content="#0b1220" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Air-Traffic — Executive Overview" />
+<meta property="og:description" content="Native where they allow it. Enforced where they don't. Monitored — never faked — where neither is possible." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+
+<style>
+/* =====================================================================
+   AIR-TRAFFIC · EXECUTIVE OVERVIEW
+   Was a class-styled .md that GitHub rendered as duplicated plain text —
+   it is markup, so it is served as markup. Single file, no build step.
+   Palette tracks web/src/index.css light theme so the deck and the SPA
+   name the same colours for the same dispositions.
+   ===================================================================== */
+:root{
+  --font-display:"Fraunces",Georgia,"Times New Roman",serif;
+  --font-sans:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+
+  --bg:#eef1f6; --panel:#ffffff; --panel2:#f4f7fb; --line:#d8e0ec;
+  --fg:#0b1220; --muted:#4a5a76; --faint:#8595af;
+  --accent:#0891b2; --accent2:#0e7490;
+
+  --native:#16a34a; --env:#0d9488; --proxy:#7c3aed;
+  --monitor:#64748b; --unverified:#d97706;
+  --green:#16a34a; --amber:#d97706; --red:#dc2626;
+
+  --wrap:1120px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;padding:34px 20px 60px;background:var(--bg);color:var(--fg);
+  font-family:var(--font-sans);font-size:15px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+img{max-width:100%}
+code{font-family:var(--font-mono)}
+.spacer{flex:1}
+.acc{color:var(--accent2)}
+
+/* ---------- cover ---------- */
+.cover{
+  position:relative;overflow:hidden;max-width:var(--wrap);margin:0 auto 30px;
+  min-height:620px;display:flex;flex-direction:column;
+  padding:46px 42px 30px;border-radius:22px;border:1px solid #16233b;color:#fff;
+  background:linear-gradient(158deg,#0d1526 0%,#0b1220 55%,#0a1424 100%);
+  box-shadow:0 30px 70px -40px rgba(11,18,32,.75);
+}
+.cover .glow,.cover .glow2{position:absolute;border-radius:50%;pointer-events:none}
+.cover .glow{width:660px;height:660px;top:-280px;right:-190px;background:radial-gradient(circle,rgba(56,213,234,.22),transparent 66%)}
+.cover .glow2{width:560px;height:560px;bottom:-280px;left:-180px;background:radial-gradient(circle,rgba(124,58,237,.20),transparent 66%)}
+.cover>*{position:relative}
+.eyebrow{font:700 10.5px/1 var(--font-mono);letter-spacing:.22em;color:#5fd8ea;text-transform:uppercase}
+.tile{margin:24px 0 26px}
+.tile img{width:76px;height:76px;border-radius:18px;display:block;box-shadow:0 14px 34px -14px rgba(0,0,0,.8)}
+.cover h1{font:700 clamp(38px,5.6vw,62px)/1.03 var(--font-display);margin:0;letter-spacing:-.02em}
+.cover .acc{color:#5fd8ea}
+.cover .sub{margin-top:20px;max-width:66ch;font-size:16.5px;line-height:1.62;color:#b6c7dc}
+.cover .sub b{color:#fff}
+.disclose{
+  margin-top:22px;max-width:80ch;padding:13px 15px;border-radius:0 12px 12px 0;
+  border-left:3px solid #fbbf24;background:rgba(251,191,36,.10);
+  font-size:12.8px;line-height:1.62;color:#c2d3e6;
+}
+.disclose b{color:#fff}
+.cnstl{margin-top:26px}
+.cnstl .cap{font:500 11.5px/1.7 var(--font-mono);color:#8ea5c0;max-width:92ch}
+.cover .foot{display:flex;align-items:flex-end;gap:20px;margin-top:26px;padding-top:18px;border-top:1px solid rgba(150,180,220,.18)}
+.cover .wm{font:800 15px/1 var(--font-sans);letter-spacing:-.01em;color:#fff}
+.cover .meta{font-size:11.5px;color:#7f95b2;margin-top:5px}
+
+/* ---------- spread shell ---------- */
+.spread{
+  max-width:var(--wrap);margin:0 auto 30px;padding:28px 30px 24px;
+  background:var(--panel);border:1px solid var(--line);border-radius:22px;
+  box-shadow:0 22px 54px -38px rgba(15,32,60,.55);
+}
+.hd{display:flex;align-items:flex-start;gap:18px;margin-bottom:22px}
+.fol{font:800 32px/1 var(--font-display);color:#c3cfdf;flex:none;padding-top:4px}
+.kick{font:700 10.5px/1 var(--font-mono);letter-spacing:.18em;text-transform:uppercase;color:var(--accent2)}
+.ht h1{font:700 clamp(25px,3.3vw,36px)/1.12 var(--font-display);margin:9px 0 0;letter-spacing:-.015em}
+.anchor{display:flex;align-items:center;gap:24px;flex-wrap:wrap;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+.anchor .lbl{font-size:13px;line-height:1.55;color:var(--muted);max-width:64ch}
+.stat{display:flex;gap:22px}
+.stat .s{text-align:right}
+.stat .n{font:700 23px/1 var(--font-display);color:var(--fg)}
+.stat .l{font:600 9.5px/1.3 var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-top:5px}
+
+/* ---------- 01 · coverage wall ---------- */
+.wall{display:grid;grid-template-columns:repeat(8,1fr);gap:9px}
+.t2{display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center;
+  padding:12px 6px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+.t2 .mk{height:26px;display:grid;place-items:center}
+.t2 .wm{font:800 13px/1 var(--font-sans);letter-spacing:-.03em;white-space:nowrap}
+.t2 .nm{font-size:10.5px;font-weight:600;color:var(--muted);line-height:1.3}
+.disp{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+.disp .d{padding:11px 13px;border:1px solid var(--line);border-left-width:3px;border-radius:10px;background:var(--panel2)}
+.disp .d .h{display:flex;align-items:center;gap:7px;font:700 12px/1 var(--font-mono)}
+.disp .d .x{margin-top:6px;font-size:11.5px;line-height:1.45;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.disp .native{border-left-color:var(--native)} .disp .native .h{color:var(--native)} .disp .native .dot{background:var(--native)}
+.disp .env{border-left-color:var(--env)}       .disp .env .h{color:var(--env)}       .disp .env .dot{background:var(--env)}
+.disp .proxy{border-left-color:var(--proxy)}   .disp .proxy .h{color:var(--proxy)}   .disp .proxy .dot{background:var(--proxy)}
+.disp .monitor{border-left-color:var(--monitor)} .disp .monitor .h{color:var(--monitor)} .disp .monitor .dot{background:var(--monitor)}
+
+/* ---------- 02 · three planes ---------- */
+.planes{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.plane{display:flex;flex-direction:column;gap:12px;padding:16px;
+  border:1px solid var(--line);border-top:3px solid var(--c);border-radius:14px;background:var(--panel2)}
+.plane.safe{--c:var(--native)} .plane.see{--c:var(--accent)} .plane.pay{--c:var(--unverified)}
+.plane .ic{width:34px;height:34px;border-radius:10px;background:var(--c);display:grid;place-items:center}
+.plane .ic svg{width:18px;height:18px}
+.plane .txt .t{font:700 16px/1.2 var(--font-display)}
+.plane .txt .t span{display:block;font:700 9.5px/1 var(--font-mono);letter-spacing:.16em;text-transform:uppercase;color:var(--c);margin-bottom:6px}
+.plane .txt .d{margin-top:8px;font-size:12.5px;line-height:1.55;color:var(--muted)}
+.plane .viz{margin-top:auto}
+.rig{display:flex;flex-direction:column;gap:5px}
+.rig .r{display:flex;align-items:center;gap:8px;padding:6px 9px;font-size:11.5px;font-weight:600;
+  border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--muted)}
+.rig .r.on{border-color:var(--accent);color:var(--fg);background:rgba(8,145,178,.08)}
+.rig .lk{font-size:9px;letter-spacing:-1.5px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.chip{font:700 9.5px/1 var(--font-mono);letter-spacing:.05em;padding:5px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--panel)}
+.chip.s1{color:var(--accent2);border-color:rgba(8,145,178,.35)}
+.chip.s2{color:var(--proxy);border-color:rgba(124,58,237,.30)}
+.chip.s3{color:var(--native);border-color:rgba(22,163,74,.30)}
+.feed{display:flex;flex-direction:column;gap:4px}
+.ev{display:flex;align-items:center;gap:8px;padding:6px 8px;font-size:11px;color:var(--muted);
+  border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.ev code{font:600 10.5px var(--font-mono);color:var(--fg)}
+.dt{width:6px;height:6px;border-radius:50%;flex:none}
+.dt.g{background:var(--green)} .dt.b{background:var(--env)} .dt.a{background:var(--amber)}
+.vt{margin-left:auto;font:700 9px var(--font-mono);letter-spacing:.08em;color:var(--faint)}
+.mled{display:flex;flex-direction:column;gap:7px}
+.lr{display:flex;align-items:center;gap:8px;font-size:11.5px}
+.lr .wm{font:800 11px/1 var(--font-sans);width:24px;flex:none}
+.lr .nm{width:58px;flex:none;font-weight:600;color:var(--muted)}
+.lr .tr{flex:1;height:6px;border-radius:99px;background:var(--panel);border:1px solid var(--line);overflow:hidden}
+.lr .tr i{display:block;height:100%;background:var(--accent)}
+.lr .am{width:44px;text-align:right;font:700 11px var(--font-mono)}
+.meter{margin-top:12px}
+.meter .bar{height:9px;border-radius:99px;background:var(--panel);border:1px solid var(--line);overflow:hidden}
+.meter .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--native),var(--amber))}
+.meter .lab{margin-top:7px;font-size:11.5px;color:var(--muted)}
+
+/* ---------- 03 · flight deck ---------- */
+.deck{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel2)}
+.deck .bar{display:flex;align-items:center;gap:9px;padding:10px 14px;font:700 11.5px var(--font-mono);
+  color:var(--muted);background:var(--panel);border-bottom:1px solid var(--line)}
+.gdot{width:7px;height:7px;border-radius:50%;background:var(--green);flex:none}
+.deck .right{margin-left:auto;font-weight:600;color:var(--faint)}
+.deck table{width:100%;border-collapse:collapse;font-size:12.5px}
+.deck th{text-align:left;padding:10px 14px;font:700 9.5px/1 var(--font-mono);letter-spacing:.11em;
+  text-transform:uppercase;color:var(--faint);border-bottom:1px solid var(--line)}
+.deck td{padding:10px 14px;border-bottom:1px solid var(--line);color:var(--muted)}
+.deck tr:last-child td{border-bottom:0}
+.deck td.v{color:var(--fg);font-weight:600}
+.deck .wm{font-weight:800;letter-spacing:-.02em}
+.pill{display:inline-block;font:700 10px var(--font-mono);padding:3px 8px;border-radius:99px;border:1px solid}
+.pill.ok{color:var(--native);border-color:rgba(22,163,74,.35);background:rgba(22,163,74,.09)}
+.pill.wn{color:var(--amber);border-color:rgba(217,119,6,.35);background:rgba(217,119,6,.10)}
+.b{display:inline-block;margin-left:6px;font:700 8.5px var(--font-mono);letter-spacing:.08em;
+  text-transform:uppercase;padding:3px 6px;border-radius:5px;border:1px solid}
+.b.native{color:var(--native);border-color:rgba(22,163,74,.35)}
+.b.env{color:var(--env);border-color:rgba(13,148,136,.35)}
+.b.proxy{color:var(--proxy);border-color:rgba(124,58,237,.35)}
+.b.monitor{color:var(--monitor);border-color:rgba(100,116,139,.35)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+.kpi{padding:15px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+.kpi .n{font:700 27px/1 var(--font-display);color:var(--accent2)}
+.kpi .l{margin-top:7px;font-size:11.5px;line-height:1.45;color:var(--muted)}
+.closing{display:flex;align-items:center;gap:20px;margin-top:22px;padding:22px 24px;border-radius:16px;
+  color:#fff;background:linear-gradient(140deg,#0d1526,#0b1220)}
+.closing .mk img{width:50px;height:50px;border-radius:13px;display:block}
+.closing .big{font:700 24px/1.25 var(--font-display)}
+.closing .sm{display:block;margin-top:9px;font:600 14px/1.55 var(--font-sans);color:#b6c7dc}
+.closing .acc{color:#5fd8ea}
+.fin{margin-top:16px;padding-top:13px;border-top:1px solid var(--line);
+  font-size:11px;line-height:1.6;color:var(--faint)}
+
+/* ---------- narrow ---------- */
+@media (max-width:980px){
+  .wall{grid-template-columns:repeat(4,1fr)}
+  .disp,.kpis{grid-template-columns:repeat(2,1fr)}
+  .planes{grid-template-columns:1fr}
+}
+@media (max-width:620px){
+  body{padding:18px 12px 40px}
+  .cover{padding:30px 22px 22px;min-height:0}
+  .spread{padding:20px 18px}
+  .wall{grid-template-columns:repeat(2,1fr)}
+  .disp,.kpis{grid-template-columns:1fr}
+  .hd{flex-direction:column;gap:6px}
+  .closing{flex-direction:column;align-items:flex-start}
+}
+
+/* ---------- print (this deck began life as a PDF) ---------- */
+@media print{
+  body{padding:0;background:#fff}
+  .cover,.spread{box-shadow:none;border-radius:0;margin:0;max-width:none;break-after:page}
+  .spread.last{break-after:auto}
+}
+</style>
+</head>
+
+<body>
+
+<div class="cover">
+<div class="glow"></div><div class="glow2"></div>
+<div class="eyebrow">AIR-TRAFFIC · AI CONTROL PLANE</div>
+<div class="tile"><img src="../web/public/icons/air-traffic-icon-512.png" alt="Air-Traffic"/></div>
+<h1>One control plane<br/>for <span class="acc">all of AI.</span></h1>
+<div class="sub">Govern, observe, and budget <b>every</b> AI vendor and agent platform from one tower — natively where they allow it, enforced where they don't, and monitored where neither is possible.</div>
+<div class="disclose"><b>Read this first: no vendor is really contacted.</b> Air-Traffic talks to a <b>synthetic replica</b> of each vendor's admin surface that it serves itself, on its own port. Not one of the sixteen adapters holds a live credential or reaches the internet, and every figure in this deck is generated locally. What is real is the shape: the API surfaces, the error envelopes, the policy engine, the emitted signal contract — and the inference gateway, whose redaction runs on real request bytes. Treat this as a working spec and a testbed, not as a production integration.</div>
+<div class="spacer"></div>
+<div class="cnstl">
+<div class="cap">OpenAI · Anthropic · Google · AWS · Azure · Microsoft · Mistral · Cohere · Amazon Q · Databricks · IBM · Groq · Together · Perplexity · GitHub Copilot · xAI — one policy, one ledger, one audit trail.</div>
+</div>
+<div class="foot"><div><div class="wm">Air-Traffic</div><div class="meta">Enterprise AI Control Plane &amp; Observability</div></div><div class="spacer"></div><div class="meta">Executive Overview · June 2026</div></div>
+</div>
+
+<section class="spread">
+<div class="hd"><div class="fol">01</div><div class="ht"><div class="kick">Coverage</div><h1>Every vendor. <span class="acc">One honest model.</span></h1></div></div>
+<div class="hero">
+<div class="wall">
+<div class="t2"><div class="mk"><div class="c"><span class="wm" style="color:#0D0D0D">OpenAI</span></div></div><div class="nm">OpenAI</div></div>
+<div class="t2"><div class="mk"><div class="c"><span class="wm" style="color:#D97757">Claude</span></div></div><div class="nm">Anthropic Claude</div></div>
+<div class="t2"><div class="mk"><div class="c"><span class="wm" style="color:#4285F4">Gemini</span></div></div><div class="nm">Google Vertex</div></div>
+<div class="t2"><div class="mk"><div class="c"><span class="wm" style="color:#0078D4">Azure</span></div></div><div class="nm">Azure OpenAI</div></div>
+<div class="t2"><div class="mk"><div class="c"><span class="wm" style="color:#FF9900">aws</span></div></div><div class="nm">AWS Bedrock</div></div>
+<div class="t2"><div class="mk"><div class="c"><span class="wm" style="color:#FA520F">Mistral</span></div></div><div class="nm">Mistral AI</div></div>
+<div class="t2"><div class="mk"><div class="c"><span class="wm" style="color:#FF7759">cohere</span></div></div><div class="nm">Cohere</div></div>
+<div class="t2"><div class="mk"><div class="c"><span class="wm" style="color:#8C4FFF">Q</span></div></div><div class="nm">Amazon Q</div></div>
+<div class="t2"><div class="mk"><div class="c"><span class="wm" style="color:#FF3621">databricks</span></div></div><div class="nm">Databricks</div></div>
+<div class="t2"><div class="mk"><div class="c"><span class="wm" style="color:#0F62FE">watsonx</span></div></div><div class="nm">IBM watsonx</div></div>
+<div class="t2"><div class="mk"><div class="c"><span class="wm" style="color:#F55036">Groq</span></div></div><div class="nm">Groq</div></div>
+<div class="t2"><div class="mk"><div class="c"><span class="wm" style="color:#5B5BF0">Together</span></div></div><div class="nm">Together AI</div></div>
+<div class="t2"><div class="mk"><div class="c"><span class="wm" style="color:#20808D">Perplexity</span></div></div><div class="nm">Perplexity</div></div>
+<div class="t2"><div class="mk"><div class="c"><span class="wm" style="color:#1A1A1A">xAI</span></div></div><div class="nm">xAI Grok</div></div>
+<div class="t2"><div class="mk"><div class="c"><span class="wm" style="color:#6E7681">Copilot</span></div></div><div class="nm">GitHub Copilot</div></div>
+<div class="t2"><div class="mk"><div class="c"><span class="wm" style="color:#D83B01">Microsoft</span></div></div><div class="nm">Microsoft 365</div></div>
+</div>
+<div class="disp">
+<div class="d native"><div class="h"><span class="dot"></span>VendorNative</div><div class="x">Drive the vendor's own admin API.</div></div>
+<div class="d env"><div class="h"><span class="dot"></span>EnvManaged</div><div class="x">Push managed config into the environment.</div></div>
+<div class="d proxy"><div class="h"><span class="dot"></span>ProxyEnforced</div><div class="x">Optional inline gateway, off by default.</div></div>
+<div class="d monitor"><div class="h"><span class="dot"></span>MonitorOnly</div><div class="x">Verify &amp; alert — never faked as enforced.</div></div>
+</div>
+</div>
+<div class="anchor"><div class="lbl"><b>Native</b> where they allow it. <b>Enforced</b> where they don't. <b>Monitored</b> — never faked — where neither is possible.</div><div class="spacer"></div><div class="stat"><div class="s"><div class="n">16</div><div class="l">vendors</div></div><div class="s"><div class="n">4</div><div class="l">mechanisms</div></div><div class="s"><div class="n">1</div><div class="l">policy</div></div></div></div>
+</section>
+
+<section class="spread">
+<div class="hd"><div class="fol">02</div><div class="ht"><div class="kick">One tower, three jobs</div><h1>Safety. Visibility. <span class="acc">Budget.</span></h1></div></div>
+<div class="hero">
+<div class="planes">
+<div class="plane safe"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div><div class="txt"><div class="t"><span>Govern</span>Safety &amp; governance</div><div class="d"><b>Pick a rigor level</b> per surface — we apply it to every vendor, natively or via managed config.</div></div><div class="viz"><div class="rig"><div class="r"><span class="lk">🔒</span><b>Standard</b></div><div class="r on"><span class="lk">🔒🔒</span><b>Elevated</b></div><div class="r"><span class="lk">🔒🔒🔒</span><b>Strict</b></div></div><div class="chips"><span class="chip s1">SaaS</span><span class="chip s2">Fintech</span><span class="chip s3">Healthcare</span></div><div style="font-size:11px;color:var(--faint);font-weight:600;margin-top:8px">One-click industry baselines — then fine-tune anything.</div></div></div>
+<div class="plane see"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></div><div class="txt"><div class="t"><span>Observe</span>Visibility</div><div class="d"><b>One normalized stream</b> — model calls, agent actions, audit &amp; drift, every vendor. SIEM- &amp; OTel-ready.</div></div><div class="viz"><div class="feed"><div class="ev"><span class="dt g"></span><code>gpt-4o</code> model call<span class="vt">OK</span></div><div class="ev"><span class="dt b"></span><code>mcp:github</code> tool call<span class="vt">ENV</span></div><div class="ev"><span class="dt g"></span><code>claude-code</code> hook<span class="vt">PASS</span></div><div class="ev"><span class="dt a"></span><code>azure</code> filter<span class="vt">BLOCK</span></div><div class="ev"><span class="dt a"></span><code>bedrock</code> retention<span class="vt">DRIFT</span></div><div class="ev"><span class="dt b"></span><code>copilot</code> review gate<span class="vt">A</span></div></div></div></div>
+<div class="plane pay"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="txt"><div class="t"><span>Control</span>Budget &amp; spend</div><div class="d"><b>One ledger</b> across every vendor; soft caps alert, hard stops require the optional gateway. Where a vendor has no native cap the capability reads <code>proxy_needed</code>, not "enforced".</div></div><div class="viz"><div class="mled"><div class="lr"><span class="wm" style="color:#0D0D0D">O</span><span class="nm">OpenAI</span><span class="tr"><i style="width:100%"></i></span><span class="am">$11K</span></div><div class="lr"><span class="wm" style="color:#0078D4">Az</span><span class="nm">Azure</span><span class="tr"><i style="width:61%"></i></span><span class="am">$6.8K</span></div><div class="lr"><span class="wm" style="color:#FF9900">aws</span><span class="nm">Bedrock</span><span class="tr"><i style="width:37%"></i></span><span class="am">$4.1K</span></div><div class="lr"><span class="wm" style="color:#D97757">C</span><span class="nm">Claude</span><span class="tr"><i style="width:21%"></i></span><span class="am">$2.3K</span></div></div><div class="meter"><div class="bar"><i style="width:49%"></i></div><div class="lab"><b>$24.4K</b> of $50K cap · alert at 80%</div></div></div></div>
+</div>
+</div>
+<div class="anchor"><div class="lbl">Set the posture once; Air-Traffic applies it across all 16 — and shows you <b>exactly how</b> each control is enforced.</div><div class="spacer"></div><div class="stat"><div class="s"><div class="n">3</div><div class="l">planes</div></div><div class="s"><div class="n">1</div><div class="l">policy</div></div><div class="s"><div class="n">0</div><div class="l">proxies by default</div></div></div></div>
+</section>
+
+<section class="spread last">
+<div class="hd"><div class="fol">03</div><div class="ht"><div class="kick">The control room</div><h1>Proof, <span class="acc">at a glance.</span></h1></div></div>
+<div class="hero">
+<div class="deck">
+<div class="bar"><span class="gdot"></span>Air-Traffic · Flight Deck<span class="right">policy: Fintech 🔒🔒 · 16 vendors · synced 12s ago</span></div>
+<table>
+<tr><th>Vendor</th><th>Policy</th><th>Strongest control</th><th>Spend MTD</th><th>Drift</th></tr>
+<tr><td class="v"><span class="wm" style="color:#0D0D0D">OpenAI&nbsp;</span></td><td><span class="pill ok">✓ synced</span></td><td>Spend alerts + audit <span class="b native">Native</span></td><td>$11.2K</td><td>none</td></tr>
+<tr><td class="v"><span class="wm" style="color:#D97757">Claude&nbsp;</span>Anthropic Claude</td><td><span class="pill ok">✓ synced</span></td><td>MCP + hooks <span class="b env">Env</span></td><td>$2.3K</td><td>none</td></tr>
+<tr><td class="v"><span class="wm" style="color:#0078D4">Azure&nbsp;</span>Azure OpenAI</td><td><span class="pill ok">✓ synced</span></td><td>Content filters <span class="b native">Native</span></td><td>$6.8K</td><td>none</td></tr>
+<tr><td class="v"><span class="wm" style="color:#FF9900">aws&nbsp;</span>AWS Bedrock</td><td><span class="pill ok">✓ synced</span></td><td>Guardrails <span class="b native">Native</span></td><td>$4.1K</td><td>none</td></tr>
+<tr><td class="v"><span class="wm" style="color:#6E7681">Copilot&nbsp;</span>GitHub Copilot</td><td><span class="pill ok">✓ synced</span></td><td>Review gate <span class="b env">Env</span></td><td>seats</td><td>none</td></tr>
+<tr><td class="v"><span class="wm" style="color:#4285F4">Gemini&nbsp;</span>Google Vertex</td><td><span class="pill wn">⚠ 1 gap</span></td><td>Model Armor <span class="b native">Native</span></td><td>$1.9K</td><td>safety unset</td></tr>
+</table>
+</div>
+<div class="kpis"><div class="kpi"><div class="n">16</div><div class="l">vendors &amp; agent platforms, one plane</div></div><div class="kpi"><div class="n">1</div><div class="l">policy, ledger &amp; audit trail</div></div><div class="kpi"><div class="n">0</div><div class="l">controls rendered as "enforced" that aren't — a seed-only control can never claim it</div></div><div class="kpi"><div class="n">5 min</div><div class="l">to apply a baseline everywhere</div></div></div>
+</div>
+<div class="closing"><div class="mk"><img src="../web/public/icons/air-traffic-icon-512.png" alt=""/></div><div class="big">One control plane for all of AI.<span class="sm"><span class="acc">Every control labelled by how it is actually enforced — never rounded up.</span></span></div></div>
+<div class="fin">Air-Traffic · Enterprise AI Control Plane &amp; Observability · June 2026 — Vendor names are rendered as brand-colour text wordmarks throughout; no vendor logos are reproduced. Figures illustrative — the backend is a synthetic replica served locally; no vendor is contacted.</div>
+</section>
+
+</body>
+</html>

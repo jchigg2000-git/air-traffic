@@ -6,18 +6,18 @@
 > (2026-08-07). If another doc's status ever conflicts with this one, **this wins.**
 >
 > - **Strategy / the "why"** (a different layer, not an execution plan): `docs/air-traffic-analysis.md`,
->   `docs/air-traffic-system-design.md`, `docs/air-traffic-executive-overview.md`,
->   `docs/air-traffic-claude-code-github-copilot.md` (portfolio briefs — RECORDS, point-in-time by design).
+>   `docs/air-traffic-system-design.md`, `docs/air-traffic-executive-overview.html`,
+>   `docs/air-traffic-claude-code-github-copilot.html` (portfolio briefs — RECORDS, point-in-time by design).
 > - **Reference / spec** (opened on demand, never as "the plan"): `docs/inference-gateway-design.md`
 >   (design), `docs/inference-gateway-build-plan.md` (sequencing), `docs/inference-gateway-eli5.md`
 >   (referenced by `scripts/capture-harness-screenshot.js`). **Live deferred-work ledgers, kept
 >   separate deliberately** because code and UI cite them by path: `docs/plans/TODO-gateway-deferred.md`
->   (cited from `internal/gateway/credbroker/credbroker.go:35`, `internal/store/store.go:61`, and README)
->   and `docs/plans/TODO-vendor-auth.md` (cited from `internal/store/store.go:61`,
->   `web/src/lib/authSchemas.ts:3`, and rendered live in `web/src/pages/Vendors.tsx:307`). Also kept
->   separate as build-history records (linked from README's "Plans:" line):
->   `docs/plans/phase-1-surface-collection.md`, `docs/plans/phase-2-frontend.md`,
->   `docs/plans/phase-3-inference-gateway.md`.
+>   (cited from `internal/gateway/credbroker/credbroker.go:35`, `internal/server/routes_gateway.go:126`,
+>   `internal/model/gateway.go:47`, and README) and `docs/plans/TODO-vendor-auth.md` (cited from
+>   `internal/store/store.go:78`, `web/src/lib/authSchemas.ts:3`, and rendered live in
+>   `web/src/pages/Vendors.tsx:311`). Also kept separate as build-history records (linked from
+>   README's "Plans:" line): `docs/plans/phase-1-surface-collection.md`,
+>   `docs/plans/phase-2-frontend.md`, `docs/plans/phase-3-inference-gateway.md`.
 > - **Decisions**: `DECISIONS.md` (append-only log; roadmap items cite it by date + title)
 
 > **Closed work is not in this file.** An item is deleted at the edit that closes it — there is no
@@ -45,12 +45,13 @@ budget) · Appendix
 > ### ▶ RESUME HERE — session handoff 2026-08-16 (gap-closure pass: PIVOT-1, auth, persistence)
 >
 > **State:** everything below was **built and verified this pass** — full toolchain present
-> (go 1.26.5, node 24.14.1, docker 29.5.3). `gofmt` clean, `go vet` clean, `go test -race ./...`
-> green, `npm run build` + **47 vitest across 7 files** green (was 18 across 3),
-> `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` **9/9** (recall_behavioral 1.000, precision 0.991,
-> trap FPs 0), compose stack rebuilt and healthy. The Rigor Console was also **opened in a real
-> browser** (headless Chromium) and its screenshots are in `docs/images/` — that is the OWED-2
-> class of verification, done for this change at least.
+> (go 1.26.5 then; `go.mod` has since pinned toolchain go1.26.7 to clear reachable stdlib CVEs,
+> 88ddcb7 — node 24.14.1, docker 29.5.3). `gofmt` clean, `go vet` clean, `go test -race ./...`
+> green, `npm run build` + the full **vitest suite** green (51 tests across 7 files at last count,
+> 2026-08-30; was 18 across 3), `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` **9/9** (recall_behavioral
+> 1.000, precision 0.991, trap FPs 0), compose stack rebuilt and healthy. The Rigor Console was
+> also **opened in a real browser** (headless Chromium) and its screenshots are in `docs/images/` —
+> that is the OWED-2 class of verification, done for this change at least.
 >
 > **▶ NEXT ACTION:** §7.2's four cheap instrumentation fixes (PIVOT-2 → PIVOT-5) are now the
 > strongest candidates — PIVOT-2 especially, since every rate in §7.4 is computed over a
@@ -68,11 +69,10 @@ budget) · Appendix
 > - **Five Tier-2 fixtures are still missing** (M365 Copilot, Databricks, Perplexity, Cohere,
 >   Together) — see §1 PHASE1-3. The README was corrected to stop claiming otherwise; the code was
 >   not changed. Building them needs real vendor API documentation, not recall.
-> - **Live stack state left behind:** the `harness-data` volume now also holds `policy.json`
->   (`healthcare` **with the ZDR attestation set**, so the gateway is enforcing `mask` — confirmed
->   on `/api/gateway/status`). That state is now durable across restarts, which is the point, but
->   it also means the stack no longer starts from "no policy applied". The `hf-sandbox` app + two
->   revoked keys from the keystore pass are still there.
+> - **A used stack no longer boots clean:** the applied policy write-throughs to `policy.json` in
+>   the `harness-data` volume, so once any policy has been applied the stack comes back enforcing
+>   it. Durable persistence is the point; the consequence is that there is no longer a "no policy
+>   applied" starting state short of dropping the volume.
 > - The **Gateway Traffic** page and the Gateway Harness `allow_list` chip remain browser-unverified
 >   (OWED-2). Only the Rigor Console was opened this pass.
 > - **Observations/reports store is still in-memory** (carried from the GATEWAY-5 pass,
@@ -108,7 +108,8 @@ budget) · Appendix
   `/api/gateway/status` and the observation feed, or make them visibly static. The bar is that
   `/welcome` must not lose visual quality in the process. (This page was last shaped through a
   local `/ratchet-up` ledger under `.claude/ratchet-up/`, which is gitignored and not part of
-  the published repo — see `DECISIONS.md` 2026-08-18.)
+  the published repo — see `DECISIONS.md` 2026-08-15 "Flight Deck: an element may not claim
+  liveness it cannot disprove", scope ruling 2.)
 - ⬜ **PHASE2-3b** Residual, non-blocking: `web/src/components/VendorGlyph.tsx` brand hues for
   bedrock/mistral/m365/groq (`#FF9900`, `#FA520F`, `#D83B01`, `#F55036`) sit in the same band as
   `--amber`/`--unverified`, so a decorative glyph can camouflage a real status dot in the same
@@ -119,8 +120,8 @@ budget) · Appendix
 
 ## §3 Phase 3 — Inference gateway + harness + flywheel
 
-- 🔶 **GATEWAY-5** (2026-08-15, **uncommitted**) OpenAI-compatible dialect + per-request traffic
-  feed. `POST /v1/chat/completions` ships beside `/v1/messages`, both running the *same* pipeline
+- 🔶 **GATEWAY-5** (2026-08-15) OpenAI-compatible dialect + per-request traffic feed.
+  `POST /v1/chat/completions` ships beside `/v1/messages`, both running the *same* pipeline
   behind a `dialect` descriptor (`internal/gateway/proxy.go`) so detector/policy changes can't
   drift between them; new `internal/gateway/adapter_openai.go` field walk, OpenAI SSE usage
   scanner, OpenAI error envelope, and a `GATEWAY_UPSTREAMS[route].auth` knob (`x-api-key` |
@@ -132,8 +133,8 @@ budget) · Appendix
   through it, token counts reconciling exactly against meaning-to-making's independent cost store
   (see §0). **Still 🔶 not ✅ because:** the Anthropic route has still only ever talked to the
   synthetic replica, and the Gateway Traffic page has not been opened in a browser.
-- 🔶 **GATEWAY-6** (2026-08-15, **uncommitted**) Flywheel suppression: `allow_list` pattern-rule
-  kind + `POST /api/harness/proposals` for owner-authored proposals. The flywheel could only ever
+- 🔶 **GATEWAY-6** (2026-08-15) Flywheel suppression: `allow_list` pattern-rule kind +
+  `POST /api/harness/proposals` for owner-authored proposals. The flywheel could only ever
   raise recall; nothing could retire a false positive, and a score gate provably cannot (spaCy
   returns 0.85 for every PERSON/LOCATION, real or not — measured). Applied in `Chain.Run` beside
   `typeGuards` so it overrules any engine; scoped by type; suppresses a term, never a region.
@@ -196,8 +197,9 @@ callout). Pointer only:
   xAI, Amazon Q, IBM watsonx, M365 Copilot) ship **disabled** and fall back to URL-only config
   until their schema is built. Suggested shape per vendor + build steps: full detail in
   `docs/plans/TODO-vendor-auth.md` — not duplicated here since that file is the one the UI cites.
-  **Reminder carried forward:** the enabled/disabled roster is the owner's to set — never
-  auto-toggle (`docs/plans/TODO-vendor-auth.md` cites auto-memory `feedback-no-auto-toggle-vendors`).
+  **Reminder carried forward:** the enabled/disabled roster is the owner's to set. An agent never
+  enables or disables a vendor on its own — toggling is an explicit operator action
+  (`PATCH /api/adapters/{id}`), which is how the code states it (`internal/store/store.go:76-79`).
 
 ---
 
@@ -232,10 +234,9 @@ callout). Pointer only:
 >
 > **Driver (owner's words, 2026-08-15):** pivot the app "to be helpful [to] even those who don't
 > understand these things"; identify bottlenecks in settings and "potentially auto heal, or alert
-> to adjust parameters"; "auto budget tuning in per user (github copilot is our harness at work so
-> def start with it), we have claude as well…but only few of us"; consider "administrative lift,
-> and the risk of a user not understanding and opening the wrong thing"; and "different modes.
-> Expert tuning versus guided."
+> to adjust parameters"; **per-user budget tuning, GitHub Copilot first** (paraphrased, not
+> quoted); consider "administrative lift, and the risk of a user not understanding and opening the
+> wrong thing"; and "different modes. Expert tuning versus guided."
 >
 > **Tiers are ordering constraints, not preferences.** A later tier shipped before an earlier one
 > is dishonest, not merely early — each tier supplies the evidence the next one's claims rest on.
@@ -485,16 +486,16 @@ for exact destinations):
 code or UI cites them by path** (folding would strand those citations):
 
 - `docs/plans/TODO-gateway-deferred.md` — cited from `internal/gateway/credbroker/credbroker.go:35`,
-  `internal/store/store.go:61`, README. Pointed at from §3.
-- `docs/plans/TODO-vendor-auth.md` — cited from `internal/store/store.go:61`,
-  `web/src/lib/authSchemas.ts:3`, rendered live in `web/src/pages/Vendors.tsx:307`. Pointed at
+  `internal/server/routes_gateway.go:126`, `internal/model/gateway.go:47`, README. Pointed at from §3.
+- `docs/plans/TODO-vendor-auth.md` — cited from `internal/store/store.go:78`,
+  `web/src/lib/authSchemas.ts:3`, rendered live in `web/src/pages/Vendors.tsx:311`. Pointed at
   from §5.
 - `docs/plans/phase-1-surface-collection.md`, `docs/plans/phase-2-frontend.md`,
   `docs/plans/phase-3-inference-gateway.md` — all three linked directly from `README.md` as
-  "Plans:" / "what shipped vs deferred" build-history records. Their own `Status:` headers are
-  stale (phase-1/2 still say `PLANNED`); this roadmap's §1/§2/§3 are the corrected status. The
-  files themselves were left untouched — editing a README-linked doc was out of scope for this
-  pass.
+  "Plans:" / "what shipped vs deferred" build-history records. All three now declare their built
+  status in the doc itself (`phase-1-surface-collection.md:9`, `phase-2-frontend.md:8`,
+  `phase-3-inference-gateway.md:3`), corrected in 6a2eb27; this roadmap's §1/§2/§3 remain the live
+  status and still win on any conflict, because they carry the open items those records don't track.
 - `docs/inference-gateway-design.md`, `docs/inference-gateway-build-plan.md` — reference/spec
   docs (README-linked as "Design:" / "sequencing:"); they reason about the gateway's architecture
   rather than sequence open work, so they stay separate per the roadmap-skill's reasoning-vs-
@@ -504,9 +505,12 @@ code or UI cites them by path** (folding would strand those citations):
 
 - `docs/air-traffic-analysis.md`, `docs/air-traffic-system-design.md` — strategy/spec docs,
   code-referenced (`internal/catalog/catalog.go`, `internal/catalog/cost_facets.go`).
-- `docs/air-traffic-executive-overview.md`, `docs/air-traffic-claude-code-github-copilot.md` —
-  portfolio brief decks (paired `.pdf` twins), RECORDS by design, not superseded — left alone
-  per the design-doc-archive convention (archive only applies to superseded generated docs).
+- `docs/air-traffic-executive-overview.html`, `docs/air-traffic-claude-code-github-copilot.html` —
+  portfolio brief decks, RECORDS by design, not superseded — left alone per the
+  design-doc-archive convention (archive only applies to superseded generated docs). Both were
+  class-styled HTML carrying a `.md` extension, so GitHub rendered them as doubled unstyled
+  text; renamed to `.html` 2026-08-30. The four `.pdf` twins were deleted in the same pass —
+  they were June renderings that had drifted from the corrected Markdown.
 - `docs/inference-gateway-eli5.md` — code-referenced (`scripts/capture-harness-screenshot.js`).
 - `BUILD_REPORT.md` — a different command's output, regenerated on its own cadence; never a fold
   target.

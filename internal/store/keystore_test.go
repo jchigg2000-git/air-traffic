@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 func TestIssueKeyStoresDigestNotSecret(t *testing.T) {

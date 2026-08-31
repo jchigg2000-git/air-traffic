@@ -224,7 +224,7 @@ export default function RigorConsole() {
         }
       />
 
-      <ApiStateBanner error={baselines.error || adapters.error} className="mb-4" />
+      <ApiStateBanner error={baselines.error || adapters.error} hasData={!!baselines.data && !!adapters.data} className="mb-4" />
 
       {/* profile selector */}
       {(baselines.isLoading || adapters.isLoading) && (
@@ -451,7 +451,7 @@ function ApplyConfirmation({
           </p>
         )}
 
-        <ApiStateBanner error={error} />
+        <ApiStateBanner error={error} hasData />
       </div>
     </Modal>
   )

@@ -3,7 +3,7 @@ package store
 import (
 	"time"
 
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 // ---- inference captures (synthetic mock upstream) ----

@@ -14,8 +14,8 @@ import (
 	"net/http"
 	"time"
 
-	"air-traffic/internal/gateway/detect"
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/gateway/detect"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 // RunPolicyPull drives the pull loop until ctx is cancelled. Failures retry
@@ -192,15 +192,27 @@ func (s *Server) pullPatterns(ctx context.Context) error {
 			Confidence: r.Confidence,
 		})
 	}
-	// Chain first: allow-list suppression is engine-independent, and applying
-	// it before the engines reload means a pack that both adds a recognizer
-	// and suppresses a term can never briefly enforce the addition alone.
-	s.chain.SetPatternPack(rules)
+	// Regex first, because it is the only half that can refuse: it compiles
+	// every rule into a new recognizer set before swapping it in, so a pack
+	// with a bad regex is rejected having installed nothing. Installing the
+	// chain's allow-list suppression first — the earlier ordering, argued from
+	// "suppression should never lag an addition" — meant a rejected pack still
+	// silenced terms while the recognizers it came with never loaded.
+	//
+	// The window that ordering was worried about survives, inverted: between
+	// these two calls a pack that both adds a recognizer and suppresses a term
+	// enforces the addition alone. That is microseconds of over-detection; the
+	// old order bought it with indefinite under-detection.
 	if s.regexDet != nil {
 		if err := s.regexDet.SetPatternPack(rules); err != nil {
+			// Record the version anyway: nothing was installed, and a pack the
+			// control plane will keep serving unchanged must not re-fail on
+			// every pull. The next version — the fixed one — reloads normally.
+			s.packVersion.Store(int64(payload.Pack.Version))
 			return fmt.Errorf("pattern pack v%d rejected: %w", payload.Pack.Version, err)
 		}
 	}
+	s.chain.SetPatternPack(rules)
 	if s.presidio != nil {
 		s.presidio.SetPatternPack(rules)
 	}

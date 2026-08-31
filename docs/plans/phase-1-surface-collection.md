@@ -77,7 +77,7 @@ Each `env_managed` capability also carries `enforcement ∈ {server_side, mdm_lo
 
 ```
 air-traffic/
-├── go.mod                                  # module air-traffic, go 1.26, zero external deps
+├── go.mod                                  # module github.com/jchigg2000-git/air-traffic, go 1.26, zero external deps
 ├── cmd/
 │   └── air-traffic-server/
 │       └── main.go                         # config + lifecycle (mirrors cmd/harness-server)
@@ -523,7 +523,7 @@ Response envelopes match it-scorecard (`{adapters:[...]}`, `{observations:[...]}
 
 ---
 
-## 12. Testing strategy (must be green before /shipit)
+## 12. Testing strategy (must be green before the work ships)
 
 1. `gofmt -l` clean · `go vet ./...` clean · `go build ./...` clean.
 2. **Unit tests** (`*_test.go`, `httptest`):

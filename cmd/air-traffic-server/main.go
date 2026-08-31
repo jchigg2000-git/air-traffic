@@ -12,11 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	"air-traffic/internal/emitter"
-	"air-traffic/internal/harness"
-	"air-traffic/internal/policy"
-	"air-traffic/internal/server"
-	"air-traffic/internal/store"
+	"github.com/jchigg2000-git/air-traffic/internal/emitter"
+	"github.com/jchigg2000-git/air-traffic/internal/harness"
+	"github.com/jchigg2000-git/air-traffic/internal/policy"
+	"github.com/jchigg2000-git/air-traffic/internal/server"
+	"github.com/jchigg2000-git/air-traffic/internal/store"
 )
 
 func main() {

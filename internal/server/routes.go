@@ -5,12 +5,12 @@ import (
 	"strings"
 	"time"
 
-	"air-traffic/internal/audit"
-	"air-traffic/internal/catalog"
-	"air-traffic/internal/envconfig"
-	"air-traffic/internal/model"
-	"air-traffic/internal/policy"
-	"air-traffic/internal/redact"
+	"github.com/jchigg2000-git/air-traffic/internal/audit"
+	"github.com/jchigg2000-git/air-traffic/internal/catalog"
+	"github.com/jchigg2000-git/air-traffic/internal/envconfig"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/policy"
+	"github.com/jchigg2000-git/air-traffic/internal/redact"
 )
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {

@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 const (
@@ -364,9 +364,7 @@ func (r *Runner) upsertProposals(runID string, candidateHits map[string]int, evi
 		}
 	}
 
-	if err := r.persist.savePatterns(r.store.GetPatternPack(), r.proposals); err != nil {
-		r.log.Warn("proposals persist failed", "error", err)
-	}
+	r.savePatternsLocked(r.store.GetPatternPack())
 }
 
 // upsertThreshold proposes lowering the type's score gate to accept the
@@ -634,15 +632,13 @@ func (r *Runner) AddProposal(p model.PatternProposal) (model.PatternProposal, er
 		}
 	}
 	r.proposals = append(r.proposals, p)
-	if err := r.persist.savePatterns(r.store.GetPatternPack(), r.proposals); err != nil {
-		r.log.Warn("pattern persist failed", "error", err)
-	}
+	r.savePatternsLocked(r.store.GetPatternPack())
 	r.log.Info("proposal authored", "id", p.ID, "kind", p.Kind, "type", p.Type)
 	return p, nil
 }
 
 // ApproveProposal moves a proposal into the active pattern pack: version
-// bump, store publish (gateways hot-reload on next pull), durable persist,
+// bump, durable persist, store publish (gateways hot-reload on next pull),
 // audit event. Human-in-the-loop by design.
 func (r *Runner) ApproveProposal(id string) (model.PatternPack, error) {
 	r.mu.Lock()
@@ -670,10 +666,13 @@ func (r *Runner) ApproveProposal(id string) (model.PatternPack, error) {
 	pack.Rules = append(pack.Rules, rule)
 	pack.Version++
 	pack.UpdatedAt = time.Now().UTC()
+	// Disk first, then publish. The other order makes a failed write invisible:
+	// gateways enforce a rule that no longer exists after a restart. Publishing
+	// still happens on a write failure — the approval is a deliberate act and
+	// the rule is wanted live — but the failure is carried on the status route
+	// rather than left in a log line.
+	r.savePatternsLocked(pack)
 	r.store.SetPatternPack(pack)
-	if err := r.persist.savePatterns(pack, r.proposals); err != nil {
-		r.log.Warn("pattern persist failed", "error", err)
-	}
 	r.store.AddAudit(model.AuditEvent{
 		Actor: "air-traffic:admin", Action: "gateway.pattern.approve",
 		Resource: prop.Type, Plane: model.PlaneDataPolicy, Vendor: "anthropic",
@@ -694,9 +693,7 @@ func (r *Runner) RejectProposal(id string) error {
 				return fmt.Errorf("proposal %q is %s", id, r.proposals[i].Status)
 			}
 			r.proposals[i].Status = "rejected"
-			if err := r.persist.savePatterns(r.store.GetPatternPack(), r.proposals); err != nil {
-				r.log.Warn("proposals persist failed", "error", err)
-			}
+			r.savePatternsLocked(r.store.GetPatternPack())
 			return nil
 		}
 	}

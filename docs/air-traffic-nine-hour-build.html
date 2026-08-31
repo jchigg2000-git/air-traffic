@@ -395,7 +395,21 @@ footer{max-width:var(--wrap);margin:0 auto;padding:30px clamp(20px,5vw,40px) 70p
   <div class="tablewrap rv d3" style="margin-top:26px">
     <table class="ledger">
       <thead><tr><th>#</th><th>time</th><th>commit</th><th>what landed</th><th>phase</th><th style="text-align:right">files</th><th style="text-align:right">diff</th></tr></thead>
-      <tbody id="ledgerBody"><!-- filled by JS; static fallback below --></tbody>
+      <!-- Emitted statically so the sentence above stays true with JS off. The
+           renderer below clears and re-emits these from the same COMMITS array,
+           so there is still exactly one source of truth. -->
+      <tbody id="ledgerBody">
+        <tr><td class="n">1</td><td class="t">11:52</td><td class="h">e251528</td><td>Initial commit</td><td class="ph" style="color:#94a3b8">scaffold</td><td class="n">1</td><td class="n"><span class="ins">+2</span> <span class="del">−0</span></td></tr>
+        <tr><td class="n">2</td><td class="t">17:20</td><td class="h">30caaf2</td><td>Specs, executive PDFs &amp; brand assets</td><td class="ph" style="color:#a78bfa">docs</td><td class="n">69</td><td class="n"><span class="ins">+2798</span> <span class="del">−0</span></td></tr>
+        <tr><td class="n">3</td><td class="t">17:37</td><td class="h">d7934ef</td><td>Phase 1 &amp; Phase 2 build plans</td><td class="ph" style="color:#a78bfa">docs</td><td class="n">2</td><td class="n"><span class="ins">+775</span> <span class="del">−0</span></td></tr>
+        <tr><td class="n">4</td><td class="t">17:54</td><td class="h">3bd5bda</td><td>Phase 1 — synthetic byte-identical backend</td><td class="ph" style="color:#38e0f2">backend</td><td class="n">31</td><td class="n"><span class="ins">+3690</span> <span class="del">−1</span></td></tr>
+        <tr><td class="n">5</td><td class="t">18:09</td><td class="h">f404481</td><td>Phase 2 — control &amp; observability SPA</td><td class="ph" style="color:#34d399">frontend</td><td class="n">30</td><td class="n"><span class="ins">+4601</span> <span class="del">−3</span></td></tr>
+        <tr><td class="n">6</td><td class="t">18:35</td><td class="h">2d8678a</td><td>Real brand mark, favicon, settings gear</td><td class="ph" style="color:#fbbf24">polish</td><td class="n">12</td><td class="n"><span class="ins">+43</span> <span class="del">−8</span></td></tr>
+        <tr><td class="n">7</td><td class="t">18:55</td><td class="h">ece88f2</td><td>Vendor pane, per-row toggle, endpoint modal</td><td class="ph" style="color:#fb923c">feature</td><td class="n">4</td><td class="n"><span class="ins">+326</span> <span class="del">−35</span></td></tr>
+        <tr><td class="n">8</td><td class="t">18:59</td><td class="h">5a4dda9</td><td>Saving an endpoint flips adapter to proxy</td><td class="ph" style="color:#fb923c">feature</td><td class="n">1</td><td class="n"><span class="ins">+2</span> <span class="del">−2</span></td></tr>
+        <tr><td class="n">9</td><td class="t">19:20</td><td class="h">1e480ae</td><td>Per-vendor proxy auth + default roster</td><td class="ph" style="color:#fb923c">feature</td><td class="n">6</td><td class="n"><span class="ins">+321</span> <span class="del">−69</span></td></tr>
+        <tr><td class="n">10</td><td class="t">21:05</td><td class="h">396e6ee</td><td>Cost &amp; usage drill-down + Rigor Console</td><td class="ph" style="color:#fbbf24">feature</td><td class="n">15</td><td class="n"><span class="ins">+1159</span> <span class="del">−32</span></td></tr>
+      </tbody>
     </table>
   </div>
   <p class="rv d3" style="margin-top:16px;font-size:.86rem;color:var(--fg-faint)">Cumulative net lines land on <b class="mono dim">13,567</b> (13,717 insertions − 150 deletions) across <b class="mono dim">148</b> tracked files — the exact figures in this run's BUILD_REPORT.</p>
@@ -439,8 +453,9 @@ footer{max-width:var(--wrap);margin:0 auto;padding:30px clamp(20px,5vw,40px) 70p
 <!-- 6 WHAT GOT BUILT -->
 <section class="scene" id="s6" data-nav="What landed">
   <div class="rv"><span class="kic">What actually landed</span></div>
-  <h2 class="rv d1">Not a demo. A control plane.</h2>
-  <p class="lede rv d2">The settled structure is a real system: it drives 16 AI vendors' native admin APIs and normalizes them into one <span class="mono">ops-observation-batch/v1</span> signal across three control planes — and it is honest about what it cannot enforce.</p>
+  <h2 class="rv d1">Not a mockup. A working spec you can run.</h2>
+  <p class="lede rv d2">The settled structure is a real system: it drives 16 AI vendors' admin surfaces and normalizes them into one <span class="mono">ops-observation-batch/v1</span> signal across three control planes — and it is honest about what it cannot enforce.</p>
+  <p class="rv d2 dim" style="margin-top:18px;max-width:62ch;font-size:.92rem"><b class="amberink">No vendor is really contacted.</b> Those surfaces are a <em class="h">synthetic replica</em> air-traffic serves itself, on its own port — a hand-written vendor-exact fixture for seven, a labelled generic envelope for the other nine. Not one of the sixteen adapters holds a live credential or reaches the internet. What is real is the shape: the surfaces, the error envelopes, the policy engine, the emitted signal contract.</p>
   <div class="grid g3" style="margin-top:30px">
     <div class="card rv d2"><div class="stat"><span class="num cyanink">16</span><span class="lab">vendor adapters</span></div>
       <div class="chips"><span class="chip"><b>Tier 1</b> deep · 6</span><span class="chip"><b>Tier 2</b> core · 6</span><span class="chip"><b>Tier 3</b> emit · 4</span></div>
@@ -616,8 +631,9 @@ footer{max-width:var(--wrap);margin:0 auto;padding:30px clamp(20px,5vw,40px) 70p
       if(e.key>="0"&&e.key<="9"){var i=+e.key;if(scenes[i])scenes[i].scrollIntoView({behavior:REDUCED?"auto":"smooth"});}
     });
 
-    // ledger table
+    // ledger table — drop the static rows, re-emit the identical set from COMMITS
     var lb=$("#ledgerBody");
+    lb.innerHTML="";
     COMMITS.forEach(function(c,i){
       var tr=document.createElement("tr");
       tr.innerHTML=

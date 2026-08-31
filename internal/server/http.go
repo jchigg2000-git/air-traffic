@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"air-traffic/internal/store"
+	"github.com/jchigg2000-git/air-traffic/internal/store"
 )
 
 const maxBody = 2 << 20 // 2 MB

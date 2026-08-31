@@ -7,12 +7,13 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
-	"air-traffic/internal/gateway/config"
-	"air-traffic/internal/gateway/redact"
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/gateway/config"
+	"github.com/jchigg2000-git/air-traffic/internal/gateway/redact"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 // hop-by-hop headers (RFC 9110 §7.6.1) are never forwarded in either direction.
@@ -289,8 +290,13 @@ func (s *Server) proxyRequest(w http.ResponseWriter, r *http.Request, d dialect)
 		return
 	}
 
-	outReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost,
-		strings.TrimSuffix(up.BaseURL, "/")+d.path, bytes.NewReader(outBody))
+	target, err := upstreamTarget(up.BaseURL, d.path)
+	if err != nil {
+		s.log.Error("upstream base URL unusable", "route", d.route, "error", err)
+		d.writeErr(w, http.StatusBadGateway, "api_error", "upstream base URL unusable")
+		return
+	}
+	outReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, target, bytes.NewReader(outBody))
 	if err != nil {
 		d.writeErr(w, http.StatusBadGateway, "api_error", "building upstream request failed")
 		return
@@ -399,6 +405,20 @@ func relayWithUsage(w http.ResponseWriter, body io.Reader, extract func([]byte) 
 	}
 	tokensIn, tokensOut = extract(buf)
 	return tokensIn, tokensOut, nil
+}
+
+// upstreamTarget joins a dialect path onto a configured base_url. The join is
+// structural rather than string concatenation because a base_url may carry a
+// query string (an Azure-style ?api-version=…): concatenating swallows the path
+// into that query, producing /v1?api-version=…/chat/completions.
+func upstreamTarget(baseURL, path string) (string, error) {
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return "", err
+	}
+	u.Path = strings.TrimSuffix(u.Path, "/") + path
+	u.RawPath = "" // Path is authoritative now; let String re-encode it.
+	return u.String(), nil
 }
 
 // copyHeaders forwards everything except hop-by-hop and the caller's own

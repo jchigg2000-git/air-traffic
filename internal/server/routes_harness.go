@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 // requireHarness guards all /api/harness/* routes: the engine is optional

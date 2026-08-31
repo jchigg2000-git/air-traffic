@@ -9,26 +9,20 @@
 // key holds all of it, and audit rows can name the system but never a person.
 // Say that plainly wherever it appears in the UI.
 
+import { safeStorage } from './safeStorage.ts'
+
 const STORAGE_KEY = 'airtraffic.adminKey'
 export const ADMIN_KEY_HEADER = 'X-Air-Traffic-Admin-Key'
 
 export function getAdminKey(): string {
-  try {
-    return localStorage.getItem(STORAGE_KEY) ?? ''
-  } catch {
-    // Private-mode / disabled storage: no key is a working state (the server
-    // may not require one), so degrade rather than throw.
-    return ''
-  }
+  // Private-mode / disabled storage: no key is a working state (the server may
+  // not require one), so safeStorage degrades rather than throwing.
+  return safeStorage.get(STORAGE_KEY) ?? ''
 }
 
 export function setAdminKey(key: string): void {
-  try {
-    if (key) localStorage.setItem(STORAGE_KEY, key)
-    else localStorage.removeItem(STORAGE_KEY)
-  } catch {
-    /* ignore — see getAdminKey */
-  }
+  if (key) safeStorage.set(STORAGE_KEY, key)
+  else safeStorage.remove(STORAGE_KEY)
 }
 
 /** Header bag for a mutating request; empty when no key is held. */

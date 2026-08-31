@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"sync/atomic"
 
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 // Presidio calls a self-hosted presidio-analyzer sidecar over HTTP — the

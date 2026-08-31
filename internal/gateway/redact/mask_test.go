@@ -3,7 +3,7 @@ package redact
 import (
 	"testing"
 
-	"air-traffic/internal/gateway/detect"
+	"github.com/jchigg2000-git/air-traffic/internal/gateway/detect"
 )
 
 func TestMaskReplacesSpansRightToLeft(t *testing.T) {

@@ -20,7 +20,7 @@ export default function Observability() {
         actions={<span className="rounded-md border border-line bg-panel2 px-2 py-1 font-mono text-[11px] text-accent">ops-observation-batch/v1</span>}
       />
 
-      <ApiStateBanner error={obs.error} className="mb-4" />
+      <ApiStateBanner error={obs.error} hasData={!!obs.data} className="mb-4" />
       {/* CSS grid, not a <table> — the table semantics are declared so a
           screen reader keeps the column meanings. */}
       <div className="panel overflow-hidden" role="table" aria-label="Observation batches, newest first" aria-busy={obs.isLoading}>

@@ -42,6 +42,12 @@ type RunScore struct {
 	ByEngine         map[string]int       `json:"by_engine"`
 	JoinedReports    int                  `json:"joined_reports"`
 	OrphanRequests   int                  `json:"orphan_requests"`
+	// CaptureOrphans counts seeded values held out of RecallBehavioral because
+	// the request was not blocked and no upstream capture joined: nothing is
+	// known about whether they leaked. They are excluded rather than counted
+	// as caught, so a run whose captures never joined reads as unverified
+	// instead of perfect.
+	CaptureOrphans int `json:"capture_orphans"`
 }
 
 // HarnessRun is one traffic run through the gateway.

@@ -11,7 +11,9 @@ major AI vendor.
 > the API surfaces, the error envelopes, the policy engine, the emitted signal contract — and
 > the **inference gateway**, whose redaction runs on real request bytes and is measured
 > behaviourally rather than asserted. Treat this as a working spec and a testbed for the
-> integration, not as a production integration.
+> integration, not as a production integration. The vendor names and marks used throughout
+> belong to their respective owners; this project is not affiliated with or endorsed by any
+> of them.
 
 Air-Traffic's model is that it drives vendors' native admin APIs (`vendor_native`), pushes
 managed config into dev/agent environments and reads it back for drift (`env_managed`), and
@@ -101,7 +103,7 @@ a seed-only control as "enforced."
 | `GET/POST /api/harness/runs` · `GET /runs/{id}` · `POST /sample` · `GET /ratchet` · `/corpus` · `GET/POST /proposals[/{id}/approve\|reject]` | flywheel harness — **503s without the harness engine** (`requireHarness`). `POST /proposals` authors an owner proposal (the flywheel infers additions from harness misses; it has no ground truth for real traffic, so retiring a false positive is a human call) |
 | `GET/POST /api/apps` · `GET/PATCH /api/apps/{id}` · `GET/POST /api/apps/{id}/keys` · `DELETE /api/keys/{kid}` | keystore admin — loopback **or** `AIRTRAFFIC_ADMIN_KEY`; wrapped by `scripts/keystore.sh` |
 | `GET /api/gateway/keys` | the keystore snapshot a gateway pulls (digests, never secrets) — spine-key gated |
-| `ANY /synthetic/{vendor}/{native-path}` | synthetic vendor surface (dedicated fixture for 7, generic envelope for 9) + `/_harness/*` control. The two mutating control paths — `_harness/scenario` and `_harness/reset` — write the adapter record and carry the operator key |
+| `ANY /synthetic/{vendor}/{native-path}` | synthetic vendor surface (dedicated fixture for 7, generic envelope for 9) + `/_harness/*` control. The two mutating control paths carry the operator key: `_harness/scenario` writes the adapter record, `_harness/reset` drops that adapter's recorded calls |
 
 ### Synthetic surface example
 
@@ -207,25 +209,26 @@ E2E_COMPOSE=1 ./scripts/e2e-gateway.sh   # assert the running stack end-to-end
 **Keys.** Two shared secrets hold the stack together: `GATEWAY_CLIENT_KEYS` (the caller key for
 both client routes, which the control plane's harness presents as
 `AIRTRAFFIC_GATEWAY_KEY`) and `AIRTRAFFIC_SPINE_KEY` (required on `/api/gateway/leaks`,
-`/enforcement`, and `/patterns` — the pattern pack distributes deny-list *terms*, so the read
-side is gated too). Compose falls back to throwaway values (`gwk-demo`, `spine-dev-insecure`)
-so the demo comes up in one command; both binaries log a warning while those are live and
-`/api/gateway/status` reports `spine_key_unrotated`. Run `./scripts/dev-env.sh` (add `--rotate`
-to replace existing keys) before anything shared. With no spine key set at all, those three
-routes accept **loopback callers only** — a container-network peer does not qualify.
+`/enforcement`, `/patterns` and `/keys` — the pattern pack distributes deny-list *terms* and the
+keystore snapshot distributes key digests, so the read side is gated too). Compose falls back to
+throwaway values (`gwk-demo`, `spine-dev-insecure`) so the demo comes up in one command; both
+binaries log a warning while those are live and `/api/gateway/status` reports
+`spine_key_unrotated`. Run `./scripts/dev-env.sh` (add `--rotate` to replace existing keys)
+before anything shared. With no spine key set at all, those four routes accept **loopback
+callers only** — a container-network peer does not qualify.
 
 **Operator key (`AIRTRAFFIC_ADMIN_KEY`).** The control plane is single-operator by decision — no
 user model, no login, no per-human principal, so an audit row can name the system but never a
 person (`DECISIONS.md` 2026-08-15). What it does have is one key gating every **state-changing**
 route: adapter patch, policy PUT, credential POST, harness run/sample, proposal approve/reject,
-and the two mutating synthetic-harness control paths (`_harness/scenario`, `_harness/reset` —
-they write the same adapter record). Reads are never gated — the observability surfaces are the
-product.
+and the two mutating synthetic-harness control paths (`_harness/scenario` writes the adapter
+record, `_harness/reset` drops that adapter's recorded calls). No read is gated by *this* key —
+the observability surfaces are the product; the four spine routes above carry their own gate.
 
 ```bash
 ./scripts/dev-env.sh              # mints AIRTRAFFIC_ADMIN_KEY (adm-…) into .env
 grep AIRTRAFFIC_ADMIN_KEY .env    # paste it into the SPA sidebar's "Operator key" field
-curl -X PUT 127.0.0.1:8122/api/policies -H "X-Air-Traffic-Admin-Key: $KEY" -d '{"baseline":"fintech"}'
+curl -X PUT 127.0.0.1:8122/api/policies -H "X-Air-Traffic-Admin-Key: $AIRTRAFFIC_ADMIN_KEY" -d '{"baseline":"fintech"}'
 ```
 
 **Unset, the writes are open** — that is the posture this repo shipped with, and it is what the
@@ -287,10 +290,17 @@ flow use the same ports — run one or the other.
 ```bash
 docker compose -f deploy/presidio/docker-compose.yml up -d   # NER tier only (port 8126)
 
+# terminal 1 — control plane (port 8122). Not optional: it is both the spine the
+# gateway heartbeats to and pulls patterns/keys from, and the synthetic upstream
+# the GATEWAY_UPSTREAMS below points at. Without it the gateway warns every 2s
+# and every proxied request 502s.
+go run ./cmd/air-traffic-server
+
+# terminal 2 — gateway (data plane, port 8125)
 GATEWAY_UPSTREAMS='{"anthropic":{"base_url":"http://127.0.0.1:8122/synthetic/anthropic","credential_ref":"env:ANTHROPIC_UPSTREAM_KEY"}}' \
 ANTHROPIC_UPSTREAM_KEY=sk-ant-synthetic-dev GATEWAY_CLIENT_KEYS=gwk-demo \
 GATEWAY_DETECTORS=regex,presidio GATEWAY_REDACT_ACTION=per_policy \
-go run ./cmd/air-traffic-gateway                              # data plane (port 8125)
+go run ./cmd/air-traffic-gateway
 
 ./scripts/e2e-gateway.sh                                      # boots its own processes
 ```
@@ -394,6 +404,7 @@ the route returns 502 locally rather than sending a placeholder to a real vendor
 Pull requests are welcome — [`CONTRIBUTING.md`](CONTRIBUTING.md) has the check suite and the
 handful of deliberate constraints that will otherwise look like bugs. Before running this
 anywhere but your own machine, read [`SECURITY.md`](SECURITY.md): with `AIRTRAFFIC_ADMIN_KEY`
-unset the writes are open, and compose binds `0.0.0.0`.
+unset the writes are open, and the only thing keeping the compose stack off the network is the
+`127.0.0.1:` prefix on its published ports.
 
 MIT — Copyright (c) 2026 Justin Higgins. See [LICENSE](LICENSE).

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"air-traffic/internal/gateway/config"
+	"github.com/jchigg2000-git/air-traffic/internal/gateway/config"
 )
 
 const (
@@ -150,5 +150,25 @@ func TestSSEPassThroughPreservesFraming(t *testing.T) {
 	got, _ := io.ReadAll(resp.Body)
 	if string(got) != events {
 		t.Errorf("SSE framing altered:\ngot  %q\nwant %q", got, events)
+	}
+}
+
+// A base_url carrying a query string is real (Azure puts ?api-version= there);
+// concatenating the dialect path onto it sends /v1?api-version=…/chat/completions.
+func TestUpstreamTargetPreservesQuery(t *testing.T) {
+	cases := []struct{ base, path, want string }{
+		{"https://api.anthropic.com", "/v1/messages", "https://api.anthropic.com/v1/messages"},
+		{"https://api.anthropic.com/", "/v1/messages", "https://api.anthropic.com/v1/messages"},
+		{"https://host/openai/deployments/gpt/v1?api-version=2026-03-10", "/chat/completions",
+			"https://host/openai/deployments/gpt/v1/chat/completions?api-version=2026-03-10"},
+	}
+	for _, tc := range cases {
+		got, err := upstreamTarget(tc.base, tc.path)
+		if err != nil {
+			t.Fatalf("upstreamTarget(%q): %v", tc.base, err)
+		}
+		if got != tc.want {
+			t.Errorf("upstreamTarget(%q, %q) = %q, want %q", tc.base, tc.path, got, tc.want)
+		}
 	}
 }

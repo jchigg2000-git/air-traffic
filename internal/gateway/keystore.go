@@ -14,7 +14,7 @@ import (
 	"crypto/subtle"
 	"time"
 
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 // principal is who the authenticated caller is. Legacy GATEWAY_CLIENT_KEYS

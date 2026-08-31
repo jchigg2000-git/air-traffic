@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://air-traffic.dev/schemas/ops-observation-batch-v1.schema.json",
+  "$id": "https://raw.githubusercontent.com/jchigg2000-git/air-traffic/main/schemas/ops-observation-batch-v1.schema.json",
   "title": "Ops Observation Batch v1",
   "description": "Emission contract reused verbatim from it-scorecard; carries one batch of vendor control-plane observations.",
   "type": "object",

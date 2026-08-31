@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 // RequestAudit is the per-request redaction record: types, offsets, counts —

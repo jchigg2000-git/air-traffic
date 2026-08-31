@@ -242,3 +242,39 @@ func TestPatternPullHotReloads(t *testing.T) {
 		t.Errorf("packVersion = %d", gw.packVersion.Load())
 	}
 }
+
+// A pack the regex engine refuses must install nothing — not even the
+// chain-level allow-list, which used to go in first and stayed in force with
+// the recognizers it shipped with never loaded — and must not re-fail on every
+// pull for as long as the control plane keeps serving it.
+func TestRejectedPatternPackInstallsNothing(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{}`)
+	}))
+	defer upstream.Close()
+	gw, fcp := newSpineGateway(t, upstream.URL)
+	ctx := context.Background()
+
+	text := "ssn 123-45-6789 here"
+	fcp.packJSON = `{"pack":{"version":4,"rules":[` +
+		`{"id":"bad","type":"MRN","regex":"(unclosed"},` +
+		`{"id":"hush","type":"SSN","kind":"allow_list","allow_list":["123-45-6789"]}]}}`
+	if err := gw.pullPatterns(ctx); err == nil {
+		t.Fatal("want the uncompilable rule to reject the pack")
+	}
+	if spans, _ := gw.chain.Run(ctx, text); len(spans) == 0 {
+		t.Error("rejected pack's allow-list suppressed a span it never earned")
+	}
+	if err := gw.pullPatterns(ctx); err != nil {
+		t.Errorf("rejected pack re-fires on the next pull: %v", err)
+	}
+
+	// The fixed pack arrives as a new version and reloads normally.
+	fcp.packJSON = `{"pack":{"version":5,"rules":[{"id":"hush","type":"SSN","kind":"allow_list","allow_list":["123-45-6789"]}]}}`
+	if err := gw.pullPatterns(ctx); err != nil {
+		t.Fatalf("pull v5: %v", err)
+	}
+	if spans, _ := gw.chain.Run(ctx, text); len(spans) != 0 {
+		t.Errorf("allow-list not live after the fixed pack: %+v", spans)
+	}
+}

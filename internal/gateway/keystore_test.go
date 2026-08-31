@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"air-traffic/internal/gateway/config"
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/gateway/config"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 func newKeystoreGateway(t *testing.T, upstreamURL, redactAction string) *Server {

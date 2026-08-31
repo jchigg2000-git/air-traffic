@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"air-traffic/internal/store"
+	"github.com/jchigg2000-git/air-traffic/internal/store"
 )
 
 func newInferenceHandler(t *testing.T) (*Handler, *store.Store) {

@@ -1,6 +1,6 @@
 package synthetic
 
-import "air-traffic/internal/model"
+import "github.com/jchigg2000-git/air-traffic/internal/model"
 
 // vendorError returns the HTTP status and the byte-identical error envelope for a
 // given vendor. Each vendor's real API uses a distinct error shape; we reproduce it.

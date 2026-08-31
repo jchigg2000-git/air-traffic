@@ -7,11 +7,12 @@ package harness
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 type persister struct{ dir string }
@@ -78,16 +79,24 @@ type patternsFile struct {
 	Proposals []model.PatternProposal `json:"proposals"`
 }
 
-func (p *persister) loadPatterns() (model.PatternPack, []model.PatternProposal) {
+// loadPatterns reads the persisted pack. A missing file is the first boot and
+// not an error; an unreadable or malformed one is, because the empty pack
+// returned in its place is indistinguishable from an owner having deleted
+// every rule — and it is what every gateway would pull next.
+func (p *persister) loadPatterns() (model.PatternPack, []model.PatternProposal, error) {
+	empty := model.PatternPack{Rules: []model.PatternRule{}}
 	raw, err := os.ReadFile(filepath.Join(p.dir, "patterns.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return empty, nil, nil
+	}
 	if err != nil {
-		return model.PatternPack{Rules: []model.PatternRule{}}, nil
+		return empty, nil, fmt.Errorf("reading patterns.json: %w", err)
 	}
 	var pf patternsFile
-	if json.Unmarshal(raw, &pf) != nil {
-		return model.PatternPack{Rules: []model.PatternRule{}}, nil
+	if err := json.Unmarshal(raw, &pf); err != nil {
+		return empty, nil, fmt.Errorf("parsing patterns.json: %w", err)
 	}
-	return pf.Pack, pf.Proposals
+	return pf.Pack, pf.Proposals, nil
 }
 
 func (p *persister) savePatterns(pack model.PatternPack, proposals []model.PatternProposal) error {

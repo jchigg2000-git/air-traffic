@@ -136,7 +136,7 @@ export default function GatewayTraffic() {
         }
       />
 
-      <ApiStateBanner error={traffic.error} className="mb-4" />
+      <ApiStateBanner error={traffic.error} hasData={!!traffic.data} className="mb-4" />
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-6">
 
         <Tile label="Requests" value={fmtNum(rows.length)} />

@@ -46,8 +46,8 @@ sweep. Two rival status docs (`docs/handoff.md`, `docs/plans/TODO-cost-drilldown
 into `ROADMAP.md` and later staged out of the working tree (see `ROADMAP.md` Appendix). Two other
 candidate docs — `docs/plans/TODO-gateway-deferred.md` and `docs/plans/TODO-vendor-auth.md` — were
 **deliberately left standalone and unfolded**, because live Go and TypeScript source cite them by
-path (`internal/gateway/credbroker/credbroker.go:35`, `internal/store/store.go:61`,
-`web/src/lib/authSchemas.ts:3`) and `web/src/pages/Vendors.tsx:307` renders a citation to
+path (`internal/gateway/credbroker/credbroker.go:35`, `internal/store/store.go:78`,
+`web/src/lib/authSchemas.ts:3`) and `web/src/pages/Vendors.tsx:311` renders a citation to
 `TODO-vendor-auth.md` directly in the running UI. Folding or staging either would have stranded
 those citations. `ROADMAP.md` §3 and §5 point at them instead of duplicating their content.
 `docs/plans/phase-1-surface-collection.md`, `phase-2-frontend.md`, and `phase-3-inference-gateway.md`
@@ -293,11 +293,12 @@ gets write-through to a `policy.json` under `AIRTRAFFIC_DATA_DIR`, mirroring the
 existing atomic temp-file + rename pattern (`internal/store/keystore_persist.go:27-40`). Stdlib
 only; no `go.sum`; the CI guard stands.
 
-Driver: `SetPolicy` writes `s.policy = &p` and nothing else (`internal/store/store.go:292-297`),
-with no boot reload — so a control-plane restart silently discards the applied baseline while the
-gateway keeps enforcing the old action (`pullPolicy` returns early on `Policy == nil` without
-clearing `s.policyAction`, `internal/gateway/spine_pull.go:110-112`). The deployed stack runs
-`GATEWAY_REDACT_ACTION=per_policy` (`docker-compose.yml:96`), so this is the live configuration,
+Driver: `SetPolicy` writes `s.policy = &p` and nothing else (`internal/store/store.go:308`, as it
+stood before this decision; the function at that line write-throughs to disk now), with no boot
+reload — so a control-plane restart silently discards the applied baseline while the gateway keeps
+enforcing the old action (`pullPolicy` returns early on `Policy == nil` without clearing
+`s.policyAction`, `internal/gateway/spine_pull.go:110-112`). The deployed stack runs
+`GATEWAY_REDACT_ACTION=per_policy` (`docker-compose.yml:106`), so this is the live configuration,
 not a latent one.
 
 **Rejected, with the reason:** accepting a first third-party dependency to get a durable
@@ -389,3 +390,13 @@ true. Every one would have been reconstructed from memory rather than from verif
 documentation, and a wrong envelope shipped under a "byte-identical" claim is a worse defect than
 the doc drift — it is the exact failure the honesty model exists to prevent. The five remain open
 work in `ROADMAP.md` §1, to be built against real API documentation.
+
+## 2026-08-30 — Supersedes the 2026-08-07 entry's claim that the phase-1/2 docs still say `PLANNED`
+
+The 2026-08-07 fold entry recorded `docs/plans/phase-1-surface-collection.md` and
+`phase-2-frontend.md` as carrying stale `PLANNED` status headers, and `ROADMAP.md` repeated it.
+Both now read `Status: **BUILT** — this document is a build-history record of the plan as written,
+not open work` (`phase-1-surface-collection.md:9`, `phase-2-frontend.md:8`), corrected in 6a2eb27;
+`phase-3-inference-gateway.md:3` has declared its built status since it was written. The 2026-08-07
+entry stands as written — this only records that the condition it described is gone, so no later
+pass re-opens it as drift. `ROADMAP.md` §1/§2/§3 remain the live status on any conflict.

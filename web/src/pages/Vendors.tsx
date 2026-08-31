@@ -79,7 +79,7 @@ export default function Vendors() {
   return (
     <div>
       <PageHeader title="Vendors & Surfaces" subtitle="Drive each synthetic control surface — toggle, mode, fault scenario, emitter, endpoint — and inspect its manifest and recorded calls." />
-      <ApiStateBanner error={adapters.error} className="mb-4" />
+      <ApiStateBanner error={adapters.error} hasData={!!adapters.data} className="mb-4" />
 
       <div className="grid items-start gap-4 lg:grid-cols-[1fr_1.4fr]">
         {/* list — fills the viewport height */}

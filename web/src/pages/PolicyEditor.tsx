@@ -30,7 +30,7 @@ export default function PolicyEditor() {
   return (
     <div>
       <PageHeader title="Policy Editor" subtitle="Expand each control into per-vendor mechanisms. Every chip states the real disposition — never overstated." />
-      <ApiStateBanner error={adapters.error} className="mb-4" />
+      <ApiStateBanner error={adapters.error} hasData={!!adapters.data} className="mb-4" />
 
       {adapters.isLoading && (
         <div role="status" aria-label="Loading per-vendor controls" className="h-64 animate-pulse panel" />

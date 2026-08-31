@@ -1,6 +1,6 @@
 package catalog
 
-import "air-traffic/internal/model"
+import "github.com/jchigg2000-git/air-traffic/internal/model"
 
 const (
 	dw = model.PlaneDeveloperWorkflow
@@ -255,9 +255,9 @@ func perplexity() Definition {
 
 func cohere() Definition {
 	caps := []model.Capability{
-		cap("training_opt_out", "Training Opt-Out", dp, vn, "Dashboard: Data Controls", ""),
+		cap("training_opt_out", "Training Opt-Out", dp, mo, "Dashboard: Data Controls", ""),
 		cap("retention", "30-Day Log Retention", dp, vn, "policy-enforced auto-delete", ""),
-		cap("spend_limit", "Monthly Spending Limit", bg, vn, "Dashboard: Billing", ""),
+		cap("spend_limit", "Monthly Spending Limit", bg, mo, "Dashboard: Billing", ""),
 		cap("zdr", "Zero Data Retention", dp, mo, "Enterprise; email support", ""),
 		note(cap("per_key_cap", "Per-Key Spend Cap", bg, pe, "org-level only", ""), "no per-key limits"),
 	}
@@ -286,8 +286,8 @@ func together() Definition {
 
 func groq() Definition {
 	caps := []model.Capability{
-		cap("spend_cap", "Monthly Org Spend Cap", bg, vn, "Dashboard UI only", ""),
-		cap("alert_thresholds", "Alert Thresholds (50/75/90%)", bg, vn, "UI only", ""),
+		cap("spend_cap", "Monthly Org Spend Cap", bg, mo, "Dashboard UI only", ""),
+		cap("alert_thresholds", "Alert Thresholds (50/75/90%)", bg, mo, "UI only", ""),
 		cap("rate_limits", "Org-Level Rate Limits", bg, vn, "shared across keys", ""),
 		cap("training_opt_out", "Training Opt-Out", dp, uv, "not documented", ""),
 	}
@@ -322,7 +322,7 @@ func watsonx() Definition {
 		cap("agent_catalog", "Agent Catalog Publishing", dw, vn, "watsonx Orchestrate", ""),
 		cap("multi_tenancy", "Isolated Tenants", dp, vn, "watsonx.ai v2.4", ""),
 		cap("governance", "GRC Governance Framework", ob, vn, "watsonx.governance", ""),
-		cap("usage_controls", "Usage Controls", bg, vn, "admin UI", ""),
+		cap("usage_controls", "Usage Controls", bg, mo, "admin UI", ""),
 	}
 	return Definition{ID: "watsonx", Vendor: "IBM watsonx", DisplayName: "IBM watsonx", Family: "hyperscaler", APIVersion: "2.4", Tier: 3, BAASigned: true, Capabilities: caps, Metrics: budgetMetrics("watsonx", "https://api.watsonx.ibm.com")}
 }

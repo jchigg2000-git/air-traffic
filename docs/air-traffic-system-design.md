@@ -333,7 +333,7 @@ guaranteed enforcement; gate Tier-B controls behind an MDM-coverage check.
 
 ### `cmd/air-traffic-server` — control-plane entrypoint
 - **Responsibility:** parse config, wire store + server + emitter + policy drift + the harness engine, run HTTP with graceful shutdown.
-- **Config (env):** `AIRTRAFFIC_ADDR` (default `127.0.0.1:8122`), `AIRTRAFFIC_EMIT`, `AIRTRAFFIC_EMIT_INTERVAL_SECONDS`, `AIRTRAFFIC_DATA_DIR` (harness durable state), `AIRTRAFFIC_GATEWAY_KEY` (client key the harness uses to drive the gateway), `AIRTRAFFIC_PRESIDIO_URL`. The store is **in-memory only** — there is no store-backend switch and no in-process gateway toggle.
+- **Config (env):** `AIRTRAFFIC_ADDR` (default `127.0.0.1:8122`), `AIRTRAFFIC_EMIT`, `AIRTRAFFIC_EMIT_INTERVAL_SECONDS`, `AIRTRAFFIC_DATA_DIR` (harness durable state), `AIRTRAFFIC_GATEWAY_KEY` (client key the harness uses to drive the gateway), `AIRTRAFFIC_PRESIDIO_URL`. The store is **in-memory except for the keystore and the applied policy**, which write through to `AIRTRAFFIC_DATA_DIR` (§12) — there is no store-backend switch and no in-process gateway toggle.
 - **Mirrors:** it-scorecard's `cmd/harness-server/main.go`.
 
 ### `internal/server` — HTTP layer
@@ -806,8 +806,12 @@ spine.
   unimplemented; Air-Traffic must implement real vendor-API + env-state normalizers in each adapter.
   This is the bulk of per-adapter effort.
 
-- **In-memory store loses state on restart.** Same posture as it-scorecard; Postgres for
-  policies/audit at the hardening phase.
+- **The store is in-memory apart from two write-throughs.** Issued keystore credentials
+  (`keys.json`) and the applied policy (`policy.json`) are re-read at boot from
+  `AIRTRAFFIC_DATA_DIR` (§12); everything else — observations, reports, audit, drift — is
+  reconstructible and is dropped on restart. The real gap is therefore not persistence-in-general
+  but a **durable time-series**: nothing can answer "what was true 30 days ago." Postgres for
+  policy/audit history at the hardening phase.
 
 - **Vendor admin APIs drift and rate-limit.** Pulling usage/cost/audit every tick can hit vendor
   rate limits. **Mitigation:** per-vendor pull cadence + caching, decoupled from the 5s scorecard tick.
@@ -816,7 +820,7 @@ spine.
   hard caps need Redis cross-pod counters with a DB fail-closed mode — a hard cap that silently
   fails open is worse than no cap because it reads as enforced.
 
-- **Identity & secrets are not built yet.** There is no auth or KMS integration and no `internal/identity`/`internal/secrets` package; credentials are held by reference only. Production needs a real IdP + KMS at the hardening phase.
+- **Identity & secrets stop at two shared keys.** Administration takes a loopback caller or `AIRTRAFFIC_ADMIN_KEY`, the spine routes take `AIRTRAFFIC_SPINE_KEY` (§12) — and that is the whole of it. There is no IdP integration and so no per-user identity, no roles, and no attribution of an admin action to a person; there is no KMS integration and no `internal/identity`/`internal/secrets` package, so distribution-channel credentials are held by reference only and never resolved. Production needs a real IdP + KMS at the hardening phase (§10 lists both as intended-not-built).
 
 ---
 

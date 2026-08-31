@@ -398,7 +398,7 @@ footer { position: relative; z-index: 10; max-width: var(--wrap); margin: 6vh au
 <div class="scrollprog" id="scrollprog" aria-hidden="true"></div>
 
 <header class="topbar">
-  <a class="brandlock" href="/" aria-label="Air-Traffic — back to the control tower">
+  <a class="brandlock" href="../README.md" aria-label="Air-Traffic — read the project README">
     <span class="mark" aria-hidden="true"></span>
     <span class="wm">Air&#8209;Traffic <b>· the spine</b></span>
   </a>
@@ -408,9 +408,9 @@ footer { position: relative; z-index: 10; max-width: var(--wrap); margin: 6vh au
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none"/></svg>
     <span class="lbl">Tour</span>
   </button>
-  <a class="ctrl hide-sm" href="/" aria-label="Open the Flight Deck">
+  <a class="ctrl hide-sm" href="../README.md" aria-label="Read the project README">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-    <span class="lbl">Flight Deck</span>
+    <span class="lbl">README</span>
   </a>
   <button class="ctrl icon" id="themeBtn" type="button" aria-label="Toggle light or dark mode">
     <svg id="moonIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
@@ -448,11 +448,11 @@ footer { position: relative; z-index: 10; max-width: var(--wrap); margin: 6vh au
         </div>
         <div class="metrics rv d4" id="metrics">
           <div class="metric"><div class="v" data-count="16">0</div><div class="l">vendor surfaces</div></div>
-          <div class="metric"><div class="v" data-count="3">0</div><div class="l">fidelity tiers</div></div>
+          <div class="metric"><div class="v" data-count="3">0</div><div class="l">manifest tiers</div></div>
           <div class="metric"><div class="v" data-count="5">0</div><div class="l">dispositions</div></div>
           <div class="metric"><div class="v" data-count="3">0</div><div class="l">enforcement tiers</div></div>
           <div class="metric"><div class="v" data-count="1">0</div><div class="l">normalized contract</div></div>
-          <div class="metric"><div class="v" data-count="0">0</div><div class="l">inline proxies</div></div>
+          <div class="metric"><div class="v" data-count="0">0</div><div class="l">inline proxies by default</div></div>
         </div>
         <div class="scrollhint rv d5" aria-hidden="true"><span>Scroll down the spine</span><span class="arr"></span></div>
       </div>
@@ -472,7 +472,8 @@ footer { position: relative; z-index: 10; max-width: var(--wrap); margin: 6vh au
       There is no shared vocabulary for governing AI. One vendor caps spend in cents on a project;
       the next has <em>no hard cap at all</em> and tells you to build a proxy. Each returns its own error
       envelope, names its own primitives, and draws its own line between &ldquo;you can set this&rdquo; and
-      &ldquo;you can only watch it.&rdquo; Air&#8209;Traffic serves a <b>byte&#8209;identical synthetic replica</b> of every one.
+      &ldquo;you can only watch it.&rdquo; Air&#8209;Traffic serves a <b>synthetic replica</b> of every one &mdash; a hand&#8209;written
+      vendor&#8209;exact fixture for seven, a labelled generic envelope for the other nine.
     </p>
     <div class="dialectgrid rv d3" id="dialectGrid"></div>
     <p class="lede rv d4" style="margin-top:22px;">
@@ -615,8 +616,9 @@ footer { position: relative; z-index: 10; max-width: var(--wrap); margin: 6vh au
     <div class="caveats rv d3">
       <h3>Honest caveats</h3>
       <ul>
-        <li><b>Phase 1 is synthetic.</b> The surfaces here are a <b>byte&#8209;identical synthetic replica</b> of each
-          vendor&rsquo;s admin API &mdash; Go stdlib, zero dependencies. No live vendor traffic touches this page.</li>
+        <li><b>Phase 1 is synthetic.</b> The surfaces here are a <b>synthetic replica</b> of each vendor&rsquo;s admin
+          API &mdash; a hand&#8209;written vendor&#8209;exact fixture for seven, a labelled generic envelope for the
+          other nine &mdash; Go stdlib, zero dependencies. No live vendor traffic touches this page.</li>
         <li><b>It is not an inline proxy.</b> Air&#8209;Traffic reads and writes <em>admin/control</em> surfaces. The only
           thing that can ever sit on the request path is an <em>optional</em> gateway &mdash; which is why
           <code>proxy_enforced</code> capabilities read as needing that gateway, not as &ldquo;enforced&rdquo;.
@@ -649,11 +651,11 @@ footer { position: relative; z-index: 10; max-width: var(--wrap); margin: 6vh au
     <div class="links">
       <a href="#s2">⟳ Re&#8209;orbit the spine</a>
       <a href="#s5">⚑ Replay the seed&#8209;only catch</a>
-      <a href="/">↩ Open the Flight Deck</a>
+      <a href="../README.md">↩ Read the project README</a>
       <a href="#s0">↑ Back to top</a>
     </div>
   </div>
-  <p class="fnote">16 vendor surfaces · 3 tiers · 5 dispositions (+unsupported) · 3 enforcement tiers · 3 control planes → 1 observability bus · contract: ops-observation-batch/v1 · Go stdlib, zero deps · Phase 1 synthetic, byte-identical · the UI never renders a seed_only control as enforced.</p>
+  <p class="fnote">16 vendor surfaces · 3 tiers · 5 dispositions (+unsupported) · 3 enforcement tiers · 3 control planes → 1 observability bus · contract: ops-observation-batch/v1 · Go stdlib, zero deps · Phase 1 synthetic: 7 vendor-exact fixtures, 9 labelled generic envelopes · the UI never renders a seed_only control as enforced.</p>
 </footer>
 
 <div id="errbar"></div>
@@ -693,7 +695,7 @@ footer { position: relative; z-index: 10; max-width: var(--wrap); margin: 6vh au
   syncTheme();
 
   /* ============ REAL air-traffic data (from internal/catalog + internal/model) ============ */
-  // 16 vendor adapters across 3 fidelity tiers.
+  // 16 vendor adapters across 3 manifest tiers (tier is research depth, not replica fidelity).
   var VENDORS = [
     { id:"openai",        nm:"OpenAI",        ab:"OA", tier:1, baa:true,  api:"2026-03-10", ep:"/admin/organization/users",           dialect:"spend in cents · per-project rate limits" },
     { id:"anthropic",     nm:"Anthropic",     ab:"AN", tier:1, baa:true,  api:"2026-04-01", ep:"/v1/organizations/workspaces",         dialect:"workspaces (max 100) · no model-perm API" },

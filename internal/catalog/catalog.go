@@ -4,7 +4,7 @@
 // deliverable of Phase 1, grounded in docs/air-traffic-analysis.md §3.
 package catalog
 
-import "air-traffic/internal/model"
+import "github.com/jchigg2000-git/air-traffic/internal/model"
 
 // MetricDef drives the synthetic emitter's mean-reverting random walk for one metric.
 type MetricDef struct {

@@ -16,12 +16,12 @@ import (
 	"testing"
 	"time"
 
-	"air-traffic/internal/gateway"
-	"air-traffic/internal/gateway/config"
-	"air-traffic/internal/harness"
-	"air-traffic/internal/model"
-	"air-traffic/internal/server"
-	"air-traffic/internal/store"
+	"github.com/jchigg2000-git/air-traffic/internal/gateway"
+	"github.com/jchigg2000-git/air-traffic/internal/gateway/config"
+	"github.com/jchigg2000-git/air-traffic/internal/harness"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/server"
+	"github.com/jchigg2000-git/air-traffic/internal/store"
 )
 
 func discard() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
@@ -114,6 +114,11 @@ func TestFullLoopFlywheelRatchet(t *testing.T) {
 	}
 	if s1.OrphanRequests != 0 {
 		t.Errorf("orphan requests = %d, want full join coverage", s1.OrphanRequests)
+	}
+	// Behavioral recall is only worth reading when every seeded value was
+	// measured against what the upstream actually received.
+	if s1.CaptureOrphans != 0 {
+		t.Errorf("capture orphans = %d, want every value verified against a capture", s1.CaptureOrphans)
 	}
 	if s1.TrapFPs != 0 {
 		t.Errorf("trap FPs = %d, want 0", s1.TrapFPs)

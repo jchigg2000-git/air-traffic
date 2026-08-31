@@ -10,11 +10,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
-	"air-traffic/internal/gateway"
-	"air-traffic/internal/gateway/config"
+	"github.com/jchigg2000-git/air-traffic/internal/gateway"
+	"github.com/jchigg2000-git/air-traffic/internal/gateway/config"
+	"github.com/jchigg2000-git/air-traffic/internal/gateway/credbroker"
 )
 
 func main() {
@@ -25,6 +27,8 @@ func main() {
 		log.Error("config rejected", "error", err)
 		os.Exit(1)
 	}
+	warnUnrotatedKeys(log, cfg)
+
 	gw, err := gateway.New(cfg, log)
 	if err != nil {
 		log.Error("gateway init failed", "error", err)
@@ -67,5 +71,32 @@ func main() {
 	if err := httpServer.Shutdown(ctx); err != nil {
 		log.Error("graceful shutdown failed", "error", err)
 		os.Exit(1)
+	}
+}
+
+// devDefaultKeys are the throwaway values docker-compose falls back to so the
+// demo comes up with one command. The control plane says so out loud when it
+// still carries one (cmd/air-traffic-server/main.go); the data plane holds the
+// other half of the same two secrets, so it says so too.
+var devDefaultKeys = map[string]bool{"gwk-demo": true, "spine-dev-insecure": true}
+
+// warnUnrotatedKeys resolves the two references that can carry a compose
+// default and names the one still in use. Resolution failures are not reported
+// here: an unusable client-key ref is fatal in gateway.New, and a spine ref
+// that resolves to nothing is the loopback-only posture New already warns
+// about.
+func warnUnrotatedKeys(log *slog.Logger, cfg config.Config) {
+	creds := credbroker.New()
+	if raw, err := creds.Resolve(cfg.ClientKeysRef); err == nil {
+		for _, k := range strings.Split(raw, ",") {
+			if k = strings.TrimSpace(k); devDefaultKeys[k] {
+				log.Warn("client key is the dev default; rotate before any shared deployment (scripts/dev-env.sh)",
+					"ref", cfg.ClientKeysRef, "key", k)
+			}
+		}
+	}
+	if k, err := creds.Resolve(cfg.ControlPlaneKeyRef); err == nil && devDefaultKeys[k] {
+		log.Warn("control-plane spine key is the dev default; rotate before any shared deployment (scripts/dev-env.sh)",
+			"ref", cfg.ControlPlaneKeyRef, "key", k)
 	}
 }

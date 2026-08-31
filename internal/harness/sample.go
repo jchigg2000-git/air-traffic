@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 const (

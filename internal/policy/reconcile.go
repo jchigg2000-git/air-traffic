@@ -3,8 +3,8 @@ package policy
 import (
 	"time"
 
-	"air-traffic/internal/model"
-	"air-traffic/internal/store"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/store"
 )
 
 // Apply resolves the policy (baseline ⊕ overrides), reconciles every adapter

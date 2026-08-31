@@ -3,7 +3,7 @@
 // provides the export transform.
 package audit
 
-import "air-traffic/internal/model"
+import "github.com/jchigg2000-git/air-traffic/internal/model"
 
 // ToSIEM flattens normalized audit events into a SIEM-ingestable record set
 // (Splunk/Elastic/Datadog style: flat keys, ISO timestamps).

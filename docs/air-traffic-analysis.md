@@ -921,7 +921,7 @@ import (
     "context"
     "time"
 
-    "air-traffic/internal/model" // ops-observation-batch/v1 model (contract inherited from it-scorecard)
+    "github.com/jchigg2000-git/air-traffic/internal/model" // ops-observation-batch/v1 model (contract inherited from it-scorecard)
 )
 
 // SignalKind declares how a control or observation is fulfilled.

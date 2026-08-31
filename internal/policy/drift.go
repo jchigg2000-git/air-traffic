@@ -3,9 +3,9 @@ package policy
 import (
 	"time"
 
-	"air-traffic/internal/envconfig"
-	"air-traffic/internal/model"
-	"air-traffic/internal/store"
+	"github.com/jchigg2000-git/air-traffic/internal/envconfig"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/store"
 )
 
 // RefreshDrift re-reads the effective state of every env_managed surface, compares

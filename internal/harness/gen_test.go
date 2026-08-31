@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"air-traffic/internal/gateway/detect"
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/gateway/detect"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 func TestGenerateDeterministicAndOffsetsExact(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 // The defect this closes: SetPolicy assigned a pointer and nothing else, so a

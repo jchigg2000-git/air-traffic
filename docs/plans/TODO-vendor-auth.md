@@ -6,9 +6,9 @@
 > vendors below ship **disabled** (`internal/store/store.go` → `defaultRoster`)
 > and fall back to URL-only config in the modal until their schema is built.
 
-**Reminder:** the roster (who's enabled) is the user's to set — do **not** auto-toggle
-`enabled` (see auto-memory `feedback-no-auto-toggle-vendors`). Building a schema here
-does **not** imply enabling the vendor.
+**Reminder:** the roster (who's enabled) is the owner's to set — do **not** auto-toggle
+`enabled` on any adapter, in either direction, without being asked for that specific change.
+Building a schema here does **not** imply enabling the vendor.
 
 Also note: proxy mode itself is still a Phase-1 stub (no real outbound calls). These
 schemas capture config for the future proxy implementation; none of them authenticate

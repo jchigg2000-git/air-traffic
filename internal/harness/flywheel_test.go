@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	"air-traffic/internal/model"
-	"air-traffic/internal/store"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/store"
 )
 
 func newTestRunner(t *testing.T, presidioURL string) *Runner {

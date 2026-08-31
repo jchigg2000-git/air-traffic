@@ -12,10 +12,10 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"air-traffic/internal/gateway/config"
-	"air-traffic/internal/gateway/credbroker"
-	"air-traffic/internal/gateway/detect"
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/gateway/config"
+	"github.com/jchigg2000-git/air-traffic/internal/gateway/credbroker"
+	"github.com/jchigg2000-git/air-traffic/internal/gateway/detect"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 // Server is one gateway instance. It holds no cross-request state; everything

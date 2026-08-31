@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"air-traffic/internal/model"
-	"air-traffic/internal/store"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/store"
 )
 
 const (
@@ -43,6 +43,11 @@ type Runner struct {
 	corpus    []model.CorpusEntry
 	proposals []model.PatternProposal
 	running   bool
+	// patternPersistErr is the last pattern-pack load or save failure. Held so
+	// the status route can report it: a pack that is live in memory and on
+	// every gateway but never reached disk looks identical to one that saved,
+	// until the restart that serves an empty pack instead.
+	patternPersistErr error
 }
 
 // NewRunner loads persisted flywheel state and republishes the persisted
@@ -53,20 +58,52 @@ func NewRunner(st *store.Store, log *slog.Logger, dataDir, gatewayKey, presidioU
 	if err != nil {
 		return nil, err
 	}
-	pack, proposals := p.loadPatterns()
-	st.SetPatternPack(pack)
+	// A pack that failed to load is not published: standing an empty one in
+	// for it is how a zeroed v0 pack reaches every gateway on the next pull.
+	// Not fatal, for the reason the control plane's applied policy isn't — a
+	// process that refuses to boot cannot be used to fix the file that stopped
+	// it — so the failure is carried instead and reported on
+	// /api/gateway/status.
+	pack, proposals, loadErr := p.loadPatterns()
+	if loadErr != nil {
+		log.Error("pattern pack could not be restored; publishing nothing", "error", loadErr)
+		proposals = nil
+	} else {
+		st.SetPatternPack(pack)
+	}
 	var probe *presidioProbe
 	if presidioURL != "" {
 		probe = newPresidioProbe(presidioURL)
 	}
 	return &Runner{
 		store: st, log: log, persist: p, gatewayKey: gatewayKey, probe: probe,
-		httpc:     &http.Client{Timeout: 60 * time.Second},
-		results:   map[string][]model.HarnessResult{},
-		ratchet:   p.loadRatchet(),
-		corpus:    p.loadCorpus(),
-		proposals: proposals,
+		httpc:             &http.Client{Timeout: 60 * time.Second},
+		results:           map[string][]model.HarnessResult{},
+		ratchet:           p.loadRatchet(),
+		corpus:            p.loadCorpus(),
+		proposals:         proposals,
+		patternPersistErr: loadErr,
 	}, nil
+}
+
+// PatternPersistError reports the last pattern-pack load or save failure, for
+// the gateway status surface. nil means the pack being served is the pack on
+// disk.
+func (r *Runner) PatternPersistError() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.patternPersistErr
+}
+
+// savePatternsLocked writes the pack and proposals through to disk and records
+// the outcome. Callers already hold r.mu.
+func (r *Runner) savePatternsLocked(pack model.PatternPack) {
+	if err := r.persist.savePatterns(pack, r.proposals); err != nil {
+		r.patternPersistErr = err
+		r.log.Error("pattern persist failed", "error", err, "pack_version", pack.Version)
+		return
+	}
+	r.patternPersistErr = nil
 }
 
 // StartRun validates config, resolves the gateway from its freshest

@@ -15,7 +15,7 @@ import (
 	"sort"
 	"time"
 
-	"air-traffic/internal/model"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 // Bounds on owner-authored strings. These land in the gateway's report ring

@@ -22,7 +22,7 @@ That's the inference gateway. It's a security checkpoint for AI traffic:
 4. It swaps in the real vendor credential (your apps never hold vendor API keys) and forwards the cleaned request to the vendor.
 5. The vendor's answer flows back through, untouched.
 
-The whole round trip adds a few milliseconds. From the app's point of view, it just talked to Anthropic.
+The whole round trip adds under a millisecond on the regex tier; the Presidio NER tier adds roughly 20–150 ms per call. From the app's point of view, it just talked to Anthropic.
 
 ### Why is it a separate program?
 
