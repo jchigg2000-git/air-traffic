@@ -3,7 +3,7 @@
 # `--target gateway` (inference data plane). Both are CGO-free static Go
 # binaries on alpine (busybox wget serves the compose healthchecks).
 
-FROM node:22-alpine AS webbuild
+FROM node:26-alpine AS webbuild
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
