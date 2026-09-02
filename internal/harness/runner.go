@@ -30,6 +30,9 @@ type Runner struct {
 	log        *slog.Logger
 	persist    *persister
 	gatewayKey string
+	// gatewayURL, when set, pins where harness traffic is sent instead of
+	// trusting the base_url of the freshest heartbeat. Boot-time only.
+	gatewayURL string
 	httpc      *http.Client
 	// probe asks Presidio for raw scores on missed content — evidence for
 	// threshold proposals. nil (or unreachable) degrades gracefully: the
@@ -85,6 +88,13 @@ func NewRunner(st *store.Store, log *slog.Logger, dataDir, gatewayKey, presidioU
 		patternPersistErr: loadErr,
 	}, nil
 }
+
+// SetGatewayURL pins where harness and sample traffic is sent. freshGateway
+// still requires a fresh heartbeat — nothing runs against a gateway that is
+// not reporting — but ignores the heartbeat's base_url, which any spine-key
+// holder can write and which the harness would otherwise hand the client key
+// and every prompt body to. Call before serving, like server.SetHarness.
+func (r *Runner) SetGatewayURL(u string) { r.gatewayURL = u }
 
 // PatternPersistError reports the last pattern-pack load or save failure, for
 // the gateway status surface. nil means the pack being served is the pack on
@@ -163,7 +173,11 @@ func (r *Runner) freshGateway() (string, string, error) {
 	if freshest == nil || time.Since(freshest.At) > 45*time.Second {
 		return "", "", fmt.Errorf("no fresh gateway heartbeat; start air-traffic-gateway first")
 	}
-	return freshest.BaseURL, strings.Join(freshest.Detectors, ","), nil
+	chain := strings.Join(freshest.Detectors, ",")
+	if r.gatewayURL != "" {
+		return r.gatewayURL, chain, nil
+	}
+	return freshest.BaseURL, chain, nil
 }
 
 func (r *Runner) execute(run *model.HarnessRun, gwURL string) {

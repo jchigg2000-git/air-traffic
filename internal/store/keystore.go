@@ -20,7 +20,7 @@ import (
 
 // Bounds on owner-authored strings. These land in the gateway's report ring
 // via attribution, so they get the same clamping discipline as anything else
-// that crosses that boundary (see clampReport in internal/server).
+// that crosses that boundary (see GatewayRequestReport.Clamp in internal/model).
 const (
 	maxAppNameLen = 120
 	maxSubjectLen = 200

@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -112,12 +113,39 @@ func (s *Server) pushReports(ctx context.Context) {
 	for start := 0; start < len(reports); start += 1000 {
 		end := min(start+1000, len(reports))
 		chunk := reports[start:end]
-		if err := s.postJSON(ctx, "/api/gateway/leaks", map[string]any{"reports": chunk}); err != nil {
-			s.log.Warn("report push failed; requeueing", "error", err, "count", len(reports)-start)
-			s.audits.requeue(reports[start:])
-			return
+		err := s.postJSON(ctx, "/api/gateway/leaks", map[string]any{"reports": chunk})
+		if err == nil {
+			continue
 		}
+		var se *spineStatusError
+		if errors.As(err, &se) && se.unacceptable() {
+			// Requeueing a chunk the control plane will never accept would
+			// pin it at the head of the ring forever and drop every newer
+			// report behind it. Lose this chunk, loudly, and keep going.
+			s.log.Error("report chunk rejected by control plane; dropping", "error", err, "count", len(chunk))
+			continue
+		}
+		s.log.Warn("report push failed; requeueing", "error", err, "count", len(reports)-start)
+		s.audits.requeue(reports[start:])
+		return
 	}
+}
+
+// spineStatusError is a non-2xx answer from the control plane, kept typed so
+// pushReports can tell "this payload will never be accepted" from "try later".
+type spineStatusError struct {
+	path string
+	code int
+}
+
+func (e *spineStatusError) Error() string { return fmt.Sprintf("%s returned %d", e.path, e.code) }
+
+// unacceptable reports whether a retry of the same body can never succeed:
+// the control plane rejected the payload itself (malformed or over its 2 MB
+// decoder cap), not the caller or the moment. 401/403 (key rotation in
+// progress) and 404 (older control plane) still requeue and flush later.
+func (e *spineStatusError) unacceptable() bool {
+	return e.code == http.StatusBadRequest || e.code == http.StatusRequestEntityTooLarge
 }
 
 func (s *Server) pushHeartbeat(ctx context.Context) error {
@@ -174,7 +202,7 @@ func (s *Server) postJSON(ctx context.Context, path string, body any) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("%s returned %d", path, resp.StatusCode)
+		return &spineStatusError{path: path, code: resp.StatusCode}
 	}
 	return nil
 }

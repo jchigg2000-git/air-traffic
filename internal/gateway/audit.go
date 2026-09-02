@@ -60,6 +60,11 @@ func (a *auditRing) requeue(reports []RequestAudit) {
 // record stores the audit, feeds the metrics window, and emits the
 // redaction-safe structured log line.
 func (s *Server) record(a RequestAudit, tokensIn, tokensOut int64) {
+	// Bound the record before it reaches either sink: a proxied request with a
+	// multi-megabyte model string or thousands of spans must not produce a
+	// spine push the control plane's 2 MB decoder rejects (which would wedge
+	// every later report behind it).
+	a.Clamp()
 	// Attach the counts here rather than at each call site, so the ring the
 	// spine drains and the metrics window can never disagree about a request.
 	a.TokensIn, a.TokensOut = tokensIn, tokensOut

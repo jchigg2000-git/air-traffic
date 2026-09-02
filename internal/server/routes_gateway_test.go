@@ -116,3 +116,23 @@ func TestGatewayPatternsServesPack(t *testing.T) {
 		t.Errorf("patterns = %d body %s", rec.Code, rec.Body.String())
 	}
 }
+
+// The harness hands the client key and prompt bodies to base_url, so a
+// heartbeat cannot point it anywhere but an absolute http(s) host.
+func TestGatewayEnforcementRejectsBadBaseURL(t *testing.T) {
+	_, _, h := newTestServer(t)
+	for _, body := range []string{
+		`{"gateway_id":"gw@test","base_url":"evil:9"}`,
+		`{"gateway_id":"gw@test","base_url":"http://u:p@evil:9"}`,
+		`{"gateway_id":"gw@test","base_url":"ftp://evil:9"}`,
+		`{"gateway_id":"gw@test","base_url":"/relative"}`,
+		`{"gateway_id":"gw@test"}`,
+		`{"gateway_id":"` + strings.Repeat("g", 129) + `","base_url":"http://127.0.0.1:8125"}`,
+	} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, spineReq("POST", "/api/gateway/enforcement", strings.NewReader(body)))
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("%s → %d, want 400", body, rec.Code)
+		}
+	}
+}

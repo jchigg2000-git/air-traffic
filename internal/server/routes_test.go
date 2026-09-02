@@ -210,3 +210,39 @@ func TestDriftAndEnvConfig(t *testing.T) {
 		t.Fatalf("envconfig: %d %v", code, body)
 	}
 }
+
+// HasPlaintextSecretKey only reads key names, and secret_ref is the one key it
+// must skip — so the value under it needs its own shape check, or a pasted
+// vendor key is stored verbatim and served back on GET.
+func TestCredentialsRejectRawValueInSecretRef(t *testing.T) {
+	h := testServer()
+	_, before := req(t, h, "GET", "/api/credentials", nil)
+	n0 := len(before["credentials"].([]any))
+	cases := []struct {
+		ref  string
+		want int
+	}{
+		{"sk-ant-api03-not-a-reference", 400},
+		{"ghp_notareference", 400},
+		{"AKIANOTAREFERENCE", 400},
+		{"plaintext", 400},
+		{"env:MY KEY", 400},
+		{"env:OPENAI_API_KEY", 201},
+		{"vault://kv/openai", 201},
+		{"kms:arn:aws:kms:us-east-1:123456789012:key/abc", 201},
+	}
+	accepted := 0
+	for _, tc := range cases {
+		code, _ := req(t, h, "POST", "/api/credentials", map[string]any{"name": "x", "secret_ref": tc.ref})
+		if code != tc.want {
+			t.Errorf("secret_ref %q: want %d, got %d", tc.ref, tc.want, code)
+		}
+		if tc.want == 201 {
+			accepted++
+		}
+	}
+	_, after := req(t, h, "GET", "/api/credentials", nil)
+	if got := len(after["credentials"].([]any)) - n0; got != accepted {
+		t.Errorf("want exactly the %d accepted credentials stored, got %d", accepted, got)
+	}
+}

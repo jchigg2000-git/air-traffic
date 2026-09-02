@@ -2,9 +2,9 @@ package synthetic
 
 // The synthetic inference upstream: an Anthropic-Messages-shaped endpoint the
 // gateway forwards to during harness runs and tests. It records every request
-// it receives (body raw — harness traffic is synthetic by construction; NEVER
-// point real traffic here) so the harness can prove behaviorally that seeded
-// PII was redacted before the "vendor" saw it.
+// it receives (body bounded to captureKeepBytes — harness traffic is synthetic
+// by construction; NEVER point real traffic here) so the harness can prove
+// behaviorally that seeded PII was redacted before the "vendor" saw it.
 //
 // Harness controls (request headers):
 //   X-Harness-Echo: input   — assistant reply echoes the user text back
@@ -23,7 +23,10 @@ import (
 	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
-const inferenceMaxBody = 10 << 20
+const (
+	inferenceMaxBody = 10 << 20 // read cap; matches the gateway's GATEWAY_MAX_BODY_BYTES default
+	captureKeepBytes = 64 << 10 // bytes of body retained per capture; see handleInference
+)
 
 func isInferencePath(vendorID, nativePath string) bool {
 	return vendorID == "anthropic" && nativePath == "/v1/messages"
@@ -60,11 +63,19 @@ func (h *Handler) handleInference(w http.ResponseWriter, r *http.Request, a mode
 		return
 	}
 
+	// Keep a bounded prefix: the ring is count-capped (store ringMax), so an
+	// unbounded body would let anyone reaching this port hold 5000 x 10 MB in
+	// memory. Harness prompts are <= 8 KB, so scoring never sees the cut.
+	body, truncated := string(raw), false
+	if len(body) > captureKeepBytes {
+		body, truncated = body[:captureKeepBytes], true
+	}
 	h.store.RecordInferenceCapture(model.InferenceCapture{
 		AdapterID:        a.ID,
 		GatewayRequestID: r.Header.Get("X-Gateway-Request-Id"),
 		Path:             nativePath,
-		Body:             string(raw),
+		Body:             body,
+		Truncated:        truncated,
 		AuthFingerprint:  authFingerprint(r),
 		Stream:           req.Stream,
 		ReceivedAt:       time.Now().UTC(),

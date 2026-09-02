@@ -210,6 +210,18 @@ func (s *Server) handleCredentials(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "secret_ref is required")
 			return
 		}
+		// HasPlaintextSecretKey above reads key names only, and secret_ref is
+		// the one key it must skip — so the value under it gets its own shape
+		// check, the same one the gateway applies to credential_ref. Neither
+		// message echoes the value: it may be the credential itself.
+		if redact.LooksLikeRawSecret(cred.SecretRef) {
+			writeError(w, http.StatusBadRequest, "secret_ref looks like a raw credential; send a reference (env:NAME, vault:PATH, kms:KEY)")
+			return
+		}
+		if !redact.IsSecretRef(cred.SecretRef) {
+			writeError(w, http.StatusBadRequest, "secret_ref is not a secret reference (want env:NAME, vault:PATH, kms:KEY)")
+			return
+		}
 		created := s.store.AddCredential(cred)
 		writeJSON(w, http.StatusCreated, map[string]any{"credential": created})
 	default:

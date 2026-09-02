@@ -6,14 +6,17 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/jchigg2000-git/air-traffic/internal/emitter"
 	"github.com/jchigg2000-git/air-traffic/internal/harness"
+	"github.com/jchigg2000-git/air-traffic/internal/hostguard"
 	"github.com/jchigg2000-git/air-traffic/internal/policy"
 	"github.com/jchigg2000-git/air-traffic/internal/server"
 	"github.com/jchigg2000-git/air-traffic/internal/store"
@@ -47,7 +50,7 @@ func main() {
 	}
 
 	// Shared key for the gateway spine routes (/api/gateway/leaks,
-	// /enforcement, /patterns). Unset keeps the loopback-only dev posture.
+	// /enforcement, /patterns, /keys). Unset keeps the loopback-only dev posture.
 	gatewayKey := env("AIRTRAFFIC_GATEWAY_KEY", "gwk-demo")
 	spineKey := os.Getenv("AIRTRAFFIC_SPINE_KEY")
 	app.SetSpineKey(spineKey)
@@ -71,6 +74,19 @@ func main() {
 		os.Exit(1)
 	}
 	app.SetHarness(hr)
+	// Where the harness sends its traffic. Unset, the harness trusts the
+	// base_url in the freshest enforcement heartbeat — acceptable on a
+	// loopback-only spine, but that field is writable by any spine-key holder
+	// and the harness sends the client key and every prompt body to it, so
+	// compose pins it. Validated the way the gateway validates its own
+	// GATEWAY_ADVERTISE_URL.
+	if gwURL := os.Getenv("AIRTRAFFIC_GATEWAY_URL"); gwURL != "" {
+		if u, err := url.Parse(gwURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			log.Error("AIRTRAFFIC_GATEWAY_URL is not an absolute http(s) URL", "value", gwURL)
+			os.Exit(1)
+		}
+		hr.SetGatewayURL(strings.TrimRight(gwURL, "/"))
+	}
 
 	emitCtx, stopEmit := context.WithCancel(context.Background())
 	defer stopEmit()
@@ -84,9 +100,12 @@ func main() {
 		log.Info("synthetic emitter running", "interval", interval.String())
 	}
 
+	// Host/Origin guard: loopback binding keeps the network out, not the
+	// operator's own browser. internal/hostguard refuses unrecognised Host
+	// headers (DNS rebinding) and cross-site state changes (CSRF).
 	httpServer := &http.Server{
 		Addr:              addr,
-		Handler:           app.Routes(),
+		Handler:           hostguard.Wrap(app.Routes(), strings.Split(os.Getenv("AIRTRAFFIC_ALLOWED_HOSTS"), ",")),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -129,7 +148,7 @@ func warnUnrotatedKeys(log *slog.Logger, gatewayKey, spineKey, adminKey string) 
 	}
 	switch {
 	case spineKey == "":
-		log.Warn("AIRTRAFFIC_SPINE_KEY unset: /api/gateway/{leaks,enforcement,patterns} accept loopback callers only")
+		log.Warn("AIRTRAFFIC_SPINE_KEY unset: /api/gateway/{leaks,enforcement,patterns,keys} accept loopback callers only")
 	case devDefaultKeys[spineKey]:
 		log.Warn("AIRTRAFFIC_SPINE_KEY is the dev default; rotate before any shared deployment (scripts/dev-env.sh)")
 	}

@@ -17,6 +17,7 @@ import (
 	"github.com/jchigg2000-git/air-traffic/internal/gateway"
 	"github.com/jchigg2000-git/air-traffic/internal/gateway/config"
 	"github.com/jchigg2000-git/air-traffic/internal/gateway/credbroker"
+	"github.com/jchigg2000-git/air-traffic/internal/hostguard"
 )
 
 func main() {
@@ -40,9 +41,11 @@ func main() {
 	go gw.RunSpine(spineCtx)      // observations + reports up, heartbeat out
 	go gw.RunPolicyPull(spineCtx) // policy + pattern pack down
 
+	// Host/Origin guard (internal/hostguard): the AdvertiseURL hostname and
+	// GATEWAY_ALLOWED_HOSTS pass; loopback and localhost always do.
 	httpServer := &http.Server{
 		Addr:              cfg.ListenAddr,
-		Handler:           gw.Routes(),
+		Handler:           hostguard.Wrap(gw.Routes(), cfg.AllowedHosts),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

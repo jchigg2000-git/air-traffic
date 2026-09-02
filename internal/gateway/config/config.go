@@ -42,7 +42,12 @@ type Config struct {
 	// (heartbeats carry it; the harness sends traffic to it). Defaults to
 	// http://<ListenAddr>, which is wrong inside a container listening on
 	// 0.0.0.0 — set GATEWAY_ADVERTISE_URL there.
-	AdvertiseURL  string
+	AdvertiseURL string
+	// AllowedHosts are the extra hostnames accepted in a request's Host header
+	// (internal/hostguard); loopback and localhost always pass. The hostname
+	// of AdvertiseURL is always included so peers that reach this gateway by
+	// that name are never refused. GATEWAY_ALLOWED_HOSTS adds more.
+	AllowedHosts  []string
 	Upstreams     map[string]Upstream
 	ClientKeysRef string
 	// ControlPlaneKeyRef resolves the shared key this gateway presents on the
@@ -62,11 +67,9 @@ type Config struct {
 }
 
 var (
-	refScheme = regexp.MustCompile(`^(env|vault|kms):\S+$`)
-	// Shapes of raw credentials that must never appear as a config value.
-	rawSecret = regexp.MustCompile(`^(sk-|sk_live_|ghp_|gho_|github_pat_|AKIA|ASIA|xoxb-|ya29\.)`)
-	// The same shapes embedded mid-value, for the places a credential rides
-	// inside a larger string instead of being one: a base_url's userinfo or
+	// The raw-credential shapes (redact.LooksLikeRawSecret) embedded mid-value,
+	// for the places a credential rides inside a larger string instead of
+	// being one: a base_url's userinfo or
 	// query. The leading boundary keeps ordinary hostnames and paths out of it
 	// ("risk-engine.example.com" contains "sk-" but not at a boundary).
 	embeddedSecret = regexp.MustCompile(`(^|[^A-Za-z0-9])(sk-|sk_live_|ghp_|gho_|github_pat_|AKIA|ASIA|xoxb-|ya29\.)`)
@@ -85,9 +88,16 @@ func Load() (Config, error) {
 	}
 
 	cfg.AdvertiseURL = env("GATEWAY_ADVERTISE_URL", "http://"+cfg.ListenAddr)
-	if u, err := url.Parse(cfg.AdvertiseURL); err != nil || u.Scheme == "" || u.Host == "" {
+	adv, err := url.Parse(cfg.AdvertiseURL)
+	if err != nil || adv.Scheme == "" || adv.Host == "" {
 		return Config{}, fmt.Errorf("GATEWAY_ADVERTISE_URL %q is not an absolute URL", cfg.AdvertiseURL)
 	}
+	for _, h := range strings.Split(os.Getenv("GATEWAY_ALLOWED_HOSTS"), ",") {
+		if h = strings.TrimSpace(h); h != "" {
+			cfg.AllowedHosts = append(cfg.AllowedHosts, h)
+		}
+	}
+	cfg.AllowedHosts = append(cfg.AllowedHosts, adv.Hostname())
 
 	upstreams, err := parseUpstreams(os.Getenv("GATEWAY_UPSTREAMS"))
 	if err != nil {
@@ -95,10 +105,10 @@ func Load() (Config, error) {
 	}
 	cfg.Upstreams = upstreams
 
-	if !refScheme.MatchString(cfg.ClientKeysRef) {
+	if !redact.IsSecretRef(cfg.ClientKeysRef) {
 		return Config{}, fmt.Errorf("GATEWAY_CLIENT_KEYS_REF %q is not a secret reference (want env:NAME)", cfg.ClientKeysRef)
 	}
-	if !refScheme.MatchString(cfg.ControlPlaneKeyRef) {
+	if !redact.IsSecretRef(cfg.ControlPlaneKeyRef) {
 		return Config{}, fmt.Errorf("GATEWAY_CONTROL_PLANE_KEY_REF %q is not a secret reference (want env:NAME)", cfg.ControlPlaneKeyRef)
 	}
 
@@ -187,10 +197,10 @@ func parseUpstreams(raw string) (map[string]Upstream, error) {
 		if embeddedSecret.MatchString(up.BaseURL) || embeddedSecret.MatchString(decodedQuery(u)) {
 			return nil, fmt.Errorf("GATEWAY_UPSTREAMS[%s].base_url carries an inline credential; refusing to start (want credential_ref: env:NAME)", route)
 		}
-		if rawSecret.MatchString(up.CredentialRef) {
+		if redact.LooksLikeRawSecret(up.CredentialRef) {
 			return nil, fmt.Errorf("GATEWAY_UPSTREAMS[%s].credential_ref looks like a raw credential; refusing to start (want env:NAME)", route)
 		}
-		if !refScheme.MatchString(up.CredentialRef) {
+		if !redact.IsSecretRef(up.CredentialRef) {
 			return nil, fmt.Errorf("GATEWAY_UPSTREAMS[%s].credential_ref %q is not a secret reference (want env:NAME)", route, up.CredentialRef)
 		}
 		switch up.Auth {

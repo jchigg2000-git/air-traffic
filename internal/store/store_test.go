@@ -1,7 +1,9 @@
 package store
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
@@ -65,5 +67,35 @@ func TestObservationsAndDrift(t *testing.T) {
 	s.ReplaceDrift([]model.DriftRecord{{Vendor: "openai", Capability: "mcp_allow_deny"}})
 	if len(s.ListDrift()) != 1 {
 		t.Error("expected one drift record")
+	}
+}
+
+// A spine-key holder can mint gateway IDs at will; the heartbeat map must not
+// grow without bound, and the real gateway's stable ID must never be locked
+// out by a flood of forged ones.
+func TestSetGatewayEnforcementEvictsOldestWhenFull(t *testing.T) {
+	s := New()
+	base := time.Now().UTC().Add(-time.Hour)
+	s.SetGatewayEnforcement(model.EnforcementReport{GatewayID: "gw@real", BaseURL: "http://127.0.0.1:8125", At: base})
+	for i := 0; i < maxGatewayEnforce*2; i++ {
+		s.SetGatewayEnforcement(model.EnforcementReport{
+			GatewayID: fmt.Sprintf("forged-%d", i), BaseURL: "http://attacker:9",
+			At: base.Add(time.Duration(i+1) * time.Second),
+		})
+	}
+	// The real gateway keeps updating in place, so it always has a slot.
+	s.SetGatewayEnforcement(model.EnforcementReport{GatewayID: "gw@real", BaseURL: "http://127.0.0.1:8125"})
+	reps := s.ListGatewayEnforcement()
+	if len(reps) != maxGatewayEnforce {
+		t.Fatalf("heartbeat map holds %d, want %d", len(reps), maxGatewayEnforce)
+	}
+	found := false
+	for _, r := range reps {
+		if r.GatewayID == "gw@real" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("real gateway evicted by forged heartbeats")
 	}
 }

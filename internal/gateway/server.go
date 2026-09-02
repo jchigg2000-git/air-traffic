@@ -116,13 +116,29 @@ func (s *Server) Routes() http.Handler {
 func (s *Server) requestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.Header.Get("X-Gateway-Request-Id")
-		if id == "" {
+		if !validRequestID(id) {
 			id = newRequestID()
 			r.Header.Set("X-Gateway-Request-Id", id)
 		}
 		w.Header().Set("X-Gateway-Request-Id", id)
 		next.ServeHTTP(w, r)
 	})
+}
+
+// validRequestID accepts a caller-supplied correlation ID only when it is
+// short and printable ASCII: it is echoed on the response, logged on every
+// request, and carried in every report, so it gets the same bounds as any
+// other string that crosses those surfaces. Anything else is replaced.
+func validRequestID(id string) bool {
+	if id == "" || len(id) > 128 {
+		return false
+	}
+	for i := 0; i < len(id); i++ {
+		if id[i] < 0x21 || id[i] > 0x7e {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Server) recoverMiddleware(next http.Handler) http.Handler {

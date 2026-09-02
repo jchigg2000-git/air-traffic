@@ -278,3 +278,65 @@ func TestRejectedPatternPackInstallsNothing(t *testing.T) {
 		t.Errorf("allow-list not live after the fixed pack: %+v", spans)
 	}
 }
+
+// One chunk the control plane will never accept (400/413) must be dropped so
+// the chunks behind it still flow; a transient failure (5xx, transport) must
+// still requeue so a key rotation or restart loses nothing.
+func TestPushReportsDropsRejectedChunkAndRequeuesTransient(t *testing.T) {
+	var mu sync.Mutex
+	pushes := 0
+	status := http.StatusBadRequest
+	cp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/gateway/leaks" {
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+		mu.Lock()
+		pushes++
+		n := pushes
+		st := status
+		mu.Unlock()
+		if n == 1 {
+			w.WriteHeader(st)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer cp.Close()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{}`)
+	}))
+	defer upstream.Close()
+	t.Setenv("GATEWAY_CONTROL_PLANE_URL", cp.URL)
+	gw := newTestGatewayServer(t, upstream.URL, discardLogger())
+	ctx := context.Background()
+
+	// 1001 audits → two chunks. First chunk is 400'd: it must be dropped and
+	// the second chunk must still be delivered, leaving the ring empty.
+	for i := 0; i < 1001; i++ {
+		gw.audits.add(RequestAudit{RequestID: "r", Route: "anthropic", Action: "pass"})
+	}
+	gw.pushReports(ctx)
+	mu.Lock()
+	got := pushes
+	mu.Unlock()
+	if got != 2 {
+		t.Fatalf("pushes after a 400 = %d, want 2 (rejected chunk dropped, next chunk sent)", got)
+	}
+	if left := gw.audits.drain(); len(left) != 0 {
+		t.Errorf("ring holds %d after a 400; a rejected chunk must not be requeued", len(left))
+	}
+
+	// A 5xx is transient: the whole remainder requeues and nothing is lost.
+	mu.Lock()
+	pushes = 0
+	status = http.StatusBadGateway
+	mu.Unlock()
+	for i := 0; i < 1001; i++ {
+		gw.audits.add(RequestAudit{RequestID: "r", Route: "anthropic", Action: "pass"})
+	}
+	gw.pushReports(ctx)
+	if left := gw.audits.drain(); len(left) != 1001 {
+		t.Errorf("ring holds %d after a 502, want 1001 requeued", len(left))
+	}
+}

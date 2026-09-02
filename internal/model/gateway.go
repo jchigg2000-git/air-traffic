@@ -53,6 +53,53 @@ type GatewayRequestReport struct {
 	At             time.Time `json:"at"`
 }
 
+// Bounds on a report's variable-size fields. Applied on both sides of the
+// spine: the gateway clamps before a report enters its ring, so one oversized
+// proxied request can never produce a push the control plane's 2 MB decoder
+// rejects; the control plane clamps again on ingest, so a hostile or buggy
+// gateway cannot balloon the ring. Truncation only — Clamp never adds, so the
+// metadata-only guarantee is unaffected.
+const (
+	maxReportIDLen        = 128
+	maxReportModelLen     = 256
+	maxReportLabelLen     = 64  // route, app_id, key_id, baseline
+	maxReportSubjectLen   = 200 // matches the keystore's issuance bound
+	maxReportDetectorErrs = 5
+	maxReportDetectorErr  = 300
+	maxReportRedactions   = 500
+	maxReportPathLen      = 200
+)
+
+// Clamp bounds string and slice growth in place.
+func (r *GatewayRequestReport) Clamp() {
+	r.RequestID = truncate(r.RequestID, maxReportIDLen)
+	r.Model = truncate(r.Model, maxReportModelLen)
+	r.Route = truncate(r.Route, maxReportLabelLen)
+	r.AppID = truncate(r.AppID, maxReportLabelLen)
+	r.KeyID = truncate(r.KeyID, maxReportLabelLen)
+	r.Baseline = truncate(r.Baseline, maxReportLabelLen)
+	r.Subject = truncate(r.Subject, maxReportSubjectLen)
+	if len(r.DetectorErrors) > maxReportDetectorErrs {
+		r.DetectorErrors = r.DetectorErrors[:maxReportDetectorErrs]
+	}
+	for i, e := range r.DetectorErrors {
+		r.DetectorErrors[i] = truncate(e, maxReportDetectorErr)
+	}
+	if len(r.Redactions) > maxReportRedactions {
+		r.Redactions = r.Redactions[:maxReportRedactions]
+	}
+	for i := range r.Redactions {
+		r.Redactions[i].Path = truncate(r.Redactions[i].Path, maxReportPathLen)
+	}
+}
+
+func truncate(s string, n int) string {
+	if len(s) > n {
+		return s[:n]
+	}
+	return s
+}
+
 // EnforcementReport is the gateway's periodic heartbeat: which vendor
 // capabilities it is actively enforcing right now. Freshness is what flips
 // proxy_enforced from label to truth; staleness raises drift.
@@ -107,16 +154,18 @@ type PatternPack struct {
 }
 
 // InferenceCapture records one request that reached the synthetic inference
-// upstream (/synthetic/{vendor}/v1/messages). Bodies are stored raw because
-// harness traffic is synthetic by construction — NEVER point real traffic at
-// the synthetic upstream. The credential itself is never stored, only a
-// SHA-256 fingerprint prefix for swap verification.
+// upstream (/synthetic/{vendor}/v1/messages). Bodies are stored as received
+// (bounded to the upstream's capture byte cap) because harness traffic is
+// synthetic by construction — NEVER point real traffic at the synthetic
+// upstream. The credential itself is never stored, only a SHA-256 fingerprint
+// prefix for swap verification.
 type InferenceCapture struct {
 	ID               int64     `json:"id"`
 	AdapterID        string    `json:"adapter_id"`
 	GatewayRequestID string    `json:"gateway_request_id"`
 	Path             string    `json:"path"`
 	Body             string    `json:"body"`
+	Truncated        bool      `json:"truncated,omitempty"` // Body was cut at the synthetic upstream's capture byte cap
 	AuthFingerprint  string    `json:"auth_fingerprint"`
 	Stream           bool      `json:"stream"`
 	ReceivedAt       time.Time `json:"received_at"`

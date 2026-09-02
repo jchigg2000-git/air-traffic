@@ -6,6 +6,7 @@ package server
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -37,7 +38,7 @@ func (s *Server) handleGatewayLeaks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for i := range body.Reports {
-		clampReport(&body.Reports[i])
+		body.Reports[i].Clamp()
 	}
 	s.store.AddGatewayReports(body.Reports)
 
@@ -63,26 +64,8 @@ func (s *Server) handleGatewayLeaks(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]any{"accepted": len(body.Reports)})
 }
 
-// clampReport bounds string growth on the ingest path (a hostile or buggy
-// gateway must not balloon the ring).
-func clampReport(rep *model.GatewayRequestReport) {
-	if len(rep.DetectorErrors) > 5 {
-		rep.DetectorErrors = rep.DetectorErrors[:5]
-	}
-	for i, e := range rep.DetectorErrors {
-		if len(e) > 300 {
-			rep.DetectorErrors[i] = e[:300]
-		}
-	}
-	if len(rep.Redactions) > 500 {
-		rep.Redactions = rep.Redactions[:500]
-	}
-	for i, red := range rep.Redactions {
-		if len(red.Path) > 200 {
-			rep.Redactions[i].Path = red.Path[:200]
-		}
-	}
-}
+// maxGatewayIDLen bounds the map key a heartbeat can create in the store.
+const maxGatewayIDLen = 128
 
 func (s *Server) handleGatewayEnforcement(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -96,6 +79,18 @@ func (s *Server) handleGatewayEnforcement(w http.ResponseWriter, r *http.Request
 	}
 	if rep.GatewayID == "" {
 		writeError(w, http.StatusBadRequest, "gateway_id is required")
+		return
+	}
+	if len(rep.GatewayID) > maxGatewayIDLen {
+		writeError(w, http.StatusBadRequest, "gateway_id too long")
+		return
+	}
+	// The harness sends the gateway client key and every prompt body to
+	// whatever base_url the freshest heartbeat names, so the field is
+	// validated rather than trusted: absolute http(s), a host, no userinfo.
+	// (AIRTRAFFIC_GATEWAY_URL pins the target outright; see harness.SetGatewayURL.)
+	if u, err := url.Parse(rep.BaseURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
+		writeError(w, http.StatusBadRequest, "base_url must be an absolute http(s) URL without userinfo")
 		return
 	}
 	rep.At = time.Now().UTC()

@@ -78,8 +78,13 @@ func (s *Server) authenticate(presented, route string) (principal, bool) {
 	if kid, secret, ok := model.ParseAPIKey(presented); ok {
 		return s.authenticateKeystore(kid, secret, route)
 	}
-	if _, ok := s.clientKeys[presented]; ok {
-		return envPrincipal, true
+	// The env key set is a handful of entries, so a linear constant-time scan
+	// costs nothing and keeps this path timing-safe like the keystore digest
+	// and spine-key checks.
+	for k := range s.clientKeys {
+		if subtle.ConstantTimeCompare([]byte(k), []byte(presented)) == 1 {
+			return envPrincipal, true
+		}
 	}
 	return principal{}, false
 }

@@ -49,9 +49,17 @@ services:
       AIRTRAFFIC_DATA_DIR: /app/data/harness
       AIRTRAFFIC_GATEWAY_KEY: ${GATEWAY_CLIENT_KEYS:-gwk-demo}
       # shared key for the gateway spine routes (/api/gateway/leaks,
-      # /enforcement, /patterns). Required here because the gateway reaches
-      # the control plane over the compose network, not loopback.
+      # /enforcement, /patterns, /keys). Required here because the gateway
+      # reaches the control plane over the compose network, not loopback.
       AIRTRAFFIC_SPINE_KEY: ${AIRTRAFFIC_SPINE_KEY:-spine-dev-insecure}
+      # The gateway (spine + synthetic upstream) reaches this container by
+      # service name. Loopback and localhost always pass; any other Host is 421
+      # (internal/hostguard).
+      AIRTRAFFIC_ALLOWED_HOSTS: control-plane
+      # where the harness sends its traffic — pinned rather than taken from the
+      # heartbeat's base_url, which any spine-key holder can write. Must match
+      # the gateway's GATEWAY_ADVERTISE_URL below.
+      AIRTRAFFIC_GATEWAY_URL: http://gateway:8125
       # Operator key for every state-changing route. Deliberately NO default:
       # the SPA is served from this container behind a published port, so the
       # browser arrives over the Docker bridge and would have to hold the key

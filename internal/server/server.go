@@ -97,9 +97,12 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/harness/proposals", s.requireAdminWrite(s.handleHarnessProposals))
 	mux.HandleFunc("/api/harness/proposals/", s.requireAdminWrite(s.handleHarnessProposals))
 
-	// The vendor replica answers anyone by design — it holds nothing real. Its
-	// two mutating control paths (_harness/scenario, _harness/reset) are the
-	// exception and carry the operator key via SetAdminGuard in New.
+	// The vendor replica answers anyone by design — it serves fabricated data.
+	// The synthetic Anthropic upstream is the one surface that retains input
+	// (a 64 KB-bounded capture of each request body, readable at
+	// _harness/inference; see SECURITY.md). Its two mutating control paths
+	// (_harness/scenario, _harness/reset) carry the operator key via
+	// SetAdminGuard in New.
 	mux.Handle("/synthetic/", s.synthetic)
 
 	// SPA fallback (Phase 2): serve web/dist if present.

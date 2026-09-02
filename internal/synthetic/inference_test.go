@@ -121,3 +121,23 @@ func TestInferenceHonorsScenario(t *testing.T) {
 		t.Errorf("status = %d, want scenario 500", rec.Code)
 	}
 }
+
+func TestInferenceCaptureBodyIsBounded(t *testing.T) {
+	h, st := newInferenceHandler(t)
+	big := strings.Repeat("x", captureKeepBytes)
+	body := `{"model":"claude-test","messages":[{"role":"user","content":"` + big + `"}]}`
+	req := httptest.NewRequest("POST", "/synthetic/anthropic/v1/messages", strings.NewReader(body))
+	req.Header.Set("X-Gateway-Request-Id", "gw-big")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, body %s", rec.Code, rec.Body.String())
+	}
+	cap, ok := st.InferenceCaptureByRequestID("gw-big")
+	if !ok {
+		t.Fatal("capture not recorded")
+	}
+	if len(cap.Body) != captureKeepBytes || !cap.Truncated {
+		t.Errorf("body len = %d, truncated = %v; want %d bytes and truncated", len(cap.Body), cap.Truncated, captureKeepBytes)
+	}
+}

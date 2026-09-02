@@ -79,11 +79,31 @@ func (s *Store) ListGatewayReports(limit int) []model.GatewayRequestReport {
 
 // ---- gateway enforcement heartbeats ----
 
+// maxGatewayEnforce bounds the heartbeat map. The gateway ID is the map key
+// and a spine-key holder can mint IDs at will; a real gateway's ID is stable
+// across restarts (gw@<listen addr>) so it always updates in place and never
+// competes for a slot.
+const maxGatewayEnforce = 32
+
 func (s *Store) SetGatewayEnforcement(r model.EnforcementReport) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if r.At.IsZero() {
 		r.At = time.Now().UTC()
+	}
+	if _, known := s.gwEnforce[r.GatewayID]; !known && len(s.gwEnforce) >= maxGatewayEnforce {
+		// Evict the oldest heartbeat rather than refuse the new one: refusing
+		// would let a flood of forged IDs after a control-plane restart lock
+		// the real gateway out until the next restart. There is deliberately
+		// no age-based eviction: internal/policy/drift.go relies on a stale
+		// entry staying present to report "went stale" rather than "never seen".
+		oldestID, oldestAt := "", time.Time{}
+		for id, rep := range s.gwEnforce {
+			if oldestID == "" || rep.At.Before(oldestAt) {
+				oldestID, oldestAt = id, rep.At
+			}
+		}
+		delete(s.gwEnforce, oldestID)
 	}
 	s.gwEnforce[r.GatewayID] = r
 }
