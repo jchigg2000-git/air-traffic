@@ -30,6 +30,19 @@ reachable from off the host either way. **That prefix is the only thing holding 
 it — publish `8122:8122` — and an install whose writes are open by default is answering the
 whole network.
 
+**Loopback binding does not keep out the operator's own browser.** A page open in the same
+browser can aim a form or a `fetch` at `127.0.0.1:8122` — the writes above, and
+`GET /synthetic/{vendor}/_harness/reset`, which mutates on a read — or, after DNS rebinding, become
+same-origin with it and read everything too. Both binaries therefore wrap every route in
+`internal/hostguard`: a request whose `Host` header is not loopback, `localhost`, or an
+`AIRTRAFFIC_ALLOWED_HOSTS` / `GATEWAY_ALLOWED_HOSTS` entry (the gateway also always accepts the
+hostname of its own `GATEWAY_ADVERTISE_URL`) is answered `421`, and a state-changing request the
+browser marks cross-site (`Sec-Fetch-Site: cross-site`, or an `Origin` that is not this server) is
+answered `403`. Non-browser clients — curl, the gateway, the harness — send none of those headers
+and pass untouched. Compose sets `AIRTRAFFIC_ALLOWED_HOSTS=control-plane` so the gateway can reach
+the control plane by service name; a reverse proxy in front needs its public hostname added the
+same way.
+
 Compose also falls back to throwaway shared secrets — `gwk-demo` for `GATEWAY_CLIENT_KEYS` and
 `spine-dev-insecure` for `AIRTRAFFIC_SPINE_KEY` — so the stack comes up in one command. Both
 binaries log a warning while those are live and `/api/gateway/status` reports
@@ -59,9 +72,10 @@ Three properties are worth knowing before you deploy it:
 
 ## Reporting a vulnerability
 
-Please report security issues privately, through GitHub's
-[private vulnerability reporting](https://docs.github.com/code-security/security-advisories/guidance-on-reporting-and-writing/privately-reporting-a-security-vulnerability)
-on this repository, rather than opening a public issue.
+Please report security issues privately, through this repository's
+[private vulnerability reporting form](https://github.com/jchigg2000-git/air-traffic/security/advisories/new)
+(GitHub's [guide](https://docs.github.com/code-security/security-advisories/guidance-on-reporting-and-writing/privately-reporting-a-security-vulnerability)),
+rather than opening a public issue.
 
 This is a small project maintained by one person. There is no bounty and no guaranteed response
 window, but reports are read and taken seriously.
@@ -87,6 +101,14 @@ chain should have caught.
   `requireAdminIngest` (two legitimate writers, two credentials), and `requireSpineKey`. Note
   that with `AIRTRAFFIC_SPINE_KEY` unset, the spine routes fall back to **loopback callers only**
   — and a container-network peer does not qualify.
+- `internal/hostguard/` — the Host allow-list and cross-site refusal both binaries sit behind. It
+  is the only thing between a page in the operator's browser and the open-by-default writes;
+  loosening it re-opens CSRF and DNS-rebinding.
+- `internal/server/routes_gateway.go` — `handleGatewayEnforcement`'s `base_url` validation. The
+  harness sends the gateway client key and every prompt body to that URL, so a heartbeat must name
+  an absolute http(s) host with no userinfo, and the store caps the number of gateway IDs it will
+  hold. `AIRTRAFFIC_GATEWAY_URL` pins the harness target outright (compose sets it); unset, the
+  freshest heartbeat's `base_url` is trusted.
 - `internal/gateway/keystore.go` and `internal/store/keystore_persist.go` — issued keys are stored
   as SHA-256 digests and printed exactly once. The keystore admin API takes **a loopback caller or
   `AIRTRAFFIC_ADMIN_KEY`, and deliberately not the spine key**: the gateway holds that key, and a
@@ -104,9 +126,16 @@ chain should have caught.
   applied policy (`policy.json`) and the harness flywheel state (`ratchet.jsonl`, `corpus/*.json`,
   `patterns.json`).
 - **The synthetic vendor surfaces are unauthenticated and answer anyone.** They serve fabricated
-  data and hold nothing real. Their two mutating control paths are the exception, and both carry
-  the operator key: `_harness/scenario` writes the shared adapter record, `_harness/reset` drops
-  that adapter's recorded calls.
+  data. The one thing they retain is what they were sent: the synthetic Anthropic upstream
+  (`/synthetic/anthropic/v1/messages`, the compose default for the gateway's Anthropic route)
+  keeps the first 64 KB of every request body it receives in a 5000-entry in-memory ring and
+  serves it unauthenticated at `/synthetic/anthropic/_harness/inference` — that readback is how
+  the harness proves redaction. Bodies that arrived through the gateway are post-redaction;
+  bodies POSTed to port 8122 directly are whatever the caller sent, so anything typed into the
+  harness's try-a-prompt box, or sent through a gateway left on the compose default, lands in
+  that ring. Their two mutating control paths are the exception to "answers anyone", and both
+  carry the operator key: `_harness/scenario` writes the shared adapter record, `_harness/reset`
+  drops that adapter's recorded calls.
 - **`GATEWAY_CLIENT_KEYS` authenticates but does not identify.** Callers using it are attributed
   as app `env`. Per-caller attribution is what the keystore adds.
 
@@ -115,6 +144,9 @@ chain should have caught.
 - **Set `AIRTRAFFIC_ADMIN_KEY` before the control plane is reachable by anything but you**, and
   rotate the compose defaults with `./scripts/dev-env.sh --rotate`. Once it is set, paste it into
   the SPA sidebar's "Operator key" field or every console write will 401.
+- **Set `AIRTRAFFIC_GATEWAY_URL` wherever the spine key is shared beyond the gateway.** It pins
+  where harness and sample traffic goes; without it the control plane trusts the `base_url` in the
+  freshest heartbeat.
 - **Set `AIRTRAFFIC_DATA_DIR` to a persistent path in any deployment.** On a container host the
   default `data/harness` is replaced on every deploy, which silently discards the keystore, the
   applied policy and the harness ratchet. A corrupt `policy.json` warns and boots with no policy

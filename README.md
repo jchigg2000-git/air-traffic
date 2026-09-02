@@ -64,7 +64,8 @@ build and `test -race` plus a stdlib-only guard (the build fails if a `go.sum` e
 redaction log-leak guard on its own, web typecheck/build/vitest, and both Docker targets.
 
 Env: `AIRTRAFFIC_ADDR` (default `127.0.0.1:8122`), `AIRTRAFFIC_EMIT` (`on`),
-`AIRTRAFFIC_EMIT_INTERVAL_SECONDS` (`5`).
+`AIRTRAFFIC_EMIT_INTERVAL_SECONDS` (`5`), `AIRTRAFFIC_ALLOWED_HOSTS` (extra hostnames accepted in
+`Host`; loopback and `localhost` always pass — see `SECURITY.md`).
 
 ### Vendor coverage (16 adapters)
 
@@ -110,7 +111,7 @@ a seed-only control as "enforced."
 | `GET /api/activity` | recent cross-plane activity feed |
 | `GET /api/drift` | intent-vs-actual divergence |
 | `GET /api/envconfig` | rendered managed artifacts + read-back env state |
-| `POST /api/credentials` | write credential by `secret_ref` (plaintext rejected) |
+| `POST /api/credentials` | write credential by `secret_ref` (`env:`/`vault:`/`kms:` reference only; a raw key in either a key name or the value is rejected) |
 | `GET /api/cost/facets` | per-vendor cost drill-down facets — backs the **Cost & Usage Explorer** screen |
 | `POST /api/gateway/leaks` · `/enforcement` | gateway pushes per-request redaction metadata + enforcement heartbeats up the spine |
 | `GET /api/gateway/patterns` · `/status` | active pattern pack (the gateway pulls it) · gateway liveness for the UI |
@@ -288,8 +289,9 @@ report as app `env`.
 are not reconstructible), the **applied policy** (`policy.json` — the gateway is already enforcing
 it, so forgetting it here would leave the two halves disagreeing while traffic flows), and the
 **harness flywheel state** (`ratchet.jsonl`, `corpus/*.json`, `patterns.json` — a ratchet that
-resets is not a ratchet, and the promoted corpus is the accumulated regression set). The first two
-are whole-file atomic JSON writes. Everything else — observations, gateway request reports, drift,
+resets is not a ratchet, and the promoted corpus is the accumulated regression set). The keystore,
+policy, corpus and pattern-pack files are whole-file atomic JSON writes (temp-file + rename); the
+ratchet is append-only. Everything else — observations, gateway request reports, drift,
 audit — is in-memory ring buffers by decision, because a durable time series is what the rejected
 third-party-dependency fork would have bought (`DECISIONS.md` 2026-08-15). A policy write that
 fails is reported on `/api/gateway/status` as `policy_error` rather than swallowed; a corrupt
@@ -362,7 +364,7 @@ curl -s 127.0.0.1:8122/synthetic/anthropic/_harness/inference
 
 The first call returns the mock upstream's reply and tells you nothing — the redaction happened
 on the way out, so the response looks the same either way. The second is the evidence:
-`"body"` is the request bytes as the upstream saw them, and it reads
+`"body"` is the request bytes (first 64 KB) as the upstream saw them, and it reads
 `Wire it to SSN [SSN], callback [PHONE]`. Proving redaction by inspecting what the far side
 received, rather than trusting the proxy's own report of itself, is the same behavioral standard
 the harness scores against.

@@ -403,3 +403,62 @@ pass re-opens it as drift. Line anchors inside it and two of the 2026-08-15 entr
 in place to where the cited code now sits, here and in the pass before: a `file:line` is a pointer,
 not a claim, and nothing an entry argues or concludes was edited. `ROADMAP.md` §1/§2/§3 remain the
 live status on any conflict.
+
+## 2026-09-01 — Public flip: history residue accepted; the browser is now a boundary
+
+The repository was flipped from private to public on 2026-09-01 after a third pre-publication
+pass (nine review dimensions, each finding adversarially verified before it was acted on).
+
+**History residue — accepted, not scrubbed.** Reachable history still carries the author's
+absolute home-directory paths in earlier revisions of four docs (scrubbed from the tree in
+7a4e36e) and two June PDFs, deleted at 2923889, whose internal link targets embed a local Claude
+Code scratchpad path. **Chosen:** leave it. None of it is a credential or a third party's data,
+the username is already on every commit and in `LICENSE`, and a `git filter-repo` pass would
+re-dangle every commit SHA cited from `BUILD_REPORT.md`, `ROADMAP.md` and this file and — because
+GitHub keeps force-pushed-away objects fetchable — require delete-and-recreate to actually take
+effect. **Rejected:** a second rewrite for a username. Commit author identity stays the personal
+address for the same reason; a tracked `.mailmap` would put the address *into* the tree.
+
+**`internal/hostguard`: loopback binding is not a browser boundary.** A page open in the
+operator's browser can drive the open-by-default writes at `127.0.0.1:8122` (simple-request CSRF,
+and `_harness/reset` mutates on GET), or become same-origin with it after DNS rebinding. Both
+binaries now wrap every route: an unrecognised `Host` is `421`, a cross-site state change is
+`403`. Escape hatches are `AIRTRAFFIC_ALLOWED_HOSTS` and `GATEWAY_ALLOWED_HOSTS` (the gateway
+always accepts its own `GATEWAY_ADVERTISE_URL` hostname); compose sets `control-plane`.
+**Rejected:** a `Content-Type: application/json` check in `decodeJSON` — it breaks the documented
+`curl -d` examples and fourteen test call sites, and does not cover the body-less proposal-approve
+route the finding leads with. The guard is wired in `main.go` around `Routes()`, not inside it, so
+`httptest` (whose default Host is `example.com`) keeps working untouched.
+
+**The heartbeat's `base_url` is validated, not trusted.** The harness sends the gateway client
+key and every prompt body to whatever the freshest heartbeat names, and any spine-key holder can
+write one. The handler now accepts only an absolute http(s) origin with no userinfo and a
+`gateway_id` under 128 bytes; the store caps distinct IDs at 32 and evicts the *oldest* when full
+(a known ID always updates in place, so a forged flood cannot lock the real gateway out; there is
+deliberately no age-based eviction, because `internal/policy/drift.go` needs a stale entry to stay
+present to say "went stale" rather than "never seen"). `AIRTRAFFIC_GATEWAY_URL` pins the target
+outright and compose sets it. **Rejected:** threading it through `NewRunner`'s signature; the
+boot-time setter pattern (`SetSpineKey`, `SetHarness`) already exists.
+
+**Report bounds live in the model, and a poison chunk is dropped rather than pinned.**
+`GatewayRequestReport.Clamp` replaces the control plane's private `clampReport` and now runs on
+both sides of the spine (the gateway clamps before a report enters its ring; the caller-supplied
+`X-Gateway-Request-Id` is replaced unless it is ≤128 printable-ASCII bytes). The gateway drops a
+report chunk the control plane answers `400`/`413` to — a retry of the same body can never
+succeed, and requeueing it at the head silently dropped every newer report behind it forever.
+Every other failure (transport, 5xx, and `401`/`403`/`404`, which mean a key rotation or an older
+control plane) still requeues, exactly as before.
+
+**The synthetic inference capture is bounded to 64 KB per body; the ring stays 5000.** Anyone
+reaching port 8122 could previously hold 5000 × 10 MB in memory. **Rejected:** a smaller ring —
+harness runs go to 2000 requests and scoring joins captures only after the whole run completes.
+`SECURITY.md` now says what that surface retains instead of "holds nothing real".
+
+**`POST /api/credentials` checks the value, not just the key name.** `secret_ref` must match the
+same `env:|vault:|kms:` shape the gateway already enforces on `credential_ref`, and a value shaped
+like a raw vendor key is refused with a message that never echoes it. The helpers moved into
+`internal/redact` so both binaries share one definition.
+
+**`.devlauncher.json` stays tracked.** It is the owner's cross-repo launcher-registration
+convention (the descriptor travels with the app), not machine-local cruft; `CONTRIBUTING.md` now
+says so for a public reader.

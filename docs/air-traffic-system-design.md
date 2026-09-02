@@ -394,7 +394,7 @@ guaranteed enforcement; gate Tier-B controls behind an MDM-coverage check.
   [Inference Gateway Build Plan](./inference-gateway-build-plan.md).
 
 ### `web/` — React SPA
-- **Responsibility:** the **Flight Deck** at `/`, a public **`/welcome`** landing page (`pages/landing/*`: Hero, Planes, VendorWall, Dispositions, HowItWorks, CtaBand; added 2026-07-03), and the `/settings/*` control surfaces (Rigor Console, Policy Editor, Cost Explorer, Vendors, Observability, Audit, Gateway Harness). Mirrors it-scorecard `web/`.
+- **Responsibility:** the **Flight Deck** at `/`, a public **`/welcome`** landing page (`pages/landing/*`: Hero, Planes, VendorWall, Dispositions, HowItWorks, CtaBand; added 2026-07-03), and the `/settings/*` control surfaces (Rigor Console, Policy Editor, Cost Explorer, Vendors, Observability, Audit, Gateway Harness, Gateway Traffic). Mirrors it-scorecard `web/`.
 - **Tests:** a vitest suite (`package.json` → `"test": "vitest run"`; e.g. `pages/Welcome.test.tsx`), added 2026-07-03.
 
 ---
@@ -722,10 +722,13 @@ Control-plane process (`cmd/air-traffic-server`):
 | `AIRTRAFFIC_EMIT_INTERVAL_SECONDS` | `5` | emit tick cadence |
 | `AIRTRAFFIC_DATA_DIR` | `data/harness` | harness durable state (ratchet, corpus, pattern pack) **and the keystore** (`keys.json`) |
 | `AIRTRAFFIC_GATEWAY_KEY` | `gwk-demo` | client key the harness uses to drive the gateway |
-| `AIRTRAFFIC_SPINE_KEY` | *(unset)* | shared key required on `/api/gateway/{leaks,enforcement,patterns}`; unset ⇒ those routes accept **loopback callers only** |
+| `AIRTRAFFIC_SPINE_KEY` | *(unset)* | shared key required on `/api/gateway/{leaks,enforcement,patterns,keys}`; unset ⇒ those routes accept **loopback callers only** |
+| `AIRTRAFFIC_ADMIN_KEY` | *(unset)* | operator key on every state-changing route (`requireAdminWrite`) and the loopback alternative for keystore admin; unset ⇒ writes are **open** (`SECURITY.md`) |
+| `AIRTRAFFIC_GATEWAY_URL` | *(unset)* | pins where the harness sends traffic; unset ⇒ the `base_url` of the freshest enforcement heartbeat (compose pins `http://gateway:8125`) |
+| `AIRTRAFFIC_ALLOWED_HOSTS` | *(unset)* | extra hostnames accepted in `Host` (`internal/hostguard`); loopback and `localhost` always pass (compose sets `control-plane`) |
 | `AIRTRAFFIC_PRESIDIO_URL` | `http://127.0.0.1:8126` | Presidio sidecar for the harness raw-score probe |
 
-**Spine auth.** The three routes the gateway drives are not UI routes: two ingest enforcement
+**Spine auth.** The four routes the gateway drives are not UI routes: two ingest enforcement
 evidence, and `GET /api/gateway/patterns` *distributes* the pattern pack — which since the G6
 config-knob slice carries deny-list **terms**. So the read side is gated too. With
 `AIRTRAFFIC_SPINE_KEY` set, callers present it as `Authorization: Bearer …` or
@@ -901,7 +904,7 @@ air-traffic/
 │   └── ops-observation-batch-v1.schema.json   # reused verbatim
 ├── web/                            # React SPA (Flight Deck + /welcome landing + /settings/* surfaces)
 │   └── src/
-│       ├── pages/{FlightDeck,RigorConsole,PolicyEditor,CostExplorer,Vendors,Observability,Audit,GatewayHarness,Welcome}.tsx
+│       ├── pages/{FlightDeck,RigorConsole,PolicyEditor,CostExplorer,Vendors,Observability,Audit,GatewayHarness,GatewayTraffic,Welcome}.tsx
 │       ├── pages/landing/          # Hero, Planes, VendorWall, Dispositions, HowItWorks, CtaBand
 │       ├── pages/Welcome.test.tsx  # vitest ("test": "vitest run")
 │       ├── components/  ·  lib/  ·  test/

@@ -124,7 +124,9 @@ rediscovering it, and it is not a defect to fix in passing.
 Presidio sidecar `:8126`, and the Vite dev server `:5202`. The compose stack and the bare `go run`
 flow use the same ports, so run one or the other, not both. Compose images bake built source: after
 a code change use `docker compose up -d --build <service>`, because a bare `restart` reuses the old
-image.
+image. `.devlauncher.json` at the repo root registers that compose command (`docker compose up
+--build`, `:8122`) with an external dev-launcher tool the author uses; nothing in this repo
+reads it, and you can ignore it.
 
 **In-memory by decision.** Observations, gateway request reports, drift and audit are ring buffers
 that a restart clears. Three things are written through to `AIRTRAFFIC_DATA_DIR`: the keystore

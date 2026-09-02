@@ -12,7 +12,7 @@
 >   (design), `docs/inference-gateway-build-plan.md` (sequencing), `docs/inference-gateway-eli5.md`
 >   (referenced by `scripts/capture-harness-screenshot.js`). **Live deferred-work ledgers, kept
 >   separate deliberately** because code and UI cite them by path: `docs/plans/TODO-gateway-deferred.md`
->   (cited from `internal/gateway/credbroker/credbroker.go:35`, `internal/server/routes_gateway.go:126`,
+>   (cited from `internal/gateway/credbroker/credbroker.go:35`, `internal/server/routes_gateway.go:121`,
 >   `internal/model/gateway.go:47`, and README) and `docs/plans/TODO-vendor-auth.md` (cited from
 >   `internal/store/store.go:78`, `web/src/lib/authSchemas.ts:3`, and rendered live in
 >   `web/src/pages/Vendors.tsx:311`). Also kept separate as build-history records (linked from
@@ -42,43 +42,57 @@ budget) · Appendix
 
 ## §0 Do next
 
-> ### ▶ RESUME HERE — session handoff 2026-08-16 (gap-closure pass: PIVOT-1, auth, persistence)
+> ### ▶ RESUME HERE — session handoff 2026-09-01 (public flip + third pre-publication pass)
 >
-> **State:** everything below was **built and verified this pass** — full toolchain present
-> (go 1.26.5 then; `go.mod` has since pinned toolchain go1.26.7 to clear reachable stdlib CVEs,
-> 6c2d936 — node 24.14.1, docker 29.5.3). `gofmt` clean, `go vet` clean, `go test -race ./...`
-> green, `npm run build` + the full **vitest suite** green (61 tests across 10 files at last count,
-> 2026-08-31; was 18 across 3), `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` **9/9** (recall_behavioral
-> 1.000, precision 0.991, trap FPs 0), compose stack rebuilt and healthy. The Rigor Console was
-> also **opened in a real browser** (headless Chromium) and its screenshots are in `docs/images/` —
-> that is the OWED-2 class of verification, done for this change at least.
+> **State:** the repository is **public** as of 2026-09-01 (`DECISIONS.md` 2026-09-01 records what
+> was accepted and what was hardened). The pass that preceded the flip ran nine review dimensions
+> with adversarial verification and landed: `internal/hostguard` (Host allow-list + cross-site
+> refusal on both binaries; `AIRTRAFFIC_ALLOWED_HOSTS` / `GATEWAY_ALLOWED_HOSTS`), heartbeat
+> `base_url` validation + `AIRTRAFFIC_GATEWAY_URL` harness pin + a 32-entry evict-oldest cap on
+> gateway IDs, `GatewayRequestReport.Clamp` on both sides of the spine + request-ID sanitising +
+> drop-on-400/413 in `pushReports`, a 64 KB bound on synthetic inference captures, a `secret_ref`
+> value-shape check on `POST /api/credentials`, atomic pattern/corpus writes, Dependabot config
+> (npm, actions, docker, docker-compose), and the browserslist lockfile bump. Gates at HEAD:
+> `gofmt`/`go vet` clean, `go test -race ./...` green (18 packages incl. `hostguard`), `npm run
+> build` + vitest green (65 tests across 10 files), `npm audit` 0, compose stack rebuilt and
+> `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` **9/9** (recall_behavioral 1.000, precision 0.988, trap
+> FPs 0). GitHub side: private vulnerability reporting, secret scanning + push protection, a
+> `protect-main` ruleset (no deletion, no force-push), CodeQL default setup and
+> delete-branch-on-merge were enabled at the flip.
 >
-> **▶ NEXT ACTION:** §7.2's four cheap instrumentation fixes (PIVOT-2 → PIVOT-5) are now the
-> strongest candidates — PIVOT-2 especially, since every rate in §7.4 is computed over a
+> **▶ NEXT ACTION:** unchanged — §7.2's four cheap instrumentation fixes (PIVOT-2 → PIVOT-5) are
+> the strongest candidates, PIVOT-2 especially, since every rate in §7.4 is computed over a
 > denominator missing an entire failure class until it lands. §3's deferred G-blocks, §4's vendor
 > cost facets and §5's 10 vendor auth schemas remain open and still block nothing.
 >
-> **Owed / explicitly NOT done this pass — read this before claiming any of it is closed:**
+> **Owed / explicitly NOT done — read this before claiming any of it is closed:**
+> - **Integrations that reach the gateway by a non-loopback name now need
+>   `GATEWAY_ALLOWED_HOSTS`** (or must use the `GATEWAY_ADVERTISE_URL` hostname). The compose
+>   stack and both scripts are covered; a sibling app calling `host.docker.internal:8125` gets
+>   `421` until that env is set. This is the one behaviour change from the pass a running
+>   integration can notice.
+> - **A compose `up` that fails on a port clash leaves a half-created container** (no network
+>   endpoint, no published port) that a later `up -d` reuses as-is — the symptom is
+>   `lookup presidio ... no such host` in `detector_errors` and `503` on every proxied request.
+>   `docker compose up -d --force-recreate presidio` is the fix; the stray listener was the
+>   standalone `deploy/presidio` stack from a bare-mode e2e run (CONTRIBUTING: one or the other).
 > - **G4 response-side enforcement is still not built** and was not attempted. It is deferred by
 >   design (`docs/plans/TODO-gateway-deferred.md`, README): responses relay byte-faithfully and a
 >   streamed leak is scored informationally, not blocked. A gap scan will keep finding it; it is a
 >   feature, not a defect.
-> - **PIVOT-13 is NOT closed.** `pullPolicy` now *logs* when the control plane reports no policy
->   while this gateway is still enforcing. Persistence removes the common cause; the drift record
->   that would make the disagreement first-class is still open.
+> - **PIVOT-13 is NOT closed.** `pullPolicy` logs when the control plane reports no policy while
+>   this gateway is still enforcing; the drift record that would make the disagreement
+>   first-class is still open.
 > - **Five Tier-2 fixtures are still missing** (M365 Copilot, Databricks, Perplexity, Cohere,
->   Together) — see §1 PHASE1-3. The README was corrected to stop claiming otherwise; the code was
->   not changed. Building them needs real vendor API documentation, not recall.
-> - **A used stack no longer boots clean:** the applied policy write-throughs to `policy.json` in
->   the `harness-data` volume, so once any policy has been applied the stack comes back enforcing
->   it. Durable persistence is the point; the consequence is that there is no longer a "no policy
->   applied" starting state short of dropping the volume.
+>   Together) — see §1 PHASE1-3. Building them needs real vendor API documentation, not recall.
 > - The **Gateway Traffic** page and the Gateway Harness `allow_list` chip remain browser-unverified
->   (OWED-2). Only the Rigor Console was opened this pass.
-> - **Observations/reports store is still in-memory** (carried from the GATEWAY-5 pass,
->   2026-08-15) — `policy.json`, the keystore (`keys.json`) and the harness flywheel state
->   (`ratchet.jsonl`, `corpus/*.json`, `patterns.json`) are what persist across restarts.
-
+>   (OWED-2). Only the Rigor Console has been opened in a real browser (2026-08-16 screenshots).
+> - **Observations/reports store is still in-memory** — `policy.json`, the keystore (`keys.json`)
+>   and the harness flywheel state (`ratchet.jsonl`, `corpus/*.json`, `patterns.json`) are what
+>   persist across restarts.
+> - **Reachable history still carries the author's home-directory paths and two deleted June
+>   PDFs with a local scratchpad path inside** — accepted, not scrubbed (`DECISIONS.md`
+>   2026-09-01). Do not re-open this as a finding.
 ---
 
 ## §1 Phase 1 — Control plane backend
@@ -132,7 +146,8 @@ budget) · Appendix
   "Closed 2026-08-15". Decisions: `DECISIONS.md` 2026-08-15.
   **Proven live 2026-08-15** against the real Hugging Face router with both sibling apps routed
   through it, token counts reconciling exactly against meaning-to-making's independent cost store
-  (see §0). **Still 🔶 not ✅ because:** the Anthropic route has still only ever talked to the
+  (`DECISIONS.md` 2026-08-15 "meaning-to-making unrouted"; `docs/plans/TODO-gateway-deferred.md`
+  provenance note). **Still 🔶 not ✅ because:** the Anthropic route has still only ever talked to the
   synthetic replica, and the Gateway Traffic page has not been opened in a browser.
 - 🔶 **GATEWAY-6** (2026-08-15) Flywheel suppression: `allow_list` pattern-rule kind +
   `POST /api/harness/proposals` for owner-authored proposals. The flywheel could only ever
@@ -265,30 +280,30 @@ Gateway Traffic page and the keystore.**
   `requireClientKey`, one frame up), no upstream for the route, oversized body, bad JSON,
   mask-rewrite failure, credential resolution failure, unusable upstream base URL, request-build
   failure and upstream unreachable all return with zero rows and zero metrics (`metrics.observe`
-  is reachable only via `record`, `internal/gateway/audit.go:66-67`). Those counts are as-of, not
+  is reachable only via `record`, `internal/gateway/audit.go:71-72`). Those counts are as-of, not
   live — grep `d.writeErr(` for the current set. The heartbeat keeps beating on its own timer
   claiming enforcement throughout. **A route failing 100% of requests is indistinguishable from
   an idle one** — and compose ships `HF_UPSTREAM_TOKEN` with no default by design
   (`DECISIONS.md` 2026-08-15), so that is the likeliest real failure. Lands FIRST: every rate in
   §7.4 is otherwise computed over a denominator missing an entire failure class.
 - ⬜ **PIVOT-3** **Heartbeat carries effective action + pulled policy/pack/keystore versions + a
-  `detector_ran` fact.** `model.EnforcementReport` (`internal/model/gateway.go:59-66`) carries no
+  `detector_ran` fact.** `model.EnforcementReport` (`internal/model/gateway.go:106-113`) carries no
   versions, so a gateway stuck on a stale snapshot is indistinguishable from a current one.
   Unblocks PIVOT-9, PIVOT-10 and the pack-version join in one change.
-- ⬜ **PIVOT-4** **Fix hardcoded vendor attribution.** `internal/gateway/spine_emit.go:97` and
+- ⬜ **PIVOT-4** **Fix hardcoded vendor attribution.** `internal/gateway/spine_emit.go:98` and
   `:133` hardcode `anthropic` regardless of route: every gateway *aggregate* is attributed to
   Anthropic, and the `openai` adapter can never reach `applied_proxy`
   (`internal/policy/reconcile.go:74`). The per-request feed is correct; the aggregate is not.
 - ⬜ **PIVOT-5** **Collapse the duplicated staleness constants.** `gatewayStaleAfter = 45s` is
   hardcoded twice independently (`internal/policy/reconcile.go:15`,
-  `internal/server/routes_gateway.go:17`) and `heartbeatInterval = 15s` a third time
-  (`internal/gateway/spine_emit.go:19`), none derived from a shared constant or from
+  `internal/server/routes_gateway.go:18`) and `heartbeatInterval = 15s` a third time
+  (`internal/gateway/spine_emit.go:20`), none derived from a shared constant or from
   `GATEWAY_POLICY_PULL_INTERVAL`. Three-way divergence risk.
 
 ### §7.3 Tier 1 — blast radius (the "user opens the wrong thing" ask)
 
 - ⛔ **PIVOT-7** **Pattern-pack retraction path — BLOCKS all pack automation.** `ApproveProposal`
-  only appends (`internal/harness/flywheel.go:670`); `allow_list` is the one kind that *removes*
+  only appends (`internal/harness/flywheel.go:666`); `allow_list` is the one kind that *removes*
   detection; approval is permanent. A stale suppression (`manual-person-m2m-interests`) already
   sits in the running pack for a client that no longer exists, unretirable without wiping the
   volume and destroying the ratchet history. Spec already written:
@@ -299,8 +314,8 @@ Gateway Traffic page and the keystore.**
   instruction — it gates only §7.4's PIVOT-9 remedy path, which is itself agent-proposed.)
 - ⬜ **PIVOT-8** **Make an `allow_list` Approve look different from an additive Approve.** Today the
   irreversible button is byte-identical in size, colour and position to the reversible one
-  (the `decide(p, 'approve')` button in `web/src/pages/GatewayHarness.tsx`, `:464` as of
-  2026-08-31), under a header reading *"human-approved only — nothing auto-applies"* —
+  (the `decide(p, 'approve')` button in `web/src/pages/GatewayHarness.tsx`, `:491` as of
+  2026-09-01), under a header reading *"human-approved only — nothing auto-applies"* —
   reassurance where a warning belongs.
 - ⬜ **PIVOT-8a** **Surface that the Vendors "Enabled" toggle blinds drift detection.**
   `internal/policy/drift.go:17` and `:56` exclude disabled adapters from *both* drift loops, so
@@ -330,18 +345,18 @@ are **latency and success**.
   design (`internal/model/gateway.go:5-6`), so an auto-authored proposal cannot populate
   `AllowList` — it can only state the location and ask a human to open that prompt.
 - ⬜ **PIVOT-10** **Per-app block-rate saturation** — block rate ≥0.9 over N≥20 per `AppID` from
-  `store.ListGatewayReports` (`internal/store/gateway.go:82-90`). **Must not ship with any
+  `store.ListGatewayReports` (`internal/store/gateway.go:70-78`). **Must not ship with any
   auto-remedy before PIVOT-9 exists**: alone it cannot separate "misconfigured" from "correctly
   blocking an app that genuinely sends PII", so an auto-unblock fires precisely when an app is
   sending the most PII.
 - ⬜ **PIVOT-11** **App-baseline substitution** — an app naming a baseline the gateway hasn't pulled
-  falls through to the global action and only logs (`internal/gateway/proxy.go:123-126`), while the
+  falls through to the global action and only logs (`internal/gateway/proxy.go:130-136`), while the
   report's `Baseline` carries the *global* id. Exact string comparison against authoritative local
   keystore state; near-zero false-positive risk.
 - ⬜ **PIVOT-12** **Fail-open unenforcement → the one justified auto-apply.** Under
   `GATEWAY_FAIL_MODE=open` a dead Presidio forwards traffic unfiltered while `pushHeartbeat` keeps
   claiming `pii_redaction` — it consults only `enforces(action)` and `allAppsEnforce()`
-  (`internal/gateway/spine_emit.go:132-134`) and never asks whether the chain actually ran. Drift
+  (`internal/gateway/spine_emit.go:160-162`) and never asks whether the chain actually ran. Drift
   structurally cannot see this. What auto-applies is **honesty, not policy**: retract the
   enforcement claim. It changes no enforcement behaviour; it withdraws an assertion the system
   cannot substantiate. Sole condition satisfying all three safety properties — it is a *retraction*
@@ -407,7 +422,7 @@ are **latency and success**.
   design**). **Lowers and first-ever caps: PROPOSE-only, always** — on Copilot, lowering is not a
   budget adjustment, it is scheduling a named engineer's outage. Durable state is *decisions*, not
   history: an append-only `budget-decisions.jsonl` in `AIRTRAFFIC_DATA_DIR`, the same shape as
-  `appendRatchet` (`internal/harness/persist.go:43-51`). Vendor history is read on demand, never
+  `appendRatchet` (`internal/harness/persist.go:56-63`). Vendor history is read on demand, never
   mirrored — a second drifting copy of billing data is both a support burden and a wrong input to a
   hard stop.
 - 🔬 **PIVOT-17** **Stale catalog entries, verified against live vendor docs 2026-08-15.**
@@ -444,7 +459,7 @@ are **latency and success**.
   - **Guided must not:** show "Healthy %" without the emitting denominator in the headline
     (`web/src/pages/FlightDeck.tsx:104-106` — dropping sub-labels re-creates the exact bug
     `DECISIONS.md` 2026-08-15 was written to kill); show spend against a cap
-    (`FlightDeck.tsx:15` and `web/src/pages/CostExplorer.tsx:13` each hardcode `50000`, which is
+    (`FlightDeck.tsx:19` and `web/src/pages/CostExplorer.tsx:17` each hardcode `50000`, which is
     *fintech's* number, rendered against every baseline — under healthcare/gov the real cap is `0`,
     i.e. none); drop the stale/degraded treatment; collapse dispositions into
     "protected / not protected"; or show a block count without the posture that produced it.
@@ -481,7 +496,8 @@ sweep. **Nothing was deleted from disk this pass** (`--no-delete`); a separate d
 step staged two files to a local out-of-repo purgatory folder afterward (see that tool's manifest
 for exact destinations):
 
-- `docs/handoff.md` (45 lines, folded into the §0 HISTORY block) —
+- `docs/handoff.md` (45 lines, folded into a §0 HISTORY block that was itself deleted in the
+  2026-08-18 trim — see `git show 3acf8cf3ab706590b7fdca7d63b63ee9daba2549:ROADMAP.md`) —
   `git show 165b8df:docs/handoff.md`
 - `docs/plans/TODO-cost-drilldown.md` (60 lines, folded into §4 in full — nothing summarized away) —
   `git show 165b8df:docs/plans/TODO-cost-drilldown.md`
@@ -490,7 +506,7 @@ for exact destinations):
 code or UI cites them by path** (folding would strand those citations):
 
 - `docs/plans/TODO-gateway-deferred.md` — cited from `internal/gateway/credbroker/credbroker.go:35`,
-  `internal/server/routes_gateway.go:126`, `internal/model/gateway.go:47`, README. Pointed at from §3.
+  `internal/server/routes_gateway.go:121`, `internal/model/gateway.go:47`, README. Pointed at from §3.
 - `docs/plans/TODO-vendor-auth.md` — cited from `internal/store/store.go:78`,
   `web/src/lib/authSchemas.ts:3`, rendered live in `web/src/pages/Vendors.tsx:311`. Pointed at
   from §5.
