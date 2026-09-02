@@ -19,7 +19,7 @@ COPY internal/ internal/
 RUN CGO_ENABLED=0 go build -trimpath -o /out/air-traffic-server ./cmd/air-traffic-server && \
     CGO_ENABLED=0 go build -trimpath -o /out/air-traffic-gateway ./cmd/air-traffic-gateway
 
-FROM alpine:3.21 AS server
+FROM alpine:3.24 AS server
 RUN adduser -D -u 10001 airtraffic
 WORKDIR /app
 COPY --from=gobuild /out/air-traffic-server /usr/local/bin/air-traffic-server
@@ -32,7 +32,7 @@ USER airtraffic
 EXPOSE 8122
 ENTRYPOINT ["air-traffic-server"]
 
-FROM alpine:3.21 AS gateway
+FROM alpine:3.24 AS gateway
 RUN adduser -D -u 10001 airtraffic
 WORKDIR /app
 COPY --from=gobuild /out/air-traffic-gateway /usr/local/bin/air-traffic-gateway
