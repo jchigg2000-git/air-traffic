@@ -8,13 +8,23 @@
 # Durable local state: harness (ratchet series, promoted corpus, pattern pack)
 # and the keystore (keys.json — digests, but still not ours to commit)
 /data/
+# The same files by basename, wherever AIRTRAFFIC_DATA_DIR points (it is
+# operator-configurable, cmd/air-traffic-server/main.go). Nothing tracked uses
+# these names; corpus/*.json is deliberately NOT listed because
+# internal/gateway/detect/testdata/corpus/seed.json is a tracked fixture.
+keys.json
+policy.json
+ratchet.jsonl
+patterns.json
 
-# Phase 2 frontend
-web/node_modules/
+# Phase 2 frontend, plus the root-level node_modules that `npm i playwright-core`
+# (scripts/capture-harness-screenshot.js) leaves behind. Unanchored = any depth.
+node_modules/
 web/dist/
 
-# Local secrets minted by scripts/dev-env.sh
-.env
+# Local secrets minted by scripts/dev-env.sh, plus any .env.local / .env.production
+# style variant a contributor drops beside it (root or web/)
+.env*
 
 # Claude Code local scratch and runtime state. These are ignored on the author's
 # machine via .git/info/exclude and ~/.gitignore_global, neither of which travels with

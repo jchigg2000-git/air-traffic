@@ -56,7 +56,7 @@ const NARRATIVE: Record<string, Narrative> = {
 }
 
 // Fallback for any preset shipped without hand-written copy (keeps the block honest
-// instead of blank). TODO: add curated NARRATIVE copy if new baselines are introduced.
+// instead of blank). Add a NARRATIVE entry keyed by baseline id whenever a new baseline ships.
 function deriveNarrative(b: Baseline): Narrative {
   return {
     headline: b.description,

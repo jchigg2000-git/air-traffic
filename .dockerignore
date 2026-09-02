@@ -4,8 +4,14 @@ data
 docs
 scripts
 deploy
-web/node_modules
+**/node_modules
 web/dist
 *.md
 .devlauncher.json
 .gitignore
+**/.env
+**/.DS_Store
+**/*.test
+air-traffic-server
+air-traffic-gateway
+.github

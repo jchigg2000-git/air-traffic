@@ -17,6 +17,18 @@ import (
 
 type persister struct{ dir string }
 
+// writeAtomic writes data to a sibling temp file and renames it into place,
+// so an interrupted write cannot leave a half-parsed file behind — the same
+// temp-file + rename the keystore and policy persisters use
+// (internal/store/keystore_persist.go, internal/store/policy_persist.go).
+func writeAtomic(path string, data []byte, perm os.FileMode) error {
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, perm); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
 func newPersister(dir string) (*persister, error) {
 	if err := os.MkdirAll(filepath.Join(dir, "corpus"), 0o755); err != nil {
 		return nil, fmt.Errorf("harness data dir: %w", err)
@@ -71,7 +83,7 @@ func (p *persister) saveCorpusEntry(e model.CorpusEntry) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(p.dir, "corpus", e.ID+".json"), raw, 0o644)
+	return writeAtomic(filepath.Join(p.dir, "corpus", e.ID+".json"), raw, 0o644)
 }
 
 type patternsFile struct {
@@ -104,5 +116,5 @@ func (p *persister) savePatterns(pack model.PatternPack, proposals []model.Patte
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(p.dir, "patterns.json"), raw, 0o644)
+	return writeAtomic(filepath.Join(p.dir, "patterns.json"), raw, 0o644)
 }

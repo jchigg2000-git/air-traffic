@@ -19,14 +19,6 @@ func NewUUID() string {
 		hex.EncodeToString(b[10:16]))
 }
 
-// Observation is one entry inside an ops-observation-batch/v1 batch.
-type Observation struct {
-	Kind       string         `json:"kind"` // metric | event | state
-	Signal     map[string]any `json:"signal"`
-	Dimensions map[string]any `json:"dimensions"`
-	Provenance map[string]any `json:"provenance"`
-}
-
 // BuildBatch assembles a schema-valid ops-observation-batch/v1 body.
 func BuildBatch(adapter Adapter, ts time.Time, window time.Duration, observations, errors []any) map[string]any {
 	if observations == nil {

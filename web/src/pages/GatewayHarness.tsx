@@ -213,7 +213,7 @@ export default function GatewayHarness() {
           gateway — with nothing loaded, this screen knows nothing either way. */}
       {gateway.data && !freshGateway && (
         <div className="mb-4 panel p-3 text-xs text-muted">
-          Start the data plane first: <code className="font-mono">go run ./cmd/air-traffic-gateway</code> (see docs/plans/phase-3-inference-gateway.md for env).
+          Start the data plane first: <code className="font-mono">go run ./cmd/air-traffic-gateway</code> (env vars: README.md, Phase 3 → Bare-process dev flow).
         </div>
       )}
       {startError && <div className="mb-4 panel p-3 text-xs" style={{ color: 'var(--red)' }}>{startError}</div>}

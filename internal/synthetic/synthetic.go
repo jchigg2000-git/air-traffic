@@ -1,6 +1,6 @@
 // Package synthetic serves byte-identical replicas of each vendor's admin/control
 // surface at /synthetic/{vendor}/{native-path}, plus the Air-Traffic harness control
-// paths. Mirrors it-scorecard's synthetic handler, extended to AI-vendor admin APIs.
+// paths. Mirrors the predecessor project's synthetic handler (see package model), extended to AI-vendor admin APIs.
 package synthetic
 
 import (
@@ -123,9 +123,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// proxy mode is stubbed in Phase 1 (gateway is out of scope)
+	// The vendor replica never normalizes proxy traffic; that is the gateway's job.
 	if a.Mode == model.ModeProxy {
-		status, body := vendorError(a.ID, http.StatusNotImplemented, "proxy_not_normalized", "proxy mode reached upstream but no vendor normalizer is implemented in Phase 1")
+		status, body := vendorError(a.ID, http.StatusNotImplemented, model.ProxyNotNormalizedCode, model.ProxyNotNormalizedMessage)
 		writeJSON(rec, status, body)
 		return
 	}

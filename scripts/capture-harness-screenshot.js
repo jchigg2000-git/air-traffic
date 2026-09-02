@@ -1,8 +1,12 @@
 // Capture the Gateway Harness page (raw + numbered-callout annotated) for docs/images/.
 // The callout numbers must stay in sync with the legend in docs/inference-gateway-eli5.md #6.
 // Prereqs: compose stack up (control plane on :8122 with a fresh gateway heartbeat and at
-// least one completed harness run), plus `npm i playwright-core` and a Playwright-cached
-// Chromium (~/Library/Caches/ms-playwright).
+// least one completed harness run), plus `npm i --no-save playwright-core` from the repo
+// root (writes only node_modules/, no package.json) and a Chromium to drive.
+// Chromium is resolved in this order: $CHROMIUM_PATH, then the revision this playwright-core
+// pins (wherever `npx playwright install chromium` put it), then a scan of the macOS
+// Playwright cache (~/Library/Caches/ms-playwright) for any cached revision. On other
+// platforms or with a mismatched revision, set CHROMIUM_PATH to a Chromium/Chrome binary.
 // Usage: node scripts/capture-harness-screenshot.js docs/images
 const path = require('path');
 const os = require('os');
@@ -13,8 +17,17 @@ const OUT = process.argv[2] || '.';
 const BASE = 'http://localhost:8122';
 
 function chromePath() {
+  if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH;
+  // The revision this playwright-core pins, in Playwright's own layout for this platform.
+  // executablePath() only computes the path; it does not check that the binary exists.
+  let pinned = '';
+  try { pinned = chromium.executablePath(); } catch {}
+  if (pinned && fs.existsSync(pinned)) return pinned;
+  // Fallback: newest Chromium in the macOS Playwright cache, whatever revision it is.
   const root = path.join(os.homedir(), 'Library/Caches/ms-playwright');
-  const cands = fs.readdirSync(root).filter(d => /^chromium/.test(d)).sort().reverse();
+  const cands = fs.existsSync(root)
+    ? fs.readdirSync(root).filter(d => /^chromium/.test(d)).sort().reverse()
+    : [];
   for (const c of cands) {
     for (const rel of [
       'chrome-mac-arm64/Chromium.app/Contents/MacOS/Chromium',
@@ -24,7 +37,10 @@ function chromePath() {
       if (fs.existsSync(p)) return p;
     }
   }
-  throw new Error('no cached chromium found');
+  throw new Error(
+    'no Chromium found: set CHROMIUM_PATH, or run `npx playwright install chromium`' +
+    (pinned ? ` (expected ${pinned})` : ''),
+  );
 }
 
 (async () => {

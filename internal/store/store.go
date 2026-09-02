@@ -1,4 +1,4 @@
-// Package store is the in-memory state for Air-Traffic (mirrors it-scorecard store):
+// Package store is the in-memory state for Air-Traffic (mirrors the predecessor project's store; see package model):
 // adapters, credentials, recorded calls, observations, audit + drift, current policy.
 package store
 

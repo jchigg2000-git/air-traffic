@@ -1,10 +1,10 @@
 // Package model holds the domain types for the Air-Traffic control plane.
-// Mirrors it-scorecard's model package, extended for AI-vendor control surfaces.
+// Mirrors the model package of it-scorecard (the author's earlier, unpublished predecessor project; no third-party code), extended for AI-vendor control surfaces.
 package model
 
 import "time"
 
-// ObservationContract is the emission contract reused verbatim from it-scorecard.
+// ObservationContract is the emission contract carried over from the predecessor project.
 const ObservationContract = "ops-observation-batch/v1"
 
 // Mode selects how an adapter behaves.
@@ -14,6 +14,15 @@ const (
 	ModeDisabled  Mode = "disabled"
 	ModeSynthetic Mode = "synthetic"
 	ModeProxy     Mode = "proxy"
+)
+
+// ProxyNotNormalizedCode / ProxyNotNormalizedMessage are the 501 body the
+// synthetic vendor replica serves for ModeProxy and the error entry the
+// emitter records for it. The replica never normalizes proxy traffic; inline
+// enforcement is the inference gateway (cmd/air-traffic-gateway).
+const (
+	ProxyNotNormalizedCode    = "proxy_not_normalized"
+	ProxyNotNormalizedMessage = "proxy mode is not served by the synthetic vendor replica; inline enforcement is the inference gateway (cmd/air-traffic-gateway)"
 )
 
 // Disposition is the truthfulness layer: how a control is actually enforced.
@@ -68,7 +77,7 @@ type Status struct {
 	CheckedAt time.Time `json:"checked_at"`
 }
 
-// Adapter is one vendor control surface (data-driven, mirrors it-scorecard Connector).
+// Adapter is one vendor control surface (data-driven, mirrors the predecessor project's Connector).
 type Adapter struct {
 	ID          string `json:"id"`
 	Vendor      string `json:"vendor"`
@@ -131,7 +140,7 @@ type EnvState struct {
 	ReadAt         time.Time      `json:"read_at"`
 }
 
-// ObservationRecord wraps one emitted ops-observation-batch/v1 batch (it-scorecard compatible).
+// ObservationRecord wraps one emitted ops-observation-batch/v1 batch (wire-compatible with the predecessor project).
 type ObservationRecord struct {
 	ID                int64          `json:"id"`
 	ReceivedAt        time.Time      `json:"received_at"`

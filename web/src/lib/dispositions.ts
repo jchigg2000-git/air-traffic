@@ -9,8 +9,6 @@ export type Disposition =
   | 'unverified'
   | 'unsupported'
 
-export type Enforcement = 'server_side' | 'mdm_locked' | 'seed_only' | ''
-
 interface DispMeta {
   label: string
   glyph: string

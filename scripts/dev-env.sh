@@ -7,7 +7,7 @@
 #                         presents it as AIRTRAFFIC_GATEWAY_KEY, so the two
 #                         must match.
 #   AIRTRAFFIC_SPINE_KEY  shared key on the control plane's gateway spine
-#                         routes (leaks / enforcement / patterns).
+#                         routes (leaks / enforcement / patterns / keys).
 #   AIRTRAFFIC_ADMIN_KEY  operator key on every state-changing control-plane
 #                         route (adapters, policies, credentials, harness) and
 #                         the alternative to loopback for keystore admin.

@@ -1,5 +1,5 @@
 // Package emitter is the background observation generator. Each tick it produces
-// one ops-observation-batch/v1 batch per emitting adapter (mirrors it-scorecard).
+// one ops-observation-batch/v1 batch per emitting adapter (mirrors the predecessor project; see package model).
 package emitter
 
 import (
@@ -158,8 +158,8 @@ func (e *Emitter) costBreakdowns(a model.Adapter, def catalog.Definition, agg ma
 
 func (e *Emitter) emitProxyStub(a model.Adapter, ts time.Time) {
 	errEntry := map[string]any{
-		"scope": "connector", "code": "proxy_not_normalized",
-		"message": "proxy mode reached upstream but no vendor normalizer is implemented in Phase 1", "retryable": false, "http_status": nil,
+		"scope": "connector", "code": model.ProxyNotNormalizedCode,
+		"message": model.ProxyNotNormalizedMessage, "retryable": false, "http_status": nil,
 	}
 	e.storeBatch(a, ts, nil, []any{errEntry}, false)
 }

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/jchigg2000-git/air-traffic/main/schemas/ops-observation-batch-v1.schema.json",
   "title": "Ops Observation Batch v1",
-  "description": "Emission contract reused verbatim from it-scorecard; carries one batch of vendor control-plane observations.",
+  "description": "ops-observation-batch/v1 emission contract; carries one batch of vendor control-plane observations. Shared with the author's earlier, unpublished it-scorecard project.",
   "type": "object",
   "required": ["contract", "batch_id", "connector", "collected_at", "window", "cursor", "complete", "observations", "errors"],
   "additionalProperties": false,

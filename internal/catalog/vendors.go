@@ -313,7 +313,7 @@ func amazonQ() Definition {
 		cap("audit_logs", "CloudTrail Audit", ob, vn, "propagated user identity", ""),
 		cap("spend_cap", "Per-Token Cap", bg, mo, "subscription tiers; proxy for per-token", ""),
 	}
-	return Definition{ID: "amazon_q", Vendor: "Amazon Q", DisplayName: "Amazon Q", Family: "hyperscaler", APIVersion: "2024", Tier: 3, BAASigned: true, Capabilities: caps, Metrics: budgetMetrics("amazon_q", "https://q.amazonaws.com")}
+	return Definition{ID: "amazon_q", Vendor: "Amazon Q", DisplayName: "Amazon Q", Family: "hyperscaler", APIVersion: "2024", Tier: 3, BAASigned: true, Capabilities: caps, Metrics: budgetMetrics("amazon_q", "https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/security-iam.html")}
 }
 
 func watsonx() Definition {
@@ -324,5 +324,5 @@ func watsonx() Definition {
 		cap("governance", "GRC Governance Framework", ob, vn, "watsonx.governance", ""),
 		cap("usage_controls", "Usage Controls", bg, mo, "admin UI", ""),
 	}
-	return Definition{ID: "watsonx", Vendor: "IBM watsonx", DisplayName: "IBM watsonx", Family: "hyperscaler", APIVersion: "2.4", Tier: 3, BAASigned: true, Capabilities: caps, Metrics: budgetMetrics("watsonx", "https://api.watsonx.ibm.com")}
+	return Definition{ID: "watsonx", Vendor: "IBM watsonx", DisplayName: "IBM watsonx", Family: "hyperscaler", APIVersion: "2.4", Tier: 3, BAASigned: true, Capabilities: caps, Metrics: budgetMetrics("watsonx", "https://us-south.ml.cloud.ibm.com")}
 }
