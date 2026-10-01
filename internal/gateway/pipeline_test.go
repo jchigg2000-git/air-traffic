@@ -245,7 +245,7 @@ func TestFailedExitsLeaveAReport(t *testing.T) {
 				t.Errorf("report = error %q gateway_status %d upstream_status %d, want %q %d 0",
 					a.Error, a.GatewayStatus, a.UpstreamStatus, tc.code, tc.status)
 			}
-			if snap := gw.metrics.drain(); snap.Requests != 1 || snap.Errors != 1 {
+			if snap := gw.metrics.drain()["anthropic"]; snap.Requests != 1 || snap.Errors != 1 {
 				t.Errorf("metrics requests=%d errors=%d, want 1 1", snap.Requests, snap.Errors)
 			}
 		})
@@ -269,7 +269,7 @@ func TestFailedExitsLeaveAReport(t *testing.T) {
 		if audits := gw.audits.drain(); len(audits) != 0 {
 			t.Errorf("auth failure wrote %d reports, want 0", len(audits))
 		}
-		if snap := gw.metrics.drain(); snap.AuthFailures != 1 || snap.Requests != 0 {
+		if snap := gw.metrics.drain()["anthropic"]; snap.AuthFailures != 1 || snap.Requests != 0 {
 			t.Errorf("metrics auth_failures=%d requests=%d, want 1 0", snap.AuthFailures, snap.Requests)
 		}
 	})

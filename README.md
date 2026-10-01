@@ -400,7 +400,8 @@ unreadable or not JSON, credential or upstream URL unusable, upstream unreachabl
 a row, marked `error` with the code and the status the gateway answered with (`gw` beside it), and
 counts toward `gw_errors` / `gw_error_rate`. Rejected gateway keys are the one exception: they
 count toward `gw_auth_failures` but never write a row, so an unauthenticated caller cannot flood the
-report ring.
+report ring. The `gw_*` aggregates are kept per route and carry a `route` dimension (the vendor
+field is that same route label), so Anthropic-route and OpenAI-route traffic are never summed.
 
 **Pointing real clients at it.** Claude Code speaks the Anthropic route as-is:
 

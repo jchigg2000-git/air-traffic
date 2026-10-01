@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/jchigg2000-git/air-traffic/internal/model"
@@ -47,32 +48,18 @@ func (s *Server) RunSpine(ctx context.Context) {
 func (s *Server) gatewayID() string { return "gw@" + s.cfg.ListenAddr }
 
 func (s *Server) pushObservations(ctx context.Context) {
-	snap := s.metrics.drain()
-	if snap.Requests == 0 && snap.AuthFailures == 0 {
+	snaps := s.metrics.drain()
+	if len(snaps) == 0 {
 		return
 	}
-	dims := map[string]any{}
-	obs := []any{gwObs("gw_auth_failures", snap.AuthFailures, "count", dims)}
-	// A window that saw only refused callers carries the auth count alone:
-	// rates and percentiles over zero requests would read as a measured 0.
-	if snap.Requests > 0 {
-		obs = append(obs,
-			gwObs("gw_requests", snap.Requests, "count", dims),
-			gwObs("gw_block_rate", ratio(snap.Blocked, snap.Requests), "ratio", dims),
-			gwObs("gw_masked", snap.Masked, "count", dims),
-			gwObs("gw_fail_mode_trips", snap.FailTrips, "count", dims),
-			gwObs("gw_errors", snap.Errors, "count", dims),
-			gwObs("gw_error_rate", ratio(snap.Errors, snap.Requests), "ratio", dims),
-			gwObs("gw_added_latency_ms_p50", snap.AddedP50, "ms", dims),
-			gwObs("gw_added_latency_ms_p95", snap.AddedP95, "ms", dims),
-			gwObs("gw_added_latency_ms_p99", snap.AddedP99, "ms", dims),
-			gwObs("gw_latency_ms_p95", snap.TotalP95, "ms", dims),
-			gwObs("tokens_in", snap.TokensIn, "tokens", dims),
-			gwObs("tokens_out", snap.TokensOut, "tokens", dims),
-		)
+	routes := make([]string, 0, len(snaps))
+	for route := range snaps {
+		routes = append(routes, route)
 	}
-	for typ, n := range snap.RedactionsByType {
-		obs = append(obs, gwObs("gw_redactions", n, "count", map[string]any{"pii_type": typ}))
+	sort.Strings(routes)
+	var obs []any
+	for _, route := range routes {
+		obs = append(obs, routeObservations(route, snaps[route])...)
 	}
 	batch := map[string]any{
 		"contract": model.ObservationContract,
@@ -97,10 +84,43 @@ func (s *Server) pushObservations(ctx context.Context) {
 	}
 }
 
-// gwObs shapes one observation entry with the gateway's standard dimensions.
-func gwObs(name string, value any, unit string, extraDims map[string]any) any {
+// routeObservations shapes one route's window into observations. Every entry
+// carries the route as both its vendor and a route dimension: the route is the
+// label the per-request feed uses, and it is the only attribution this
+// process can honestly make (see routeMetrics).
+func routeObservations(route string, snap metricsSnapshot) []any {
+	dims := func() map[string]any { return map[string]any{"route": route} }
+	obs := []any{gwObs(route, "gw_auth_failures", snap.AuthFailures, "count", dims())}
+	// A window that saw only refused callers carries the auth count alone:
+	// rates and percentiles over zero requests would read as a measured 0.
+	if snap.Requests > 0 {
+		obs = append(obs,
+			gwObs(route, "gw_requests", snap.Requests, "count", dims()),
+			gwObs(route, "gw_block_rate", ratio(snap.Blocked, snap.Requests), "ratio", dims()),
+			gwObs(route, "gw_masked", snap.Masked, "count", dims()),
+			gwObs(route, "gw_fail_mode_trips", snap.FailTrips, "count", dims()),
+			gwObs(route, "gw_errors", snap.Errors, "count", dims()),
+			gwObs(route, "gw_error_rate", ratio(snap.Errors, snap.Requests), "ratio", dims()),
+			gwObs(route, "gw_added_latency_ms_p50", snap.AddedP50, "ms", dims()),
+			gwObs(route, "gw_added_latency_ms_p95", snap.AddedP95, "ms", dims()),
+			gwObs(route, "gw_added_latency_ms_p99", snap.AddedP99, "ms", dims()),
+			gwObs(route, "gw_latency_ms_p95", snap.TotalP95, "ms", dims()),
+			gwObs(route, "tokens_in", snap.TokensIn, "tokens", dims()),
+			gwObs(route, "tokens_out", snap.TokensOut, "tokens", dims()),
+		)
+	}
+	for typ, n := range snap.RedactionsByType {
+		d := dims()
+		d["pii_type"] = typ
+		obs = append(obs, gwObs(route, "gw_redactions", n, "count", d))
+	}
+	return obs
+}
+
+// gwObs shapes one observation entry. vendor is the serving route.
+func gwObs(vendor, name string, value any, unit string, extraDims map[string]any) any {
 	return model.Obs("metric", name, value, unit, "green", "info",
-		model.PlaneObservability, "anthropic", model.DispProxyEnforced, extraDims, "gateway", "")
+		model.PlaneObservability, vendor, model.DispProxyEnforced, extraDims, "gateway", "")
 }
 
 func ratio(num, den int64) float64 {
@@ -162,7 +182,15 @@ func (s *Server) pushHeartbeat(ctx context.Context) error {
 	// baselines can now be scoped per app, the default action is no longer the
 	// whole story: one app on monitor-only means this gateway is not enforcing
 	// for everyone, and claiming otherwise would overstate coverage.
-	if enforces(action) && s.allAppsEnforce() {
+	//
+	// A claim also needs a route behind it: a gateway configured with only an
+	// OpenAI-compatible upstream answers every /v1/messages with a 502, and
+	// announcing anthropic redaction would flip that capability to
+	// applied_proxy while nothing of the kind is being served. The OpenAI
+	// dialect makes no claim: the catalog's openai adapter declares no
+	// pii_redaction capability, and a route labelled "openai" may front any
+	// compatible vendor (ROADMAP PIVOT-4).
+	if _, served := s.cfg.Upstreams[anthropicDialect().route]; served && enforces(action) && s.allAppsEnforce() {
 		vendors["anthropic"] = []string{"pii_redaction"}
 	}
 	rep := model.EnforcementReport{

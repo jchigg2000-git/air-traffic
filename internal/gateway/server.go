@@ -51,7 +51,7 @@ type Server struct {
 	keys atomic.Pointer[keySnapshot]
 
 	audits  auditRing
-	metrics *metrics
+	metrics *routeMetrics
 }
 
 // New validates runtime wiring (client keys resolvable, upstreams present,
@@ -85,7 +85,7 @@ func New(cfg config.Config, log *slog.Logger) (*Server, error) {
 		spineKey = ""
 	}
 
-	s := &Server{cfg: cfg, log: log, creds: creds, clientKeys: keys, spineKey: spineKey, metrics: newMetrics()}
+	s := &Server{cfg: cfg, log: log, creds: creds, clientKeys: keys, spineKey: spineKey, metrics: newRouteMetrics()}
 	var detectors []detect.Detector
 	for _, name := range cfg.Detectors {
 		switch name {

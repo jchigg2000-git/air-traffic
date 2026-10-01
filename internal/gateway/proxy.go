@@ -92,7 +92,7 @@ func (s *Server) requireClientKey(d dialect, next http.HandlerFunc) http.Handler
 			// Counted, not reported: an unauthenticated caller must not be
 			// able to write rows into the report ring (and evict real ones),
 			// but a wave of 401s still has to be visible upstream.
-			s.metrics.authFailure()
+			s.metrics.authFailure(d.route)
 			d.writeErr(w, http.StatusUnauthorized, "authentication_error", "invalid gateway key")
 			return
 		}

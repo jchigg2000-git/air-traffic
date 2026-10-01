@@ -7,9 +7,58 @@ import (
 
 const latReservoirMax = 4096
 
-// metrics aggregates per-window counters that the spine pusher drains into
-// ops-observation-batch/v1 entries. Latency reservoirs are bounded per window
-// so cardinality and memory stay flat under load (G8 does the real depth).
+// routeMetrics keeps one metrics window per route, so an aggregate is
+// attributed to the route that served it rather than to whichever vendor the
+// emitter was written for. The route label is the one the per-request feed
+// already carries (RequestAudit.Route): a wire dialect, not a vendor lookup,
+// because a gateway cannot know who is really behind an OpenAI-compatible
+// upstream. Routes are the fixed dialect set, so cardinality is bounded.
+type routeMetrics struct {
+	mu      sync.Mutex
+	byRoute map[string]*metrics
+}
+
+func newRouteMetrics() *routeMetrics { return &routeMetrics{byRoute: map[string]*metrics{}} }
+
+func (r *routeMetrics) window(route string) *metrics {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	m, ok := r.byRoute[route]
+	if !ok {
+		m = newMetrics()
+		r.byRoute[route] = m
+	}
+	return m
+}
+
+func (r *routeMetrics) observe(a RequestAudit, tokensIn, tokensOut int64) {
+	r.window(a.Route).observe(a, tokensIn, tokensOut)
+}
+
+func (r *routeMetrics) authFailure(route string) { r.window(route).authFailure() }
+
+// drain snapshots and resets every route's window, keeping only the routes
+// that saw something, so an idle route emits nothing.
+func (r *routeMetrics) drain() map[string]metricsSnapshot {
+	r.mu.Lock()
+	windows := make(map[string]*metrics, len(r.byRoute))
+	for route, m := range r.byRoute {
+		windows[route] = m
+	}
+	r.mu.Unlock()
+	out := map[string]metricsSnapshot{}
+	for route, m := range windows {
+		if snap := m.drain(); snap.Requests > 0 || snap.AuthFailures > 0 {
+			out[route] = snap
+		}
+	}
+	return out
+}
+
+// metrics aggregates one route's per-window counters that the spine pusher
+// drains into ops-observation-batch/v1 entries. Latency reservoirs are
+// bounded per window so cardinality and memory stay flat under load (G8 does
+// the real depth).
 type metrics struct {
 	mu               sync.Mutex
 	requests         int64

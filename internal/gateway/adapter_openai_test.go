@@ -177,6 +177,13 @@ func TestOpenAIJSONUsageExtraction(t *testing.T) {
 // together.
 func newDualRouteGateway(t *testing.T, anthropicURL, openaiURL string) http.Handler {
 	t.Helper()
+	return newDualRouteServer(t, anthropicURL, openaiURL).Routes()
+}
+
+// newDualRouteServer is newDualRouteGateway for tests that need the *Server
+// itself (metrics, heartbeat), not just its handler.
+func newDualRouteServer(t *testing.T, anthropicURL, openaiURL string) *Server {
+	t.Helper()
 	t.Setenv("GATEWAY_UPSTREAMS", fmt.Sprintf(
 		`{"anthropic":{"base_url":%q,"credential_ref":"env:TEST_UPSTREAM_CRED"},`+
 			`"openai":{"base_url":%q,"credential_ref":"env:TEST_OPENAI_CRED"}}`, anthropicURL, openaiURL))
@@ -192,7 +199,7 @@ func newDualRouteGateway(t *testing.T, anthropicURL, openaiURL string) http.Hand
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	return gw.Routes()
+	return gw
 }
 
 // The OpenAI route must reach <base_url>/chat/completions with the credential

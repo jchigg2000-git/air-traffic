@@ -60,11 +60,12 @@ budget) · Appendix
 > `protect-main` ruleset (no deletion, no force-push), CodeQL default setup and
 > delete-branch-on-merge were enabled at the flip.
 >
-> **▶ NEXT ACTION:** §7.2's two remaining cheap instrumentation fixes (PIVOT-3, PIVOT-4) are
-> the strongest candidates. Every proxy exit after authentication now records a report and feeds
-> `gw_errors` / `gw_error_rate`; rejected keys count toward `gw_auth_failures` without writing a
-> row (2026-10-01). §3's deferred G-blocks, §4's vendor
-> cost facets and §5's 10 vendor auth schemas remain open and still block nothing.
+> **▶ NEXT ACTION:** §7.2's remaining cheap instrumentation fix (PIVOT-3) is the strongest
+> candidate; PIVOT-4's remainder needs an owner ruling. Every proxy exit after authentication now
+> records a report and feeds `gw_errors` / `gw_error_rate`; rejected keys count toward
+> `gw_auth_failures` without writing a row; gateway aggregates are per-route (2026-10-01). §3's
+> deferred G-blocks, §4's vendor cost facets and §5's 10 vendor auth schemas remain open and still
+> block nothing.
 >
 > **Owed / explicitly NOT done — read this before claiming any of it is closed:**
 > - **Integrations that reach the gateway by a non-loopback name now need
@@ -279,10 +280,16 @@ Gateway Traffic page and the keystore.**
   `detector_ran` fact.** `model.EnforcementReport` (`internal/model/gateway.go:106-113`) carries no
   versions, so a gateway stuck on a stale snapshot is indistinguishable from a current one.
   Unblocks PIVOT-9, PIVOT-10 and the pack-version join in one change.
-- ⬜ **PIVOT-4** **Fix hardcoded vendor attribution.** `internal/gateway/spine_emit.go:98` and
-  `:133` hardcode `anthropic` regardless of route: every gateway *aggregate* is attributed to
-  Anthropic, and the `openai` adapter can never reach `applied_proxy`
-  (`internal/policy/reconcile.go:74`). The per-request feed is correct; the aggregate is not.
+- ⬜ **PIVOT-4** **The `openai` route still makes no coverage claim, by design — decide before
+  changing it.** Gateway aggregates are now attributed to the route that served them (a `route`
+  dimension, vendor = route label, the same label the per-request feed carries), and the heartbeat
+  claims `pii_redaction` for `anthropic` only while that route has an upstream. What is left is a
+  product call, not a bug: the catalog's `openai` adapter (`internal/catalog/vendors.go`) declares
+  no `pii_redaction` capability, so that adapter can never reach `applied_proxy`
+  (`internal/policy/reconcile.go`), and a route labelled `openai` is a wire dialect that README
+  documents pointing at the Hugging Face router, so claiming "OpenAI enforcement" for it would be a
+  different misattribution. Needs an owner ruling on what vendor an OpenAI-compatible upstream
+  counts as.
 
 ### §7.3 Tier 1 — blast radius (the "user opens the wrong thing" ask)
 
@@ -339,8 +346,9 @@ are **latency and success**.
   keystore state; near-zero false-positive risk.
 - ⬜ **PIVOT-12** **Fail-open unenforcement → the one justified auto-apply.** Under
   `GATEWAY_FAIL_MODE=open` a dead Presidio forwards traffic unfiltered while `pushHeartbeat` keeps
-  claiming `pii_redaction` — it consults only `enforces(action)` and `allAppsEnforce()`
-  (`internal/gateway/spine_emit.go:160-162`) and never asks whether the chain actually ran. Drift
+  claiming `pii_redaction` — it consults only whether the route has an upstream, `enforces(action)`
+  and `allAppsEnforce()` (`internal/gateway/spine_emit.go`, `pushHeartbeat`) and never asks whether
+  the chain actually ran. Drift
   structurally cannot see this. What auto-applies is **honesty, not policy**: retract the
   enforcement claim. It changes no enforcement behaviour; it withdraws an assertion the system
   cannot substantiate. Sole condition satisfying all three safety properties — it is a *retraction*

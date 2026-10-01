@@ -101,7 +101,7 @@ func TestStreamedRequestReportsUsageToMetrics(t *testing.T) {
 	_, _ = io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
 
-	snap := gw.metrics.drain()
+	snap := gw.metrics.drain()["anthropic"]
 	if snap.TokensIn != 41 || snap.TokensOut != 17 {
 		t.Errorf("streamed usage = (%d, %d), want (41, 17)", snap.TokensIn, snap.TokensOut)
 	}
