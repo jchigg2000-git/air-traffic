@@ -329,7 +329,8 @@ misses → promoted corpus → curated pattern proposals → human approval → 
 restart) → re-run → the ratchet climbs. Everything is local — synthetic traffic, self-hosted
 NER, no cloud inference or compute.
 
-*The readout at the top of this README is one 200-request run: **100.0% behavioral recall**
+*The readout at the top of this README is one 200-request run, recorded only in that screenshot
+(2026-07-02; the local ratchet ledger is gitignored): **100.0% behavioral recall**
 (99.0% *reported* recall — the gap between the two is the honesty check), 97.7% precision, 0 trap
 false positives. Read it top to bottom — a live prompt masked mid-flight (`Jane Doe` →
 `[PERSON_NAME]`, SSN → `[SSN]`) with what the upstream actually received beside what was sent;

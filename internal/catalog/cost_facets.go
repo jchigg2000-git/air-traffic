@@ -12,7 +12,8 @@ package catalog
 // a vendor's real API can't actually produce.
 //
 // Grounded in docs/air-traffic-analysis.md §3 vendor research (24-agent study verified
-// against live admin/billing APIs, June 2026; adversarial-verify corrections applied).
+// against live vendor API documentation, June 2026 — no vendor credential was held, so no
+// admin/billing endpoint was called; adversarial-verify corrections applied).
 
 // cf builds a supported cost facet.
 func cf(dim, label, realParam, endpoint, respField, reason string, members ...FacetMember) CostFacet {
