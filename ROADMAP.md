@@ -60,9 +60,10 @@ budget) · Appendix
 > `protect-main` ruleset (no deletion, no force-push), CodeQL default setup and
 > delete-branch-on-merge were enabled at the flip.
 >
-> **▶ NEXT ACTION:** unchanged — §7.2's four cheap instrumentation fixes (PIVOT-2 → PIVOT-5) are
-> the strongest candidates, PIVOT-2 especially, since every rate in §7.4 is computed over a
-> denominator missing an entire failure class until it lands. §3's deferred G-blocks, §4's vendor
+> **▶ NEXT ACTION:** §7.2's three remaining cheap instrumentation fixes (PIVOT-3 → PIVOT-5) are
+> the strongest candidates. Every proxy exit after authentication now records a report and feeds
+> `gw_errors` / `gw_error_rate`; rejected keys count toward `gw_auth_failures` without writing a
+> row (2026-10-01). §3's deferred G-blocks, §4's vendor
 > cost facets and §5's 10 vendor auth schemas remain open and still block nothing.
 >
 > **Owed / explicitly NOT done — read this before claiming any of it is closed:**
@@ -274,18 +275,6 @@ Gateway Traffic page and the keystore.**
 
 ### §7.2 Tier 0 — instrumentation preconditions (cheap, no decision needed)
 
-- ⬜ **PIVOT-2** **Record the nine silent exits on the proxy path.** Counted 2026-08-31,
-  `s.record()` fires at 3 of the 12 ways a request leaves `internal/gateway/proxy.go`: the
-  fail-closed detector abort, the policy block, and the success path. Auth failure (in
-  `requireClientKey`, one frame up), no upstream for the route, oversized body, bad JSON,
-  mask-rewrite failure, credential resolution failure, unusable upstream base URL, request-build
-  failure and upstream unreachable all return with zero rows and zero metrics (`metrics.observe`
-  is reachable only via `record`, `internal/gateway/audit.go:71-72`). Those counts are as-of, not
-  live — grep `d.writeErr(` for the current set. The heartbeat keeps beating on its own timer
-  claiming enforcement throughout. **A route failing 100% of requests is indistinguishable from
-  an idle one** — and compose ships `HF_UPSTREAM_TOKEN` with no default by design
-  (`DECISIONS.md` 2026-08-15), so that is the likeliest real failure. Lands FIRST: every rate in
-  §7.4 is otherwise computed over a denominator missing an entire failure class.
 - ⬜ **PIVOT-3** **Heartbeat carries effective action + pulled policy/pack/keystore versions + a
   `detector_ran` fact.** `model.EnforcementReport` (`internal/model/gateway.go:106-113`) carries no
   versions, so a gateway stuck on a stale snapshot is indistinguishable from a current one.

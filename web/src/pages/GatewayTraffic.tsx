@@ -15,14 +15,16 @@ const ACTION_COLOR: Record<string, string> = {
   detect: 'var(--accent)',
   mask: 'var(--amber)',
   block: 'var(--red)',
+  error: 'var(--red)',
 }
 
-function ActionChip({ action }: { action: string }) {
+function ActionChip({ action, title }: { action: string; title?: string }) {
   const color = ACTION_COLOR[action] ?? 'var(--muted)'
   return (
     <span
       className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
       style={{ borderColor: 'var(--line)', color }}
+      title={title}
     >
       <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: color }} />
       {action}
@@ -56,6 +58,14 @@ function attributionTitle(r: GatewayRequest): string {
   return parts.join(' · ')
 }
 
+// A request the gateway failed itself (no upstream, upstream unreachable, bad
+// body…) shows as an error whatever the pipeline had decided before it failed:
+// nothing reached the vendor, so "mask" or "pass" would read as delivered.
+function actionLabel(r: GatewayRequest): { action: string; title?: string } {
+  if (!r.error) return { action: r.action }
+  return { action: 'error', title: `${r.error} — the gateway answered; nothing was relayed (pipeline action: ${r.action})` }
+}
+
 function statusColor(status: number | undefined): string {
   if (!status) return 'var(--faint)'
   if (status >= 500) return 'var(--red)'
@@ -79,7 +89,7 @@ export default function GatewayTraffic() {
     if (!filter.trim()) return all
     const q = filter.toLowerCase()
     return all.filter((r) =>
-      [r.route, r.model ?? '', r.action, r.request_id, r.app_id ?? '', r.subject ?? '', redactionSummary(r)]
+      [r.route, r.model ?? '', r.action, r.error ?? '', r.request_id, r.app_id ?? '', r.subject ?? '', redactionSummary(r)]
         .join(' ')
         .toLowerCase()
         .includes(q),
@@ -89,6 +99,7 @@ export default function GatewayTraffic() {
   const totals = useMemo(() => {
     let redactions = 0
     let blocked = 0
+    let errors = 0
     let tokensIn = 0
     let tokensOut = 0
     const apps = new Set<string>()
@@ -96,6 +107,7 @@ export default function GatewayTraffic() {
     for (const r of rows) {
       redactions += r.redactions?.length ?? 0
       if (r.action === 'block') blocked++
+      if (r.error) errors++
       tokensIn += r.tokens_in ?? 0
       tokensOut += r.tokens_out ?? 0
       if (r.app_id) apps.add(r.app_id)
@@ -103,7 +115,7 @@ export default function GatewayTraffic() {
     }
     added.sort((a, b) => a - b)
     const p95 = added.length ? added[Math.min(added.length - 1, Math.floor(added.length * 0.95))] : 0
-    return { redactions, blocked, tokensIn, tokensOut, p95, apps: apps.size }
+    return { redactions, blocked, errors, tokensIn, tokensOut, p95, apps: apps.size }
   }, [rows])
 
   return (
@@ -142,7 +154,11 @@ export default function GatewayTraffic() {
         <Tile label="Requests" value={fmtNum(rows.length)} />
         <Tile label="Apps" value={fmtNum(totals.apps)} />
         <Tile label="Redactions" value={fmtNum(totals.redactions)} />
-        <Tile label="Blocked" value={fmtNum(totals.blocked)} tone={totals.blocked ? 'var(--red)' : undefined} />
+        <Tile
+          label="Blocked / failed"
+          value={`${fmtNum(totals.blocked)} / ${fmtNum(totals.errors)}`}
+          tone={totals.blocked || totals.errors ? 'var(--red)' : undefined}
+        />
         <Tile label="Tokens in / out" value={`${fmtNum(totals.tokensIn)} / ${fmtNum(totals.tokensOut)}`} />
         <Tile label="Added latency p95" value={`${fmtNum(totals.p95)} ms`} />
       </div>
@@ -182,7 +198,7 @@ export default function GatewayTraffic() {
                 {r.model || '—'}
               </span>
               <span>
-                <ActionChip action={r.action} />
+                <ActionChip {...actionLabel(r)} />
               </span>
               <span className="truncate font-mono text-[11px]" title={redactionSummary(r)}>
                 {redactionSummary(r) || <span className="text-faint">—</span>}
@@ -190,8 +206,13 @@ export default function GatewayTraffic() {
               <span className="font-mono text-[11px] text-muted">
                 {r.tokens_in || r.tokens_out ? `${fmtNum(r.tokens_in ?? 0)}/${fmtNum(r.tokens_out ?? 0)}` : <span className="text-faint">—</span>}
               </span>
-              <span className="font-mono text-[11px]" style={{ color: statusColor(r.upstream_status) }}>
-                {r.upstream_status || '—'}
+              <span
+                className="font-mono text-[11px]"
+                style={{ color: statusColor(r.upstream_status || r.gateway_status) }}
+                title={r.gateway_status ? 'answered by the gateway, not the vendor' : undefined}
+              >
+                {r.upstream_status || r.gateway_status || '—'}
+                {r.gateway_status ? <span className="text-faint"> gw</span> : null}
               </span>
               <span className="font-mono text-[11px] text-muted" title={`${r.added_latency_ms} ms added by the gateway`}>
                 {fmtNum(r.latency_ms)}

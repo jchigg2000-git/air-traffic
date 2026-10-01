@@ -17,6 +17,8 @@ type metrics struct {
 	masked           int64
 	detectOnly       int64
 	failTrips        int64
+	errors           int64
+	authFailures     int64
 	redactionsByType map[string]int64
 	tokensIn         int64
 	tokensOut        int64
@@ -41,6 +43,9 @@ func (m *metrics) observe(a RequestAudit, tokensIn, tokensOut int64) {
 	if a.FailModeTripped {
 		m.failTrips++
 	}
+	if a.Error != "" {
+		m.errors++
+	}
 	for _, r := range a.Redactions {
 		m.redactionsByType[r.Type]++
 	}
@@ -54,8 +59,19 @@ func (m *metrics) observe(a RequestAudit, tokensIn, tokensOut int64) {
 	}
 }
 
+// authFailure counts a request refused at authentication. It is deliberately
+// outside requests: the caller never reached the pipeline, so folding it into
+// the block-rate and error-rate denominators would let unauthenticated noise
+// dilute the rates that describe real traffic.
+func (m *metrics) authFailure() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.authFailures++
+}
+
 type metricsSnapshot struct {
 	Requests, Blocked, Masked, DetectOnly, FailTrips int64
+	Errors, AuthFailures                             int64
 	RedactionsByType                                 map[string]int64
 	TokensIn, TokensOut                              int64
 	AddedP50, AddedP95, AddedP99                     float64
@@ -69,12 +85,14 @@ func (m *metrics) drain() metricsSnapshot {
 	snap := metricsSnapshot{
 		Requests: m.requests, Blocked: m.blocked, Masked: m.masked,
 		DetectOnly: m.detectOnly, FailTrips: m.failTrips,
+		Errors: m.errors, AuthFailures: m.authFailures,
 		RedactionsByType: m.redactionsByType,
 		TokensIn:         m.tokensIn, TokensOut: m.tokensOut,
 		AddedP50: percentile(m.addedLat, 0.50), AddedP95: percentile(m.addedLat, 0.95), AddedP99: percentile(m.addedLat, 0.99),
 		TotalP50: percentile(m.totalLat, 0.50), TotalP95: percentile(m.totalLat, 0.95), TotalP99: percentile(m.totalLat, 0.99),
 	}
 	m.requests, m.blocked, m.masked, m.detectOnly, m.failTrips = 0, 0, 0, 0, 0
+	m.errors, m.authFailures = 0, 0
 	m.tokensIn, m.tokensOut = 0, 0
 	m.redactionsByType = map[string]int64{}
 	m.addedLat, m.totalLat = nil, nil

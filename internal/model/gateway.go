@@ -42,6 +42,17 @@ type GatewayRequestReport struct {
 	FailModeTripped bool               `json:"fail_mode_tripped,omitempty"`
 	Stream          bool               `json:"stream,omitempty"`
 	UpstreamStatus  int                `json:"upstream_status,omitempty"`
+	// GatewayStatus is the HTTP status the gateway wrote itself, set on every
+	// exit that answered the caller without relaying an upstream response
+	// (policy block, fail-closed trip, and every Error below). Exactly one of
+	// UpstreamStatus and GatewayStatus is set on a report.
+	GatewayStatus int `json:"gateway_status,omitempty"`
+	// Error names why the gateway could not complete the request — one of the
+	// GatewayErr* codes, never free text. Empty on a relayed response and on a
+	// deliberate refusal (block, fail-closed), which Action already names.
+	// Without it a route failing every request looks idle: the failure leaves
+	// no report and no metric.
+	Error string `json:"error,omitempty"`
 	// TokensIn/TokensOut are what the vendor reported for THIS request, not a
 	// gateway estimate: absent usage stays zero rather than being guessed at.
 	// There is deliberately no cost field — see docs/plans/TODO-gateway-deferred.md;
@@ -53,6 +64,20 @@ type GatewayRequestReport struct {
 	At             time.Time `json:"at"`
 }
 
+// Error codes a GatewayRequestReport can carry: the ways a proxied request
+// fails inside the gateway after the caller authenticated. Authentication
+// failures are counted, not reported — see the gateway's metrics.
+const (
+	GatewayErrNoUpstream          = "no_upstream"
+	GatewayErrBodyUnreadable      = "body_unreadable"
+	GatewayErrInvalidJSON         = "invalid_json"
+	GatewayErrRewriteFailed       = "rewrite_failed"
+	GatewayErrCredential          = "credential_unavailable"
+	GatewayErrUpstreamURL         = "upstream_url_unusable"
+	GatewayErrRequestBuild        = "request_build_failed"
+	GatewayErrUpstreamUnreachable = "upstream_unreachable"
+)
+
 // Bounds on a report's variable-size fields. Applied on both sides of the
 // spine: the gateway clamps before a report enters its ring, so one oversized
 // proxied request can never produce a push the control plane's 2 MB decoder
@@ -62,7 +87,7 @@ type GatewayRequestReport struct {
 const (
 	maxReportIDLen        = 128
 	maxReportModelLen     = 256
-	maxReportLabelLen     = 64  // route, app_id, key_id, baseline
+	maxReportLabelLen     = 64  // route, app_id, key_id, baseline, error
 	maxReportSubjectLen   = 200 // matches the keystore's issuance bound
 	maxReportDetectorErrs = 5
 	maxReportDetectorErr  = 300
@@ -79,6 +104,7 @@ func (r *GatewayRequestReport) Clamp() {
 	r.KeyID = truncate(r.KeyID, maxReportLabelLen)
 	r.Baseline = truncate(r.Baseline, maxReportLabelLen)
 	r.Subject = truncate(r.Subject, maxReportSubjectLen)
+	r.Error = truncate(r.Error, maxReportLabelLen)
 	if len(r.DetectorErrors) > maxReportDetectorErrs {
 		r.DetectorErrors = r.DetectorErrors[:maxReportDetectorErrs]
 	}

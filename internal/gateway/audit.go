@@ -88,6 +88,8 @@ func (s *Server) record(a RequestAudit, tokensIn, tokensOut int64) {
 		"detector_errors", len(a.DetectorErrors),
 		"fail_mode_tripped", a.FailModeTripped,
 		"upstream_status", a.UpstreamStatus,
+		"gateway_status", a.GatewayStatus,
+		"error", a.Error,
 		"latency_ms", a.LatencyMS,
 		"added_latency_ms", a.AddedLatencyMS,
 	)

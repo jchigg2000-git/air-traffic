@@ -89,6 +89,10 @@ func (s *Server) requireClientKey(d dialect, next http.HandlerFunc) http.Handler
 		}
 		p, ok := s.authenticate(key, d.route)
 		if !ok {
+			// Counted, not reported: an unauthenticated caller must not be
+			// able to write rows into the report ring (and evict real ones),
+			// but a wave of 401s still has to be visible upstream.
+			s.metrics.authFailure()
 			d.writeErr(w, http.StatusUnauthorized, "authentication_error", "invalid gateway key")
 			return
 		}
@@ -175,20 +179,12 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 // proxyRequest runs one request through the pipeline: read → detect →
 // redact/block → swap credential → forward → return (byte-faithful when
 // nothing was redacted).
+//
+// Every exit records exactly one report — relayed, refused, or failed — so a
+// route failing all of its traffic shows up as failures rather than as an
+// idle route. The one exception is authentication, one frame up.
 func (s *Server) proxyRequest(w http.ResponseWriter, r *http.Request, d dialect) {
 	start := time.Now()
-	up, ok := s.cfg.Upstreams[d.route]
-	if !ok {
-		d.writeErr(w, http.StatusBadGateway, "api_error", "no upstream configured for route "+d.route)
-		return
-	}
-
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, s.cfg.MaxBodyBytes))
-	if err != nil {
-		d.writeErr(w, http.StatusRequestEntityTooLarge, "invalid_request_error", "body too large or unreadable")
-		return
-	}
-
 	p := principalFrom(r.Context())
 	action, baseline := s.actionFor(p)
 
@@ -202,6 +198,28 @@ func (s *Server) proxyRequest(w http.ResponseWriter, r *http.Request, d dialect)
 		Baseline:  baseline,
 		At:        time.Now().UTC(),
 	}
+	// answer records the report for an exit where the gateway writes the
+	// response itself, then writes it. code is a model.GatewayErr* value, or
+	// "" for a deliberate refusal that Action already names.
+	answer := func(status int, code, errType, msg string) {
+		audit.GatewayStatus = status
+		audit.Error = code
+		audit.LatencyMS = time.Since(start).Milliseconds()
+		s.record(audit, 0, 0)
+		d.writeErr(w, status, errType, msg)
+	}
+
+	up, ok := s.cfg.Upstreams[d.route]
+	if !ok {
+		answer(http.StatusBadGateway, model.GatewayErrNoUpstream, "api_error", "no upstream configured for route "+d.route)
+		return
+	}
+
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, s.cfg.MaxBodyBytes))
+	if err != nil {
+		answer(http.StatusRequestEntityTooLarge, model.GatewayErrBodyUnreadable, "invalid_request_error", "body too large or unreadable")
+		return
+	}
 
 	outBody := body
 	if action == actionPass {
@@ -213,7 +231,7 @@ func (s *Server) proxyRequest(w http.ResponseWriter, r *http.Request, d dialect)
 		detectStart := time.Now()
 		var doc map[string]any
 		if err := json.Unmarshal(body, &doc); err != nil {
-			d.writeErr(w, http.StatusBadRequest, "invalid_request_error", "body is not valid JSON")
+			answer(http.StatusBadRequest, model.GatewayErrInvalidJSON, "invalid_request_error", "body is not valid JSON")
 			return
 		}
 		if m, ok := doc["model"].(string); ok {
@@ -251,9 +269,7 @@ func (s *Server) proxyRequest(w http.ResponseWriter, r *http.Request, d dialect)
 		// open forwards with whatever engines succeeded.
 		if len(detErrs) > 0 && s.cfg.FailMode == "closed" {
 			audit.Action = actionBlock
-			audit.LatencyMS = time.Since(start).Milliseconds()
-			s.record(audit, 0, 0)
-			d.writeErr(w, http.StatusServiceUnavailable, "api_error",
+			answer(http.StatusServiceUnavailable, "", "api_error",
 				"detector unavailable and GATEWAY_FAIL_MODE=closed")
 			return
 		}
@@ -262,9 +278,7 @@ func (s *Server) proxyRequest(w http.ResponseWriter, r *http.Request, d dialect)
 			switch action {
 			case actionBlock:
 				audit.Action = actionBlock
-				audit.LatencyMS = time.Since(start).Milliseconds()
-				s.record(audit, 0, 0)
-				d.writeErr(w, http.StatusBadRequest, "invalid_request_error",
+				answer(http.StatusBadRequest, "", "invalid_request_error",
 					"request blocked by gateway policy: detected "+typeSummary(redactions))
 				return
 			case actionMask:
@@ -272,7 +286,7 @@ func (s *Server) proxyRequest(w http.ResponseWriter, r *http.Request, d dialect)
 				if mutated {
 					rewritten, err := json.Marshal(doc)
 					if err != nil {
-						d.writeErr(w, http.StatusInternalServerError, "api_error", "rewrite failed")
+						answer(http.StatusInternalServerError, model.GatewayErrRewriteFailed, "api_error", "rewrite failed")
 						return
 					}
 					outBody = rewritten
@@ -286,19 +300,19 @@ func (s *Server) proxyRequest(w http.ResponseWriter, r *http.Request, d dialect)
 	cred, err := s.creds.Resolve(up.CredentialRef)
 	if err != nil {
 		s.log.Error("credential resolution failed", "route", d.route, "ref", up.CredentialRef, "error", err)
-		d.writeErr(w, http.StatusBadGateway, "api_error", "upstream credential unavailable")
+		answer(http.StatusBadGateway, model.GatewayErrCredential, "api_error", "upstream credential unavailable")
 		return
 	}
 
 	target, err := upstreamTarget(up.BaseURL, d.path)
 	if err != nil {
 		s.log.Error("upstream base URL unusable", "route", d.route, "error", err)
-		d.writeErr(w, http.StatusBadGateway, "api_error", "upstream base URL unusable")
+		answer(http.StatusBadGateway, model.GatewayErrUpstreamURL, "api_error", "upstream base URL unusable")
 		return
 	}
 	outReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, target, bytes.NewReader(outBody))
 	if err != nil {
-		d.writeErr(w, http.StatusBadGateway, "api_error", "building upstream request failed")
+		answer(http.StatusBadGateway, model.GatewayErrRequestBuild, "api_error", "building upstream request failed")
 		return
 	}
 	copyHeaders(outReq.Header, r.Header)
@@ -310,7 +324,7 @@ func (s *Server) proxyRequest(w http.ResponseWriter, r *http.Request, d dialect)
 	resp, err := s.httpClient().Do(outReq)
 	if err != nil {
 		s.log.Error("upstream request failed", "route", d.route, "error", err)
-		d.writeErr(w, http.StatusBadGateway, "api_error", "upstream unreachable")
+		answer(http.StatusBadGateway, model.GatewayErrUpstreamUnreachable, "api_error", "upstream unreachable")
 		return
 	}
 	defer resp.Body.Close()

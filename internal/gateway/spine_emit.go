@@ -50,21 +50,28 @@ func (s *Server) gatewayID() string { return "gw@" + s.cfg.ListenAddr }
 
 func (s *Server) pushObservations(ctx context.Context) {
 	snap := s.metrics.drain()
-	if snap.Requests == 0 {
+	if snap.Requests == 0 && snap.AuthFailures == 0 {
 		return
 	}
 	dims := map[string]any{}
-	obs := []any{
-		gwObs("gw_requests", snap.Requests, "count", dims),
-		gwObs("gw_block_rate", ratio(snap.Blocked, snap.Requests), "ratio", dims),
-		gwObs("gw_masked", snap.Masked, "count", dims),
-		gwObs("gw_fail_mode_trips", snap.FailTrips, "count", dims),
-		gwObs("gw_added_latency_ms_p50", snap.AddedP50, "ms", dims),
-		gwObs("gw_added_latency_ms_p95", snap.AddedP95, "ms", dims),
-		gwObs("gw_added_latency_ms_p99", snap.AddedP99, "ms", dims),
-		gwObs("gw_latency_ms_p95", snap.TotalP95, "ms", dims),
-		gwObs("tokens_in", snap.TokensIn, "tokens", dims),
-		gwObs("tokens_out", snap.TokensOut, "tokens", dims),
+	obs := []any{gwObs("gw_auth_failures", snap.AuthFailures, "count", dims)}
+	// A window that saw only refused callers carries the auth count alone:
+	// rates and percentiles over zero requests would read as a measured 0.
+	if snap.Requests > 0 {
+		obs = append(obs,
+			gwObs("gw_requests", snap.Requests, "count", dims),
+			gwObs("gw_block_rate", ratio(snap.Blocked, snap.Requests), "ratio", dims),
+			gwObs("gw_masked", snap.Masked, "count", dims),
+			gwObs("gw_fail_mode_trips", snap.FailTrips, "count", dims),
+			gwObs("gw_errors", snap.Errors, "count", dims),
+			gwObs("gw_error_rate", ratio(snap.Errors, snap.Requests), "ratio", dims),
+			gwObs("gw_added_latency_ms_p50", snap.AddedP50, "ms", dims),
+			gwObs("gw_added_latency_ms_p95", snap.AddedP95, "ms", dims),
+			gwObs("gw_added_latency_ms_p99", snap.AddedP99, "ms", dims),
+			gwObs("gw_latency_ms_p95", snap.TotalP95, "ms", dims),
+			gwObs("tokens_in", snap.TokensIn, "tokens", dims),
+			gwObs("tokens_out", snap.TokensOut, "tokens", dims),
+		)
 	}
 	for typ, n := range snap.RedactionsByType {
 		obs = append(obs, gwObs("gw_redactions", n, "count", map[string]any{"pii_type": typ}))

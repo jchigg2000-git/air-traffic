@@ -268,6 +268,10 @@ export interface GatewayRequest {
   fail_mode_tripped?: boolean
   stream?: boolean
   upstream_status?: number
+  /** Status the gateway answered with itself (block, fail-closed, or `error`). */
+  gateway_status?: number
+  /** Why the gateway could not complete the request, e.g. `upstream_unreachable`. */
+  error?: string
   tokens_in?: number
   tokens_out?: number
   latency_ms: number

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/jchigg2000-git/air-traffic/internal/gateway/config"
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 // newTestGatewayServer builds a *Server against upstreamURL with a caller
@@ -206,4 +207,70 @@ func TestNoRedactedValueInLogsOrAudit(t *testing.T) {
 			t.Errorf("audit payload leaked %q", secret)
 		}
 	}
+}
+
+// A request the gateway fails itself must still leave a report and a metric —
+// otherwise a route failing every request is indistinguishable from an idle
+// one. Authentication failures are the deliberate exception: counted, never
+// written to the report ring an unauthenticated caller could flood.
+func TestFailedExitsLeaveAReport(t *testing.T) {
+	dead := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	deadURL := dead.URL
+	dead.Close() // nothing listens: every forward is "upstream unreachable"
+
+	cases := []struct {
+		name, body string
+		status     int
+		code       string
+	}{
+		{"upstream unreachable", `{"model":"claude-test","messages":[]}`, http.StatusBadGateway, model.GatewayErrUpstreamUnreachable},
+		{"invalid json", `{not json`, http.StatusBadRequest, model.GatewayErrInvalidJSON},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gw := newTestGatewayServer(t, deadURL, discardLogger())
+			srv := httptest.NewServer(gw.Routes())
+			defer srv.Close()
+
+			resp := postMessages(t, srv.URL, tc.body)
+			resp.Body.Close()
+			if resp.StatusCode != tc.status {
+				t.Fatalf("status = %d, want %d", resp.StatusCode, tc.status)
+			}
+			audits := gw.audits.drain()
+			if len(audits) != 1 {
+				t.Fatalf("reports = %d, want 1", len(audits))
+			}
+			if a := audits[0]; a.Error != tc.code || a.GatewayStatus != tc.status || a.UpstreamStatus != 0 {
+				t.Errorf("report = error %q gateway_status %d upstream_status %d, want %q %d 0",
+					a.Error, a.GatewayStatus, a.UpstreamStatus, tc.code, tc.status)
+			}
+			if snap := gw.metrics.drain(); snap.Requests != 1 || snap.Errors != 1 {
+				t.Errorf("metrics requests=%d errors=%d, want 1 1", snap.Requests, snap.Errors)
+			}
+		})
+	}
+
+	t.Run("auth failure is counted, not reported", func(t *testing.T) {
+		gw := newTestGatewayServer(t, deadURL, discardLogger())
+		srv := httptest.NewServer(gw.Routes())
+		defer srv.Close()
+
+		req, _ := http.NewRequest(http.MethodPost, srv.URL+"/v1/messages", strings.NewReader(`{}`))
+		req.Header.Set("Authorization", "Bearer wrong-key")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("do: %v", err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("status = %d, want 401", resp.StatusCode)
+		}
+		if audits := gw.audits.drain(); len(audits) != 0 {
+			t.Errorf("auth failure wrote %d reports, want 0", len(audits))
+		}
+		if snap := gw.metrics.drain(); snap.AuthFailures != 1 || snap.Requests != 0 {
+			t.Errorf("metrics auth_failures=%d requests=%d, want 1 0", snap.AuthFailures, snap.Requests)
+		}
+	})
 }

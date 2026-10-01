@@ -395,7 +395,12 @@ whatever real traffic actually went through the proxy, newest first — app, rou
 redaction types, tokens, upstream status, and how much latency the gateway itself added. The App
 column comes from the keystore (hover it for the key id, subject and baseline); requests
 authenticated by `GATEWAY_CLIENT_KEYS` show as `env`. Tokens are what the vendor reported; there is
-no cost column, deliberately.
+no cost column, deliberately. A request the gateway failed itself — no upstream configured, body
+unreadable or not JSON, credential or upstream URL unusable, upstream unreachable — still lands as
+a row, marked `error` with the code and the status the gateway answered with (`gw` beside it), and
+counts toward `gw_errors` / `gw_error_rate`. Rejected gateway keys are the one exception: they
+count toward `gw_auth_failures` but never write a row, so an unauthenticated caller cannot flood the
+report ring.
 
 **Pointing real clients at it.** Claude Code speaks the Anthropic route as-is:
 
