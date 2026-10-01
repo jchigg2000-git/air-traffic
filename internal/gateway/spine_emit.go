@@ -17,8 +17,6 @@ import (
 	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
-const heartbeatInterval = 15 * time.Second
-
 // RunSpine drives the push loops until ctx is cancelled. A failed heartbeat
 // retries on a short fuse instead of waiting a full interval — at boot the
 // control plane may come up seconds after the gateway, and proxy_enforced
@@ -37,7 +35,7 @@ func (s *Server) RunSpine(ctx context.Context) {
 			s.pushObservations(ctx)
 			s.pushReports(ctx)
 		case <-hb.C:
-			delay := heartbeatInterval
+			delay := model.GatewayHeartbeatInterval
 			if err := s.pushHeartbeat(ctx); err != nil {
 				delay = 2 * time.Second
 			}

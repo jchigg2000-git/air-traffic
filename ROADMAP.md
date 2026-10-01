@@ -60,7 +60,7 @@ budget) · Appendix
 > `protect-main` ruleset (no deletion, no force-push), CodeQL default setup and
 > delete-branch-on-merge were enabled at the flip.
 >
-> **▶ NEXT ACTION:** §7.2's three remaining cheap instrumentation fixes (PIVOT-3 → PIVOT-5) are
+> **▶ NEXT ACTION:** §7.2's two remaining cheap instrumentation fixes (PIVOT-3, PIVOT-4) are
 > the strongest candidates. Every proxy exit after authentication now records a report and feeds
 > `gw_errors` / `gw_error_rate`; rejected keys count toward `gw_auth_failures` without writing a
 > row (2026-10-01). §3's deferred G-blocks, §4's vendor
@@ -283,11 +283,6 @@ Gateway Traffic page and the keystore.**
   `:133` hardcode `anthropic` regardless of route: every gateway *aggregate* is attributed to
   Anthropic, and the `openai` adapter can never reach `applied_proxy`
   (`internal/policy/reconcile.go:74`). The per-request feed is correct; the aggregate is not.
-- ⬜ **PIVOT-5** **Collapse the duplicated staleness constants.** `gatewayStaleAfter = 45s` is
-  hardcoded twice independently (`internal/policy/reconcile.go:15`,
-  `internal/server/routes_gateway.go:18`) and `heartbeatInterval = 15s` a third time
-  (`internal/gateway/spine_emit.go:20`), none derived from a shared constant or from
-  `GATEWAY_POLICY_PULL_INTERVAL`. Three-way divergence risk.
 
 ### §7.3 Tier 1 — blast radius (the "user opens the wrong thing" ask)
 

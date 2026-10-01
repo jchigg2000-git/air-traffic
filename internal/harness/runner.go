@@ -170,7 +170,7 @@ func (r *Runner) freshGateway() (string, string, error) {
 			freshest = &rep
 		}
 	}
-	if freshest == nil || time.Since(freshest.At) > 45*time.Second {
+	if freshest == nil || time.Since(freshest.At) > model.GatewayStaleAfter {
 		return "", "", fmt.Errorf("no fresh gateway heartbeat; start air-traffic-gateway first")
 	}
 	chain := strings.Join(freshest.Detectors, ",")

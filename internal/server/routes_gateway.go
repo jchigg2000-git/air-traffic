@@ -13,10 +13,6 @@ import (
 	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
-// gatewayStaleAfter is 3× the default heartbeat interval: one missed beat is
-// jitter, three is an outage.
-const gatewayStaleAfter = 45 * time.Second
-
 func (s *Server) handleGatewayLeaks(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "use POST")
@@ -158,7 +154,7 @@ func (s *Server) handleGatewayStatus(w http.ResponseWriter, r *http.Request) {
 		LastSeen  time.Time           `json:"last_seen"`
 		Fresh     bool                `json:"fresh"`
 	}
-	cutoff := time.Now().UTC().Add(-gatewayStaleAfter)
+	cutoff := time.Now().UTC().Add(-model.GatewayStaleAfter)
 	out := []gatewayStatus{}
 	for _, rep := range s.store.ListGatewayEnforcement() {
 		out = append(out, gatewayStatus{

@@ -60,7 +60,7 @@ func gatewayDrift(st *store.Store, ts time.Time) []model.DriftRecord {
 			if c.Disposition != model.DispProxyEnforced {
 				continue
 			}
-			_, fresh, everSeen := st.GatewayEnforcement(a.ID, c.Key, gatewayStaleAfter)
+			_, fresh, everSeen := st.GatewayEnforcement(a.ID, c.Key, model.GatewayStaleAfter)
 			if fresh {
 				continue
 			}

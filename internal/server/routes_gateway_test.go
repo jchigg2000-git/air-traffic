@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/jchigg2000-git/air-traffic/internal/model"
 	"github.com/jchigg2000-git/air-traffic/internal/store"
@@ -93,7 +92,7 @@ func TestGatewayEnforcementAndStatus(t *testing.T) {
 		t.Fatalf("enforcement status = %d: %s", rec.Code, rec.Body.String())
 	}
 
-	id, fresh, everSeen := st.GatewayEnforcement("anthropic", "pii_redaction", 45*time.Second)
+	id, fresh, everSeen := st.GatewayEnforcement("anthropic", "pii_redaction", model.GatewayStaleAfter)
 	if id != "gw@test" || !fresh || !everSeen {
 		t.Errorf("enforcement lookup = (%q, %v, %v)", id, fresh, everSeen)
 	}

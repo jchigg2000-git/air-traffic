@@ -126,6 +126,16 @@ func truncate(s string, n int) string {
 	return s
 }
 
+// GatewayHeartbeatInterval is how often a gateway announces itself, and
+// GatewayStaleAfter is how old a heartbeat may be before the control plane
+// stops believing it: one missed beat is jitter, three is an outage. Both
+// halves of the spine and the harness read these, so the window the gateway
+// promises and the window the control plane enforces cannot drift apart.
+const (
+	GatewayHeartbeatInterval = 15 * time.Second
+	GatewayStaleAfter        = 3 * GatewayHeartbeatInterval
+)
+
 // EnforcementReport is the gateway's periodic heartbeat: which vendor
 // capabilities it is actively enforcing right now. Freshness is what flips
 // proxy_enforced from label to truth; staleness raises drift.

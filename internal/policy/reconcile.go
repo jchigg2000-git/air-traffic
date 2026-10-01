@@ -10,10 +10,6 @@ import (
 // Apply resolves the policy (baseline ⊕ overrides), reconciles every adapter
 // capability across the vendor_native and env_managed surfaces, records audit
 // events, persists the policy, and returns the coverage report.
-// gatewayStaleAfter mirrors the server's window: 3× the default 15s
-// enforcement-heartbeat interval.
-const gatewayStaleAfter = 45 * time.Second
-
 func Apply(st *store.Store, p model.Policy) model.CoverageReport {
 	base, _ := BaselineByID(p.Baseline)
 	rep := model.CoverageReport{Baseline: p.Baseline, AppliedAt: time.Now().UTC(), Summary: map[string]int{}}
@@ -21,7 +17,7 @@ func Apply(st *store.Store, p model.Policy) model.CoverageReport {
 	// proxy_enforced flips from label to truth only while a gateway heartbeat
 	// listing the capability is fresh (the honesty model, build plan §1).
 	enforcedBy := func(vendor, capKey string) (string, bool) {
-		id, fresh, _ := st.GatewayEnforcement(vendor, capKey, gatewayStaleAfter)
+		id, fresh, _ := st.GatewayEnforcement(vendor, capKey, model.GatewayStaleAfter)
 		return id, fresh
 	}
 
