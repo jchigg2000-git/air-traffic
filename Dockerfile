@@ -10,7 +10,7 @@ RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-FROM golang:1.26-alpine AS gobuild
+FROM golang:1.27-alpine AS gobuild
 WORKDIR /src
 # stdlib-only module: go.mod is the entire dependency manifest (no go.sum)
 COPY go.mod ./
