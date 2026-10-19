@@ -42,23 +42,14 @@ budget) · Appendix
 
 ## §0 Do next
 
-> ### ▶ RESUME HERE — session handoff 2026-09-01 (public flip + third pre-publication pass)
+> ### ▶ RESUME HERE — open set as of 2026-10-19
 >
 > **State:** the repository is **public** as of 2026-09-01 (`DECISIONS.md` 2026-09-01 records what
-> was accepted and what was hardened). The pass that preceded the flip ran nine review dimensions
-> with adversarial verification and landed: `internal/hostguard` (Host allow-list + cross-site
-> refusal on both binaries; `AIRTRAFFIC_ALLOWED_HOSTS` / `GATEWAY_ALLOWED_HOSTS`), heartbeat
-> `base_url` validation + `AIRTRAFFIC_GATEWAY_URL` harness pin + a 32-entry evict-oldest cap on
-> gateway IDs, `GatewayRequestReport.Clamp` on both sides of the spine + request-ID sanitising +
-> drop-on-400/413 in `pushReports`, a 64 KB bound on synthetic inference captures, a `secret_ref`
-> value-shape check on `POST /api/credentials`, atomic pattern/corpus writes, Dependabot config
-> (npm, actions, docker, docker-compose), and the browserslist lockfile bump. Gates at HEAD:
-> `gofmt`/`go vet` clean, `go test -race ./...` green (18 packages incl. `hostguard`), `npm run
-> build` + vitest green (65 tests across 10 files), `npm audit` 0, compose stack rebuilt and
-> `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` **9/9** (recall_behavioral 1.000, precision 0.988, trap
-> FPs 0). GitHub side: private vulnerability reporting, secret scanning + push protection, a
-> `protect-main` ruleset (no deletion, no force-push), CodeQL default setup and
-> delete-branch-on-merge were enabled at the flip.
+> was accepted and what was hardened). GitHub side, enabled at the flip: private vulnerability
+> reporting, secret scanning + push protection, a `protect-main` ruleset (no deletion, no
+> force-push), CodeQL default setup and delete-branch-on-merge. Last recorded full-stack run
+> (2026-09-01): `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` **9/9** (recall_behavioral 1.000,
+> precision 0.988, trap FPs 0).
 >
 > **▶ NEXT ACTION:** §7.2's remaining cheap instrumentation fix (PIVOT-3) is the strongest
 > candidate; PIVOT-4's remainder needs an owner ruling. Every proxy exit after authentication now
@@ -102,13 +93,11 @@ budget) · Appendix
 - ⬜ **PHASE1-3** **Five Tier-2 vendors still answer from the generic fixture.**
   `internal/synthetic/fixtures_t1.go:10-18` registers dedicated byte-identical fixtures for the six
   Tier-1 vendors plus `mistral`; **M365 Copilot, Databricks, Perplexity, Cohere and Together** fall
-  through to `genericFixture` (`internal/synthetic/errors.go:97`). The README claimed all six
-  Tier-2 vendors were at "core surfaces" fidelity; it was corrected 2026-08-16 to separate
-  *manifest depth* from *replica fidelity* rather than write five envelopes from memory
-  (`DECISIONS.md` 2026-08-16). Build each against real vendor documentation — Graph `value[]` for
-  M365, `/api/2.0/serving-endpoints` + `system.billing.usage` for Databricks, etc. Per-vendor error
-  envelopes and the emitted signal are already real for all sixteen; only the success-path bodies
-  are generic. Overlaps §4 COST-3, which needs the same vendors' billing envelopes.
+  through to `genericFixture` (`internal/synthetic/errors.go:97`). Build each against real vendor
+  documentation, not from memory — Graph `value[]` for M365, `/api/2.0/serving-endpoints` +
+  `system.billing.usage` for Databricks, etc. Per-vendor error envelopes and the emitted signal
+  are already real for all sixteen; only the success-path bodies are generic. Overlaps §4 COST-3,
+  which needs the same vendors' billing envelopes.
 - 🔬 **OWED-3** The phase-1 doc's acceptance checklist (`docs/plans/phase-1-surface-collection.md`
   §13) uses `- [ ]` checkboxes never flipped to `[x]` even though the code shipped — nobody ever
   re-ran `go test ./... ` against that specific checklist to close it out formally. Low priority
@@ -149,7 +138,7 @@ budget) · Appendix
   **Proven live 2026-08-15** against the real Hugging Face router with both sibling apps routed
   through it, token counts reconciling exactly against meaning-to-making's independent cost store
   (`DECISIONS.md` 2026-08-15 "meaning-to-making unrouted"; `docs/plans/TODO-gateway-deferred.md`
-  provenance note). **Still 🔶 not ✅ because:** the Anthropic route has still only ever talked to the
+  provenance note). **Still 🔶 because:** the Anthropic route has still only ever talked to the
   synthetic replica, and the Gateway Traffic page has not been opened in a browser.
 - 🔶 **GATEWAY-6** (2026-08-15) Flywheel suppression: `allow_list` pattern-rule kind +
   `POST /api/harness/proposals` for owner-authored proposals. The flywheel could only ever
@@ -158,7 +147,7 @@ budget) · Appendix
   `typeGuards` so it overrules any engine; scoped by type; suppresses a term, never a region.
   Full detail + the live before/after: `docs/plans/TODO-gateway-deferred.md` "Closed 2026-08-15
   (second pass)". Decisions: `DECISIONS.md` 2026-08-15 (two entries).
-  **Marked 🔶 not ✅ because:** the new Gateway Harness chip rendering for `allow_list` is
+  **Marked 🔶 because:** the new Gateway Harness chip rendering for `allow_list` is
   build-verified only, not browser-verified (same standing gap as OWED-2).
 - ⬜ **GATEWAY-3** Deferred G-blocks — full detail lives in `docs/plans/TODO-gateway-deferred.md`
   (kept separate, code-referenced; not duplicated here). Summary pointer only:
@@ -166,12 +155,12 @@ budget) · Appendix
     G5 (tokenization oracle, needs G3) — not started.
   - G6 remainder (managed DLP adapters: Comprehend Medical / Google DLP / Azure PII) — not started.
   - G8 remainder (OTel trace-span depth) — not started; log-leak CI guard already shipped.
-  - **G9 (horizontal scale)** — `🔬 OWED-4`: **blocked by a scope decision, not effort.** A
-    Redis-backed budget counter needs a Redis client, and this repo is stdlib-only with CI that
-    fails the build if a `go.sum` appears. Accepting the first third-party dependency vs. hand-writing
-    a RESP client is an owner call — see `docs/plans/TODO-gateway-deferred.md` "G9" for the full
-    argument. **Not a blocker on anything else** (`Not a blocker.`) — no owner `⛔ BLOCKS:`
-    instruction exists for it.
+  - **G9 (horizontal scale)** — **deferred by ruling.** A Redis-backed budget counter needs a
+    Redis client, and this repo is stdlib-only with CI that fails the build if a `go.sum` appears;
+    the dependency question was answered *no third-party dependency* (`DECISIONS.md` 2026-08-15
+    "Policy persists; the stdlib-only constraint holds"; §6 OWED-4), so G9 stays deferred rather
+    than open. Background: `docs/plans/TODO-gateway-deferred.md` "G9". **Not a blocker on anything
+    else** — no owner `⛔ BLOCKS:` instruction exists for it.
   - G10-full (LLM-judge labeling, Synthea generation, shadow mode) — not started; no-GPU local
     ceiling is a deliberate design constraint, not a gap.
 - ⬜ **GATEWAY-4** Cosmetic: `web/src/lib/dispositions.ts`'s `proxy_enforced` blurb still says
@@ -528,3 +517,7 @@ code or UI cites them by path** (folding would strand those citations):
   target.
 - Trimmed to open set 2026-08-18 — 15 closed items, 4 history blocks deleted; full pre-trim file:
   git show 3acf8cf3ab706590b7fdca7d63b63ee9daba2549:ROADMAP.md
+- Trimmed 2026-10-19 — §0 session-state narrative (done-work list + stale "Gates at HEAD" counts)
+  rewritten to the open set, 1 done-work sentence on PHASE1-3, 2 checkmark-status references;
+  no open item removed; full pre-trim file:
+  git show 28a17fda477926cde46b477acc037175ac67c449:ROADMAP.md
