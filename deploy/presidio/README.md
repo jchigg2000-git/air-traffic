@@ -12,7 +12,7 @@ docker compose -f deploy/presidio/docker-compose.yml down     # stop
 
 ## Local footprint (macOS / Docker Desktop)
 
-- **Image:** ~1.5–2.5 GB (bundles spaCy `en_core_web_lg`); pinned to `2.2.359`.
+- **Image:** ~1.5–2.5 GB (bundles spaCy `en_core_web_lg`); pinned to `2.2.362`.
 - **RAM:** ~1–1.5 GB resident; the compose file caps at 2 GB. Make sure Docker
   Desktop's VM allocation covers it.
 - **Cold start:** 10–45 s of spaCy model load; the healthcheck (`start_period:

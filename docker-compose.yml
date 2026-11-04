@@ -127,7 +127,7 @@ services:
     restart: unless-stopped
 
   presidio:
-    image: mcr.microsoft.com/presidio-analyzer:2.2.359
+    image: mcr.microsoft.com/presidio-analyzer:2.2.362
     ports:
       - "127.0.0.1:8126:3000"
     environment:
