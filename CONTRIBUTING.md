@@ -52,8 +52,8 @@ Docker image targets. Anything that fails locally fails there too. The Go tests 
 database and no Docker; the ones that exercise the gateway stand up their own listeners on
 ephemeral ports.
 
-The Go floor is whatever `go.mod` says, currently **go 1.26** with the toolchain pinned to
-**go1.26.7** — the pin is deliberate and is there to pick up stdlib security fixes, so don't relax
+The Go floor is whatever `go.mod` says, currently **go 1.27** with the toolchain pinned to
+**go1.27.3** — the pin is deliberate and is there to pick up stdlib security fixes, so don't relax
 it to make a local build work. Node's floor is **22**, set by CI.
 
 Two optional extras are not part of the gate. `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` asserts a
