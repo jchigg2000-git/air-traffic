@@ -12,6 +12,19 @@ import { validateEndpoint, expectedFor, knownPrefixes } from '../lib/endpoints.t
 import { schemaFor, validateField, type ConfigField } from '../lib/authSchemas.ts'
 
 const MODES: Mode[] = ['synthetic', 'proxy', 'disabled']
+
+// internal/policy/drift.go skips an adapter that is disabled (or in mode
+// "disabled") in both drift loops, so turning one off silently stops
+// divergence detection for that vendor. Say so wherever the toggle lives.
+const DRIFT_PAUSED = 'drift detection paused'
+function driftPaused(a: Adapter): boolean {
+  return !a.enabled || a.mode === 'disabled'
+}
+function toggleTitle(a: Adapter): string {
+  return a.enabled
+    ? 'Enabled — click to disable (pauses drift detection for this vendor)'
+    : 'Disabled — drift detection is paused while disabled; click to enable'
+}
 const SCENARIOS = ['healthy', '401', '403', '429-retry-after', '500', '503', 'timeout', 'invalid-json', 'empty']
 
 function Switch({ on, onClick, title }: { on: boolean; onClick: (e: MouseEvent) => void; title?: string }) {
@@ -103,6 +116,9 @@ export default function Vendors() {
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{a.display_name}</span>
                     <span className="block text-[11px] text-faint">Tier {a.tier} · {a.capabilities.length} controls</span>
+                    {driftPaused(a) && (
+                      <span className="block text-[11px]" style={{ color: 'var(--amber)' }}>⚠ {DRIFT_PAUSED}</span>
+                    )}
                   </span>
                   <span className="rounded px-2 py-0.5 text-[10px]" style={{ background: 'color-mix(in srgb, var(--accent2) 16%, transparent)', color: 'var(--accent)' }}>
                     {a.mode}
@@ -110,7 +126,7 @@ export default function Vendors() {
                 </button>
                 <Switch
                   on={a.enabled}
-                  title={a.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+                  title={toggleTitle(a)}
                   onClick={(e) => {
                     e.stopPropagation()
                     patch(a.id, { enabled: !a.enabled })
@@ -158,7 +174,7 @@ export default function Vendors() {
                     style={{ background: sel.enabled ? 'color-mix(in srgb, var(--green) 16%, transparent)' : 'var(--panel2)', color: sel.enabled ? 'var(--green)' : 'var(--muted)' }}
                   >
                     {sel.enabled ? 'On' : 'Off'}
-                    <Switch on={sel.enabled} onClick={(e) => { e.stopPropagation(); patch(sel.id, { enabled: !sel.enabled }) }} />
+                    <Switch on={sel.enabled} title={toggleTitle(sel)} onClick={(e) => { e.stopPropagation(); patch(sel.id, { enabled: !sel.enabled }) }} />
                   </button>
                 </label>
                 <label className="flex flex-col gap-1 text-xs text-muted">
@@ -188,6 +204,11 @@ export default function Vendors() {
                 <span><span className="text-muted">Status:</span> <span style={{ color: sel.status.state === 'healthy' ? 'var(--green)' : sel.status.state === 'degraded' ? 'var(--amber)' : 'var(--muted)' }}>{sel.status.state} — {sel.status.message}</span></span>
                 <span className="text-muted">Endpoint: <span className="font-mono text-fg">{sel.upstream_url || '— (synthetic)'}</span></span>
               </div>
+              {driftPaused(sel) && (
+                <p className="mt-2 text-xs" style={{ color: 'var(--amber)' }}>
+                  ⚠ Drift detection paused: while this vendor is {sel.enabled ? 'in mode "disabled"' : 'disabled'}, divergence from declared policy is not checked or reported.
+                </p>
+              )}
             </div>
 
             {/* manifest */}

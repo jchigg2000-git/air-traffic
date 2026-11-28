@@ -285,10 +285,6 @@ Gateway Traffic page and the keystore.**
   auto-authoring*, because a flood of auto-authored proposals into a UI with a one-click Approve is
   an auto-approver with extra steps. (This marker is `CLAUDE-ORIGIN` reasoning, not an owner
   instruction — it gates only §7.4's PIVOT-9 remedy path, which is itself agent-proposed.)
-- ⬜ **PIVOT-8a** **Surface that the Vendors "Enabled" toggle blinds drift detection.**
-  `internal/policy/drift.go:17` and `:56` exclude disabled adapters from *both* drift loops, so
-  flipping one of sixteen bare switches silently stops divergence detection for that vendor with no
-  indication anywhere.
 
 ### §7.4 Tier 2 — bottleneck detection
 
