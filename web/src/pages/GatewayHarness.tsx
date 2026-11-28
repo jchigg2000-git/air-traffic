@@ -488,7 +488,21 @@ export default function GatewayHarness() {
               <span className="ml-auto flex items-center gap-2">
                 {p.status === 'proposed' ? (
                   <>
-                    <button onClick={() => decide(p, 'approve')} className="rounded-lg px-3 py-1 text-xs font-medium text-bg" style={{ background: 'var(--accent)' }}>Approve</button>
+                    {p.kind === 'allow_list' ? (
+                      // Approving an allow_list REMOVES a detection and there is
+                      // no retraction path (ROADMAP PIVOT-7), so it must not look
+                      // like the reversible additive Approve beside it.
+                      <button
+                        onClick={() => decide(p, 'approve')}
+                        className="rounded-lg border px-3 py-1 text-xs font-medium"
+                        style={{ borderColor: 'var(--red)', color: 'var(--red)' }}
+                        title="Approving suppresses this detection permanently; there is no undo."
+                      >
+                        ⚠ Approve — removes detection, cannot be undone
+                      </button>
+                    ) : (
+                      <button onClick={() => decide(p, 'approve')} className="rounded-lg px-3 py-1 text-xs font-medium text-bg" style={{ background: 'var(--accent)' }}>Approve</button>
+                    )}
                     <button onClick={() => decide(p, 'reject')} className="rounded-lg border px-3 py-1 text-xs" style={{ borderColor: 'var(--line)' }}>Reject</button>
                   </>
                 ) : (

@@ -285,11 +285,6 @@ Gateway Traffic page and the keystore.**
   auto-authoring*, because a flood of auto-authored proposals into a UI with a one-click Approve is
   an auto-approver with extra steps. (This marker is `CLAUDE-ORIGIN` reasoning, not an owner
   instruction — it gates only §7.4's PIVOT-9 remedy path, which is itself agent-proposed.)
-- ⬜ **PIVOT-8** **Make an `allow_list` Approve look different from an additive Approve.** Today the
-  irreversible button is byte-identical in size, colour and position to the reversible one
-  (the `decide(p, 'approve')` button in `web/src/pages/GatewayHarness.tsx`, `:491` as of
-  2026-09-01), under a header reading *"human-approved only — nothing auto-applies"* —
-  reassurance where a warning belongs.
 - ⬜ **PIVOT-8a** **Surface that the Vendors "Enabled" toggle blinds drift detection.**
   `internal/policy/drift.go:17` and `:56` exclude disabled adapters from *both* drift loops, so
   flipping one of sixteen bare switches silently stops divergence detection for that vendor with no

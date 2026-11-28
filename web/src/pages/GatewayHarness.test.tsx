@@ -138,7 +138,7 @@ describe('the flywheel decision surface', () => {
     renderPage(<GatewayHarness />)
     await screen.findByText(/Presidio never saw these spans/)
     // Two proposed, one already approved.
-    expect(screen.getAllByRole('button', { name: 'Approve' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /Approve/ })).toHaveLength(2)
     expect(screen.getAllByRole('button', { name: 'Reject' })).toHaveLength(2)
   })
 
@@ -154,6 +154,18 @@ describe('the flywheel decision surface', () => {
     await screen.findByText(/Presidio never saw these spans/)
     fireEvent.click(screen.getAllByRole('button', { name: 'Approve' })[0])
     expect(approveProposal).toHaveBeenCalledWith('p-add')
+  })
+
+  it('marks the irreversible allow_list approval apart from the additive one', async () => {
+    renderPage(<GatewayHarness />)
+    await screen.findByText(/a false positive on a product name/)
+    // The additive deny_list keeps the plain name; the suppressing one does not.
+    expect(screen.getAllByRole('button', { name: 'Approve' })).toHaveLength(1)
+    const suppress = screen.getByRole('button', { name: /removes detection, cannot be undone/ })
+    expect(approveProposal).not.toHaveBeenCalled()
+    fireEvent.click(suppress)
+    expect(approveProposal).toHaveBeenCalledTimes(1)
+    expect(approveProposal).toHaveBeenCalledWith('p-suppress')
   })
 })
 
