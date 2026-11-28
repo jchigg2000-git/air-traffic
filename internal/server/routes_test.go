@@ -246,3 +246,81 @@ func TestCredentialsRejectRawValueInSecretRef(t *testing.T) {
 		t.Errorf("want exactly the %d accepted credentials stored, got %d", accepted, got)
 	}
 }
+
+// The vendors with no real server-side cost group-by must say so: supported
+// stays an empty array (never null, never a fabricated breakdown) and every
+// unsupported dimension carries the honest reason the Cost Explorer greys it with.
+func TestCostFacetsSupportedSplit(t *testing.T) {
+	h := testServer()
+	code, body := req(t, h, "GET", "/api/cost/facets", nil)
+	if code != 200 {
+		t.Fatalf("status %d", code)
+	}
+	facets, ok := body["facets"].(map[string]any)
+	if !ok || len(facets) == 0 {
+		t.Fatalf("expected facets map, got %v", body["facets"])
+	}
+
+	for _, id := range []string{"perplexity", "cohere", "groq", "xai"} {
+		vf, ok := facets[id].(map[string]any)
+		if !ok {
+			t.Errorf("%s: missing from facets", id)
+			continue
+		}
+		sup, ok := vf["supported"].([]any)
+		if !ok {
+			t.Errorf("%s: supported = %#v, want a non-nil empty array", id, vf["supported"])
+		} else if len(sup) != 0 {
+			t.Errorf("%s: supported has %d entries, want none", id, len(sup))
+		}
+		if uns, _ := vf["unsupported"].([]any); len(uns) == 0 {
+			t.Errorf("%s: unsupported is empty; the honest gaps must be listed", id)
+		}
+	}
+
+	anySupported := false
+	for _, id := range []string{"azure_openai", "vertex"} {
+		vf, _ := facets[id].(map[string]any)
+		if sup, _ := vf["supported"].([]any); len(sup) > 0 {
+			anySupported = true
+		}
+	}
+	if !anySupported {
+		t.Error("neither azure_openai nor vertex lists a supported facet")
+	}
+
+	for id, v := range facets {
+		vf, _ := v.(map[string]any)
+		uns, _ := vf["unsupported"].([]any)
+		for _, u := range uns {
+			f, _ := u.(map[string]any)
+			if r, _ := f["reason"].(string); r == "" {
+				t.Errorf("%s: unsupported %v has no reason", id, f["dimension"])
+			}
+		}
+	}
+}
+
+// README: the harness routes 503 without the engine (requireHarness). The
+// engine check runs before method or body validation, so even a well-formed
+// sample POST gets the 503 rather than reaching the gateway.
+func TestHarnessNoEngine(t *testing.T) {
+	h := testServer() // no SetHarness, no admin key: the write gate is open
+	for _, rt := range []struct {
+		method, path string
+		body         any
+	}{
+		{"GET", "/api/harness/ratchet", nil},
+		{"GET", "/api/harness/corpus", nil},
+		{"GET", "/api/harness/runs", nil},
+		{"POST", "/api/harness/sample", map[string]any{"content": "hello"}},
+	} {
+		code, body := req(t, h, rt.method, rt.path, rt.body)
+		if code != http.StatusServiceUnavailable {
+			t.Errorf("%s %s = %d, want 503", rt.method, rt.path, code)
+		}
+		if body["error"] != "harness engine not configured" {
+			t.Errorf("%s %s error = %v", rt.method, rt.path, body["error"])
+		}
+	}
+}
