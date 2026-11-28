@@ -176,3 +176,78 @@ func TestGatewayEnforcementRejectsBadBaseURL(t *testing.T) {
 		}
 	}
 }
+
+// The traffic feed backs the Gateway Traffic page: newest first, a bounded
+// page, and [] rather than null so the UI never has to special-case empty.
+func TestGatewayRequestsFeed(t *testing.T) {
+	_, st, h := newTestServer(t)
+
+	get := func(query string) (int, map[string]json.RawMessage) {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/gateway/requests"+query, nil))
+		var out map[string]json.RawMessage
+		if rec.Code == http.StatusOK {
+			if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+				t.Fatalf("decode %q: %v", query, err)
+			}
+		}
+		return rec.Code, out
+	}
+	ids := func(raw json.RawMessage) []string {
+		t.Helper()
+		var reps []model.GatewayRequestReport
+		if err := json.Unmarshal(raw, &reps); err != nil {
+			t.Fatalf("decode requests: %v", err)
+		}
+		out := make([]string, len(reps))
+		for i, r := range reps {
+			out[i] = r.RequestID
+		}
+		return out
+	}
+
+	code, body := get("")
+	if code != http.StatusOK {
+		t.Fatalf("empty store status = %d", code)
+	}
+	if got := string(body["requests"]); got != "[]" {
+		t.Errorf("empty store requests = %s, want []", got)
+	}
+	if got := string(body["limit"]); got != "100" {
+		t.Errorf("default limit = %s, want 100", got)
+	}
+
+	st.AddGatewayReports([]model.GatewayRequestReport{
+		{RequestID: "gw-a", Route: "anthropic", Action: "pass"},
+		{RequestID: "gw-b", Route: "anthropic", Action: "mask"},
+		{RequestID: "gw-c", Route: "openai", Action: "block"},
+	})
+
+	_, body = get("")
+	if got := strings.Join(ids(body["requests"]), ","); got != "gw-c,gw-b,gw-a" {
+		t.Errorf("order = %s, want newest first gw-c,gw-b,gw-a", got)
+	}
+
+	_, body = get("?limit=2")
+	if got := strings.Join(ids(body["requests"]), ","); got != "gw-c,gw-b" {
+		t.Errorf("limit=2 requests = %s, want gw-c,gw-b", got)
+	}
+
+	_, body = get("?limit=999999")
+	if got := string(body["limit"]); got != "1000" {
+		t.Errorf("limit=999999 reported limit = %s, want clamp to 1000", got)
+	}
+
+	for _, bad := range []string{"0", "-1", "abc"} {
+		if code, _ := get("?limit=" + bad); code != http.StatusBadRequest {
+			t.Errorf("limit=%s status = %d, want 400", bad, code)
+		}
+	}
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("POST", "/api/gateway/requests", nil))
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("POST status = %d, want 405", rec.Code)
+	}
+}
