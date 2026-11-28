@@ -326,10 +326,6 @@ are **latency and success**.
   auto-remedy before PIVOT-9 exists**: alone it cannot separate "misconfigured" from "correctly
   blocking an app that genuinely sends PII", so an auto-unblock fires precisely when an app is
   sending the most PII.
-- ⬜ **PIVOT-11** **App-baseline substitution** — an app naming a baseline the gateway hasn't pulled
-  falls through to the global action and only logs (`internal/gateway/proxy.go:130-136`), while the
-  report's `Baseline` carries the *global* id. Exact string comparison against authoritative local
-  keystore state; near-zero false-positive risk.
 - ⏳ **PIVOT-13** **Split-brain policy detector — HALF DONE 2026-08-16, do not read as closed.**
   Two of the three legs changed: the applied policy now **persists** (`internal/store/policy_persist.go`,
   loaded at boot, verified across a real `docker compose restart control-plane`), so the common

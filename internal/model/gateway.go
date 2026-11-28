@@ -36,12 +36,17 @@ type GatewayRequestReport struct {
 	Subject string `json:"subject,omitempty"`
 	// Baseline names which baseline decided Action, so a per-app posture is
 	// visible in the feed rather than having to be inferred from app_id.
-	Baseline        string             `json:"baseline,omitempty"`
-	Redactions      []GatewayRedaction `json:"redactions,omitempty"`
-	DetectorErrors  []string           `json:"detector_errors,omitempty"`
-	FailModeTripped bool               `json:"fail_mode_tripped,omitempty"`
-	Stream          bool               `json:"stream,omitempty"`
-	UpstreamStatus  int                `json:"upstream_status,omitempty"`
+	Baseline string `json:"baseline,omitempty"`
+	// RequestedBaseline is set only when the caller's app names a baseline
+	// the gateway has not pulled: it names that baseline, and Baseline then
+	// carries the global one that was applied in its place. Empty means no
+	// substitution happened.
+	RequestedBaseline string             `json:"requested_baseline,omitempty"`
+	Redactions        []GatewayRedaction `json:"redactions,omitempty"`
+	DetectorErrors    []string           `json:"detector_errors,omitempty"`
+	FailModeTripped   bool               `json:"fail_mode_tripped,omitempty"`
+	Stream            bool               `json:"stream,omitempty"`
+	UpstreamStatus    int                `json:"upstream_status,omitempty"`
 	// GatewayStatus is the HTTP status the gateway wrote itself, set on every
 	// exit that answered the caller without relaying an upstream response
 	// (policy block, fail-closed trip, and every Error below). Exactly one of
@@ -87,7 +92,7 @@ const (
 const (
 	maxReportIDLen        = 128
 	maxReportModelLen     = 256
-	maxReportLabelLen     = 64  // route, app_id, key_id, baseline, error
+	maxReportLabelLen     = 64  // route, app_id, key_id, baselines, error
 	maxReportSubjectLen   = 200 // matches the keystore's issuance bound
 	maxReportDetectorErrs = 5
 	maxReportDetectorErr  = 300
@@ -103,6 +108,7 @@ func (r *GatewayRequestReport) Clamp() {
 	r.AppID = truncate(r.AppID, maxReportLabelLen)
 	r.KeyID = truncate(r.KeyID, maxReportLabelLen)
 	r.Baseline = truncate(r.Baseline, maxReportLabelLen)
+	r.RequestedBaseline = truncate(r.RequestedBaseline, maxReportLabelLen)
 	r.Subject = truncate(r.Subject, maxReportSubjectLen)
 	r.Error = truncate(r.Error, maxReportLabelLen)
 	if len(r.DetectorErrors) > maxReportDetectorErrs {

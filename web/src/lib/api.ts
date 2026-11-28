@@ -263,6 +263,9 @@ export interface GatewayRequest {
   subject?: string
   /** Which baseline decided `action` — an app-scoped one, or the global policy. */
   baseline?: string
+  /** Set only when the app names a baseline the gateway has not pulled: that
+   *  baseline's id. `baseline` is then the global one applied in its place. */
+  requested_baseline?: string
   redactions?: GatewayRedaction[]
   detector_errors?: string[]
   fail_mode_tripped?: boolean

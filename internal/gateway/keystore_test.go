@@ -155,6 +155,63 @@ func TestActionForScopesBaselinePerApp(t *testing.T) {
 	}
 }
 
+// When an app names a baseline the gateway has not pulled, the request is
+// served under the global baseline — and the report must say so, naming the
+// requested one, rather than presenting the global id as the app's posture.
+func TestReportFlagsUnpulledAppBaseline(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"type":"message"}`)
+	}))
+	defer upstream.Close()
+	gw := newKeystoreGateway(t, upstream.URL, "per_policy")
+	baselines := map[string]model.Baseline{
+		"general_saas": {ID: "general_saas", PIIRedaction: "off"},
+		"fintech":      {ID: "fintech", PIIRedaction: "on"},
+	}
+	gw.baselines.Store(&baselines)
+	gw.policyAction.Store(actionDetect)
+	gw.policyBaseline.Store("general_saas")
+
+	ghostKey, ghostCred := mintKey("ghost", "", nil)
+	strictKey, strictCred := mintKey("strict", "", nil)
+	plainKey, plainCred := mintKey("plain", "", nil)
+	gw.keys.Store(newKeySnapshot(model.KeySnapshot{
+		Version: 1,
+		Apps: []model.App{
+			{ID: "ghost", Baseline: "nonexistent"},
+			{ID: "strict", Baseline: "fintech"},
+			{ID: "plain"},
+		},
+		Keys: []model.APIKey{ghostKey, strictKey, plainKey},
+	}))
+	srv := httptest.NewServer(gw.Routes())
+	defer srv.Close()
+	for _, cred := range []string{ghostCred, strictCred, plainCred} {
+		req, _ := http.NewRequest(http.MethodPost, srv.URL+"/v1/messages",
+			strings.NewReader(`{"model":"claude-test","messages":[{"role":"user","content":"hello"}]}`))
+		req.Header.Set("Authorization", "Bearer "+cred)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("post: %v", err)
+		}
+		resp.Body.Close()
+	}
+
+	byApp := map[string]RequestAudit{}
+	for _, r := range gw.audits.drain() {
+		byApp[r.AppID] = r
+	}
+	if got := byApp["ghost"]; got.RequestedBaseline != "nonexistent" || got.Baseline != "general_saas" {
+		t.Errorf("ghost report = baseline %q requested %q, want general_saas substituted for nonexistent",
+			got.Baseline, got.RequestedBaseline)
+	}
+	for _, app := range []string{"strict", "plain"} {
+		if got, ok := byApp[app]; !ok || got.RequestedBaseline != "" {
+			t.Errorf("%s report = %+v, want present with no substitution", app, got)
+		}
+	}
+}
+
 // A pinned GATEWAY_REDACT_ACTION still wins over every app baseline: config is
 // the strictest source and per-app scoping must not be able to loosen it.
 func TestPinnedConfigActionOverridesAppBaseline(t *testing.T) {

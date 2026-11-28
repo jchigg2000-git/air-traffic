@@ -55,6 +55,8 @@ function attributionTitle(r: GatewayRequest): string {
   const parts = [`key ${r.key_id || 'unknown'}`]
   if (r.subject) parts.push(`subject ${r.subject}`)
   if (r.baseline) parts.push(`baseline ${r.baseline}`)
+  if (r.requested_baseline)
+    parts.push(`app's baseline ${r.requested_baseline} not pulled by the gateway; served under ${r.baseline || 'the global action'}`)
   return parts.join(' · ')
 }
 
@@ -189,6 +191,11 @@ export default function GatewayTraffic() {
               <span className="truncate font-mono text-[11px] text-fg" title={attributionTitle(r)}>
                 {appLabel(r)}
                 {r.baseline && <span className="ml-1 text-[10px] text-faint">{r.baseline}</span>}
+                {r.requested_baseline && (
+                  <span className="ml-1 text-[10px]" style={{ color: 'var(--amber)' }}>
+                    ≠{r.requested_baseline}
+                  </span>
+                )}
               </span>
               <span className="truncate text-xs text-muted">
                 {r.route}

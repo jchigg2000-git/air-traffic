@@ -130,6 +130,16 @@ const (
 // needed masking could not share a deployment. An app that sets no baseline
 // resolves exactly as it did before — that is the compatibility bar.
 func (s *Server) actionFor(p principal) (action, baseline string) {
+	action, baseline, _ = s.actionForRequest(p)
+	return action, baseline
+}
+
+// actionForRequest is actionFor plus the substitution it may have made:
+// requested is the baseline the caller's app names when the gateway has not
+// pulled it, and "" otherwise. The request report carries it, so the control
+// plane can see that baseline names the global substitute and not the app's
+// own posture.
+func (s *Server) actionForRequest(p principal) (action, baseline, requested string) {
 	action, baseline, missing := s.resolveAction(p)
 	if missing {
 		// The app names a baseline this gateway has not pulled. We fall
@@ -137,8 +147,9 @@ func (s *Server) actionFor(p principal) (action, baseline string) {
 		// would silently apply the wrong posture to a scoped app.
 		s.log.Warn("app baseline not in the pulled set; using the global action",
 			"app_id", p.AppID, "baseline", p.Baseline)
+		requested = p.Baseline
 	}
-	return action, baseline
+	return action, baseline, requested
 }
 
 // resolveAction is actionFor without the logging, so the heartbeat can survey
@@ -186,17 +197,18 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 func (s *Server) proxyRequest(w http.ResponseWriter, r *http.Request, d dialect) {
 	start := time.Now()
 	p := principalFrom(r.Context())
-	action, baseline := s.actionFor(p)
+	action, baseline, requested := s.actionForRequest(p)
 
 	audit := RequestAudit{
-		RequestID: r.Header.Get("X-Gateway-Request-Id"),
-		Route:     d.route,
-		Action:    actionPass,
-		AppID:     p.AppID,
-		KeyID:     p.KeyID,
-		Subject:   p.Subject,
-		Baseline:  baseline,
-		At:        time.Now().UTC(),
+		RequestID:         r.Header.Get("X-Gateway-Request-Id"),
+		Route:             d.route,
+		Action:            actionPass,
+		AppID:             p.AppID,
+		KeyID:             p.KeyID,
+		Subject:           p.Subject,
+		Baseline:          baseline,
+		RequestedBaseline: requested,
+		At:                time.Now().UTC(),
 	}
 	// answer records the report for an exit where the gateway writes the
 	// response itself, then writes it. code is a model.GatewayErr* value, or
