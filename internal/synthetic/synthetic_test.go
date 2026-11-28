@@ -6,8 +6,11 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"sort"
+	"strings"
 	"testing"
 
+	"github.com/jchigg2000-git/air-traffic/internal/catalog"
 	"github.com/jchigg2000-git/air-traffic/internal/model"
 	"github.com/jchigg2000-git/air-traffic/internal/store"
 )
@@ -204,5 +207,22 @@ func TestUnknownAdapter404(t *testing.T) {
 	code, _ := do(t, h, "GET", "/synthetic/nope/x")
 	if code != http.StatusNotFound {
 		t.Errorf("expected 404 for unknown adapter, got %d", code)
+	}
+}
+
+// TestGenericFixtureVendors pins which catalog vendors have no dedicated fixture
+// and fall through to genericFixture. ROADMAP PHASE1-3 and README both quote this
+// set; registering a new fixture (or adding a catalog vendor) must update them.
+func TestGenericFixtureVendors(t *testing.T) {
+	var got []string
+	for _, d := range catalog.All() {
+		if _, ok := fixtures[d.ID]; !ok {
+			got = append(got, d.ID)
+		}
+	}
+	sort.Strings(got)
+	want := []string{"amazon_q", "cohere", "databricks", "groq", "m365_copilot", "perplexity", "together", "watsonx", "xai"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("catalog vendors on genericFixture = %v, want %v (update ROADMAP PHASE1-3 and README)", got, want)
 	}
 }

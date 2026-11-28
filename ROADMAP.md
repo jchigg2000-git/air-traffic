@@ -77,8 +77,10 @@ budget) · Appendix
 > - **PIVOT-13 is NOT closed.** A fresh gateway still enforcing a pulled baseline while the control
 >   plane has no policy now raises a warning drift record; the gateway-restart / `actionMask` leg
 >   is still open.
-> - **Five Tier-2 fixtures are still missing** (M365 Copilot, Databricks, Perplexity, Cohere,
->   Together) — see §1 PHASE1-3. Building them needs real vendor API documentation, not recall.
+> - **Nine vendors have no dedicated fixture** (M365 Copilot, Databricks, Perplexity, Cohere,
+>   Together, Groq, xAI, Amazon Q, IBM watsonx) — see §1 PHASE1-3, which splits them into five
+>   to build and four with no billing shape to mirror. Building them needs real vendor API
+>   documentation, not recall.
 > - The **Gateway Traffic** page and the Gateway Harness `allow_list` chip remain browser-unverified
 >   (OWED-2). Only the Rigor Console has been opened in a real browser (2026-08-16 screenshots).
 > - **Observations/reports store is still in-memory** — `policy.json`, the keystore (`keys.json`)
@@ -91,14 +93,26 @@ budget) · Appendix
 
 ## §1 Phase 1 — Control plane backend
 
-- ⬜ **PHASE1-3** **Five Tier-2 vendors still answer from the generic fixture.**
-  `internal/synthetic/fixtures_t1.go:10-18` registers dedicated byte-identical fixtures for the six
-  Tier-1 vendors plus `mistral`; **M365 Copilot, Databricks, Perplexity, Cohere and Together** fall
-  through to `genericFixture` (`internal/synthetic/errors.go:97`). Build each against real vendor
-  documentation, not from memory — Graph `value[]` for M365, `/api/2.0/serving-endpoints` +
-  `system.billing.usage` for Databricks, etc. Per-vendor error envelopes and the emitted signal
-  are already real for all sixteen; only the success-path bodies are generic. Overlaps §4 COST-3,
-  which needs the same vendors' billing envelopes.
+- ⬜ **PHASE1-3** **Nine vendors still answer from the generic fixture (five Tier-2, four Tier-3).**
+  `internal/synthetic/fixtures_t1.go:10-18` registers dedicated byte-identical fixtures for 7 of
+  the 16 catalog vendors (the six Tier-1 vendors plus `mistral`); **M365 Copilot, Databricks,
+  Perplexity, Cohere, Together, Groq, xAI, Amazon Q and IBM watsonx** fall through to
+  `genericFixture` (`internal/synthetic/errors.go:97`). `TestGenericFixtureVendors`
+  (`internal/synthetic/synthetic_test.go`) pins that set, so this count and README's "dedicated
+  fixture for 7, generic envelope for 9" fail a test if they drift.
+  - **Need real-doc builds (5):** M365 Copilot (Graph `value[]`), Databricks
+    (`/api/2.0/serving-endpoints` + `system.billing.usage`), Amazon Q (`ListSubscriptions` + Cost
+    Explorer), IBM watsonx (IBM Cloud Usage Reports), Together (its per-response `model` shape;
+    Together has no server-side group-by either, so this is the inference body only). Build each
+    against real vendor documentation, not from memory.
+  - **No real server-side group-by or billing shape (4):** Perplexity, Cohere, Groq, xAI — every
+    cost facet is `uf(...)` in `internal/catalog/cost_facets.go`, matching §4 COST-3's
+    "`supported[]` stays empty, honestly". The generic envelope is the honest answer for their
+    billing surface.
+
+  Per-vendor error envelopes and the emitted signal are already real for all sixteen; only the
+  success-path bodies are generic. Overlaps §4 COST-3, which needs the same vendors' billing
+  envelopes.
 - 🔬 **OWED-3** The phase-1 doc's acceptance checklist (`docs/plans/phase-1-surface-collection.md`
   §13) uses `- [ ]` checkboxes never flipped to `[x]` even though the code shipped — nobody ever
   re-ran `go test ./... ` against that specific checklist to close it out formally. Low priority
