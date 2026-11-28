@@ -11,6 +11,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -194,6 +196,18 @@ func TestRuleFromProposalValidation(t *testing.T) {
 		{"threshold ok", model.PatternProposal{ID: "a", Type: "PHONE", Kind: model.KindThreshold, Threshold: 0.25}, true},
 		{"threshold too low", model.PatternProposal{ID: "a", Type: "PHONE", Kind: model.KindThreshold, Threshold: 0.01}, false},
 		{"unknown kind", model.PatternProposal{ID: "a", Type: "PHONE", Kind: "banana"}, false},
+		// allow_list is the one kind that switches detection off, so its
+		// bounds are the trust boundary.
+		{"allow ok", model.PatternProposal{ID: "a", Type: "PERSON_NAME", Kind: model.KindAllowList, AllowList: []string{"Sherlock Holmes", "Baker Street"}}, true},
+		{"allow empty", model.PatternProposal{ID: "a", Type: "PERSON_NAME", Kind: model.KindAllowList}, false},
+		{"allow too many terms", model.PatternProposal{ID: "a", Type: "PERSON_NAME", Kind: model.KindAllowList, AllowList: nTerms(maxAllowTerms + 1)}, false},
+		{"allow max terms", model.PatternProposal{ID: "a", Type: "PERSON_NAME", Kind: model.KindAllowList, AllowList: nTerms(maxAllowTerms)}, true},
+		{"allow padded term", model.PatternProposal{ID: "a", Type: "PERSON_NAME", Kind: model.KindAllowList, AllowList: []string{" Sherlock"}}, false},
+		{"allow blank term", model.PatternProposal{ID: "a", Type: "PERSON_NAME", Kind: model.KindAllowList, AllowList: []string{"  "}}, false},
+		{"allow term at limit", model.PatternProposal{ID: "a", Type: "PERSON_NAME", Kind: model.KindAllowList, AllowList: []string{strings.Repeat("x", maxAllowTermLen)}}, true},
+		{"allow term too long", model.PatternProposal{ID: "a", Type: "PERSON_NAME", Kind: model.KindAllowList, AllowList: []string{strings.Repeat("x", maxAllowTermLen+1)}}, false},
+		{"allow term newline", model.PatternProposal{ID: "a", Type: "PERSON_NAME", Kind: model.KindAllowList, AllowList: []string{"Sherlock\nHolmes"}}, false},
+		{"allow term tab", model.PatternProposal{ID: "a", Type: "PERSON_NAME", Kind: model.KindAllowList, AllowList: []string{"Sherlock\tHolmes"}}, false},
 	}
 	for _, c := range cases {
 		_, err := ruleFromProposal(c.prop)
@@ -238,5 +252,117 @@ func TestUpsertSurvivesSliceGrowth(t *testing.T) {
 	deny := proposalByID(r, "deny-PERSON_NAME")
 	if deny == nil || deny.SampleMisses != 2 {
 		t.Fatalf("deny-PERSON_NAME = %+v, want 2 accumulated misses", deny)
+	}
+}
+
+// nTerms builds n distinct valid allow/deny terms.
+func nTerms(n int) []string {
+	out := make([]string, n)
+	for i := range out {
+		out[i] = "term" + strconv.Itoa(i)
+	}
+	return out
+}
+
+func TestAddProposalRequiresTypeAndRationale(t *testing.T) {
+	r := newTestRunner(t, "")
+	valid := model.PatternProposal{Kind: model.KindAllowList, AllowList: []string{"Sherlock Holmes"}}
+
+	noType := valid
+	noType.Rationale = "fictional character in a test fixture"
+	if _, err := r.AddProposal(noType); err == nil {
+		t.Error("empty Type accepted, want error")
+	}
+	noRationale := valid
+	noRationale.Type = "PERSON_NAME"
+	if _, err := r.AddProposal(noRationale); err == nil {
+		t.Error("empty Rationale accepted, want error")
+	}
+	if n := len(r.Proposals()); n != 0 {
+		t.Errorf("%d proposals recorded after rejected adds, want 0", n)
+	}
+}
+
+func TestAddProposalStampsManualAndRejectsDuplicate(t *testing.T) {
+	r := newTestRunner(t, "")
+	got, err := r.AddProposal(model.PatternProposal{
+		Type: "PERSON_NAME", Kind: model.KindAllowList, AllowList: []string{"Sherlock Holmes"},
+		Rationale: "fictional character", Status: "approved", SourceRun: "run-xyz",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != "proposed" || got.SourceRun != "manual" {
+		t.Errorf("status/source = %q/%q, want proposed/manual (caller values must not stick)", got.Status, got.SourceRun)
+	}
+	if !regexp.MustCompile(`^manual-person_name-[0-9a-f]{8}$`).MatchString(got.ID) {
+		t.Errorf("generated ID = %q, want manual-person_name-<8 hex>", got.ID)
+	}
+	if p := proposalByID(r, got.ID); p == nil || p.Status != "proposed" {
+		t.Errorf("Proposals() entry = %+v, want proposed", p)
+	}
+
+	dup := model.PatternProposal{
+		ID: got.ID, Type: "PERSON_NAME", Kind: model.KindAllowList,
+		AllowList: []string{"Moriarty"}, Rationale: "another fictional character",
+	}
+	if _, err := r.AddProposal(dup); err == nil {
+		t.Error("duplicate ID accepted, want error")
+	}
+	if n := len(r.Proposals()); n != 1 {
+		t.Errorf("%d proposals after duplicate add, want 1", n)
+	}
+}
+
+// An allow-list artifact that could never be approved is refused when it is
+// authored, so it never sits in the queue as a suppression awaiting a click.
+func TestAddProposalRejectsUnapprovableAllowList(t *testing.T) {
+	r := newTestRunner(t, "")
+	for _, terms := range [][]string{nil, {" padded"}, {"two\nlines"}, {strings.Repeat("x", maxAllowTermLen+1)}, nTerms(maxAllowTerms + 1)} {
+		_, err := r.AddProposal(model.PatternProposal{
+			ID: "bad-allow", Type: "PERSON_NAME", Kind: model.KindAllowList,
+			AllowList: terms, Rationale: "should never land",
+		})
+		if err == nil {
+			t.Errorf("allow list %q accepted, want error", terms)
+		}
+	}
+	if p := proposalByID(r, "bad-allow"); p != nil {
+		t.Errorf("unapprovable proposal present in Proposals(): %+v", p)
+	}
+}
+
+func TestAddProposalAllowListApprovesIntoPack(t *testing.T) {
+	r := newTestRunner(t, "")
+	before := r.store.GetPatternPack()
+
+	p, err := r.AddProposal(model.PatternProposal{
+		ID: "allow-holmes", Type: "PERSON_NAME", Kind: model.KindAllowList,
+		AllowList: []string{"Sherlock Holmes"}, Rationale: "fictional character in sample prompts",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pack, err := r.ApproveProposal(p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pack.Version != before.Version+1 {
+		t.Errorf("pack version = %d, want %d", pack.Version, before.Version+1)
+	}
+	var rule *model.PatternRule
+	for i := range pack.Rules {
+		if pack.Rules[i].ID == "allow-holmes" {
+			rule = &pack.Rules[i]
+		}
+	}
+	if rule == nil || rule.Kind != model.KindAllowList || len(rule.AllowList) != 1 || rule.AllowList[0] != "Sherlock Holmes" {
+		t.Fatalf("pack rule = %+v, want allow_list [Sherlock Holmes]", rule)
+	}
+	if got := r.store.GetPatternPack().Version; got != pack.Version {
+		t.Errorf("store pack version = %d, want published %d", got, pack.Version)
+	}
+	if q := proposalByID(r, "allow-holmes"); q == nil || q.Status != "approved" {
+		t.Errorf("proposal after approve = %+v, want approved", q)
 	}
 }
