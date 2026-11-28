@@ -164,10 +164,6 @@ budget) · Appendix
     else** — no owner `⛔ BLOCKS:` instruction exists for it.
   - G10-full (LLM-judge labeling, Synthea generation, shadow mode) — not started; no-GPU local
     ceiling is a deliberate design constraint, not a gap.
-- ⬜ **GATEWAY-4** Cosmetic: `web/src/lib/dispositions.ts`'s `proxy_enforced` blurb still says
-  "off by default" while the Policy Editor's outcome chip already says `applied_proxy` truthfully
-  — noted as a slice-local deferral in `docs/plans/TODO-gateway-deferred.md`, never picked up.
-
 ---
 
 ## §4 Cost & usage drill-down

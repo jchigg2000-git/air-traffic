@@ -19,7 +19,7 @@ interface DispMeta {
 export const DISPOSITIONS: Record<Disposition, DispMeta> = {
   vendor_native: { label: 'Native', glyph: '■', color: 'var(--native)', blurb: 'Driven via the vendor admin API.' },
   env_managed: { label: 'Env-Managed', glyph: '◆', color: 'var(--env)', blurb: 'Managed config pushed into the environment; read back for drift.' },
-  proxy_enforced: { label: 'Proxy (opt)', glyph: '✚', color: 'var(--proxy)', blurb: 'Needs the optional gateway (off by default) — behaves as monitor-only until enabled.' },
+  proxy_enforced: { label: 'Proxy (opt)', glyph: '✚', color: 'var(--proxy)', blurb: 'Enforced inline by the optional gateway while a live gateway reports it; monitor-only otherwise.' },
   monitor_only: { label: 'Monitor', glyph: '◉', color: 'var(--monitor)', blurb: 'Verified + alerting; no set mechanism.' },
   unverified: { label: 'Unverified', glyph: '?', color: 'var(--unverified)', blurb: 'Not confirmed from live vendor docs.' },
   unsupported: { label: 'Unsupported', glyph: '✗', color: 'var(--unsupported)', blurb: 'Vendor explicitly cannot.' },

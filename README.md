@@ -143,6 +143,8 @@ internal/emitter         background ops-observation-batch/v1 generator
 internal/policy          baselines · reconcile/coverage · drift
 internal/envconfig       render managed-settings.json / branch protection / VS Code / Cursor
 internal/audit           normalized stream + SIEM export
+internal/redact          strips secrets from recorded headers, query params and bodies
+internal/hostguard       Host allow-list + cross-site refusal wrapping both binaries' handlers
 internal/store           in-memory state (RWMutex, FIFO ring buffers)
   └ *_persist.go         the two exceptions, written through to disk: keystore + applied policy
 internal/server          HTTP API + SPA fallback (Phase 2)
