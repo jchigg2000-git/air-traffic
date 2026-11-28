@@ -113,10 +113,14 @@ budget) · Appendix
   Per-vendor error envelopes and the emitted signal are already real for all sixteen; only the
   success-path bodies are generic. Overlaps §4 COST-3, which needs the same vendors' billing
   envelopes.
-- 🔬 **OWED-3** The phase-1 doc's acceptance checklist (`docs/plans/phase-1-surface-collection.md`
-  §13) uses `- [ ]` checkboxes never flipped to `[x]` even though the code shipped — nobody ever
-  re-ran `go test ./... ` against that specific checklist to close it out formally. Low priority
-  (code + README are strong secondary evidence) but never confirmed line-by-line.
+- 🔬 **OWED-3** **One phase-1 acceptance line is still unproven: "byte-identical" Tier-1 bodies.**
+  `docs/plans/phase-1-surface-collection.md` §13 was re-run line-by-line 2026-11-27, and six of
+  seven lines are now `[x]`. The open line says the six Tier-1 vendors serve *byte-identical*
+  success bodies and vendor-shaped errors for *all* scenarios. The tests check top-level keys
+  only, and nothing compares the bodies to real vendor captures or docs. A live scenario sweep
+  also found that `empty` returns non-vendor envelopes (bedrock `{"results":[]}`, azure_openai
+  `{"data":[]}`, vertex `{}`). Closing this needs real vendor documentation, the same constraint
+  as PHASE1-3.
 
 ---
 
@@ -230,8 +234,8 @@ callout). Pointer only:
   chips, deny-term/threshold rendering, try-a-prompt panel)? The 2026-07-02 handoff explicitly
   flagged this as "STILL never visually verified — build/API-verified only." No later doc or
   commit message confirms a browser click-through happened since. Not answered.
-- 🔬 **OWED-3** — see §1: phase-1 acceptance checklist never formally re-run/checked off against
-  current code.
+- 🔬 **OWED-3** — see §1: only the "byte-identical" Tier-1 line of the phase-1 checklist is
+  still open. The other six were re-run and checked off 2026-11-27.
 - ~~**OWED-4** — G9 blocked on Redis-vs-hand-rolled-RESP-client dependency decision~~ **killed
   2026-08-15:** answered — no third-party dep; G9 stays deferred, must not bundle with §7.5.
 - ~~**GATEWAY-7a** — no keystore UI; issuance stays loopback-only by design~~ **killed 2026-08-16:**

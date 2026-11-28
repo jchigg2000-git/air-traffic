@@ -8,8 +8,8 @@
 
 Status: **BUILT** — this document is a build-history record of the plan as written, not open work.
 The backend below shipped; current status lives in [`../../ROADMAP.md`](../../ROADMAP.md) §1, which
-wins on any conflict. (Its §13 acceptance checkboxes were never formally re-run line-by-line —
-tracked as `OWED-3` in the roadmap.) · Ports: API `8122` (`AIRTRAFFIC_ADDR`), web dev `5202` (Phase 2)
+wins on any conflict. (Its §13 acceptance checklist was re-run line-by-line 2026-11-27; six of
+seven lines hold. The byte-identical line stays open as `OWED-3` in the roadmap.) · Ports: API `8122` (`AIRTRAFFIC_ADDR`), web dev `5202` (Phase 2)
 Sibling reference (read-only): it-scorecard — a private predecessor project, not published.
 
 ---
@@ -541,13 +541,15 @@ Response envelopes match it-scorecard (`{adapters:[...]}`, `{observations:[...]}
 
 ## 13. Acceptance criteria
 
-- [ ] `go build ./...` and `go test ./...` green; `go vet` clean; zero external deps in `go.mod`.
-- [ ] ≥16 vendor adapters registered and listed by `/api/adapters`, each with a capability manifest carrying valid dispositions (+ enforcement tier for every `env_managed` cap).
-- [ ] All 6 Tier-1 vendors serve byte-identical synthetic success bodies and vendor-shaped error envelopes for all scenarios, with calls recorded + redacted.
-- [ ] Emitter produces schema-valid `ops-observation-batch/v1` batches every tick; `/api/observations` non-empty; drift surfaces on injected override.
-- [ ] 4 baselines apply via PUT `/api/policies` and return a coverage report; `/api/drift` and `/api/audit` populated.
-- [ ] EnvConfig renders a real-shaped Claude Code `managed-settings.json` and a GitHub branch-protection ruleset with correct enforcement tiers.
-- [ ] Live smoke script passes end-to-end.
+Re-run 2026-11-27 against `main` at `6101315`; evidence per line is in that closing commit's message.
+
+- [x] `go build ./...` and `go test ./...` green; `go vet` clean; zero external deps in `go.mod`. *(gofmt/build/vet clean; 15 packages ok; `go.mod` has no `require`, no `go.sum`; `TestServerClosureExcludesGatewayAndThirdParty`.)*
+- [x] ≥16 vendor adapters registered and listed by `/api/adapters`, each with a capability manifest carrying valid dispositions (+ enforcement tier for every `env_managed` cap). *(`TestAdaptersList`, `TestAdapterCRUDAndManifest`, `TestCapabilities_ValidDispositionsAndEnforcement`; live: 16 adapters.)*
+- [ ] All 6 Tier-1 vendors serve byte-identical synthetic success bodies and vendor-shaped error envelopes for all scenarios, with calls recorded + redacted. *(Open: "byte-identical" needs real vendor captures or docs, and the tests check top-level keys only. Live sweep: the error scenarios are vendor-shaped and calls are recorded with `Authorization` redacted, but `empty` returns non-vendor envelopes (bedrock `results`, azure_openai `data`, vertex `{}`).)*
+- [x] Emitter produces schema-valid `ops-observation-batch/v1` batches every tick; `/api/observations` non-empty; drift surfaces on injected override. *(`TestEmitTick_ProducesValidBatches` (required keys hand-mirrored from the schema), `TestRefreshDrift_Deterministic`, `TestDriftAndEnvConfig`; live: 170 observations, 7 drift records.)*
+- [x] 4 baselines apply via PUT `/api/policies` and return a coverage report; `/api/drift` and `/api/audit` populated. *(`TestBaselinesRoute`, `TestPolicyApplyReturnsCoverage`, `TestApply_*`, `TestAuditAndSIEM`; live: all four baselines return 168 coverage rows.)*
+- [x] EnvConfig renders a real-shaped Claude Code `managed-settings.json` and a GitHub branch-protection ruleset with correct enforcement tiers. *(Live `/api/envconfig`: `claude_code` artifact `mdm_locked` with `allowManaged*`/`allowedMcpServers` keys; `github` branch-protection payload `server_side`. `TestDriftAndEnvConfig` covers the route only.)*
+- [x] Live smoke script passes end-to-end. *(No script exists. The §12.3 steps were run by hand against the built server binary on a loopback port, synthetic only.)*
 
 ## 14. Explicitly out of scope (Phase 1)
 
