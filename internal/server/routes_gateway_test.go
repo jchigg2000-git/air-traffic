@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -102,6 +103,46 @@ func TestGatewayEnforcementAndStatus(t *testing.T) {
 	h.ServeHTTP(statusRec, statusReq)
 	if statusRec.Code != http.StatusOK || !strings.Contains(statusRec.Body.String(), `"fresh": true`) {
 		t.Errorf("status = %d body %s", statusRec.Code, statusRec.Body.String())
+	}
+}
+
+// The heartbeat's pulled-state fields are stored and returned on the status
+// view; a heartbeat without them (an older gateway) still decodes and the
+// fields stay absent rather than reading as zero.
+func TestGatewayStatusReturnsPulledVersions(t *testing.T) {
+	_, _, h := newTestServer(t)
+	for _, body := range []string{
+		`{"gateway_id":"gw@new","base_url":"http://127.0.0.1:8125","action":"mask","vendors":{},` +
+			`"policy_baseline":"fintech","pack_version":0,"keystore_version":7,"detector_ran":false}`,
+		`{"gateway_id":"gw@old","base_url":"http://127.0.0.1:8126","action":"mask","vendors":{}}`,
+	} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, spineReq("POST", "/api/gateway/enforcement", strings.NewReader(body)))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("enforcement %s → %d: %s", body, rec.Code, rec.Body.String())
+		}
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/gateway/status", nil))
+	var out struct {
+		Gateways []map[string]any `json:"gateways"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]map[string]any{}
+	for _, g := range out.Gateways {
+		byID[g["gateway_id"].(string)] = g
+	}
+	got := byID["gw@new"]
+	if got["policy_baseline"] != "fintech" || got["pack_version"] != float64(0) ||
+		got["keystore_version"] != float64(7) || got["detector_ran"] != false {
+		t.Errorf("new gateway status = %v", got)
+	}
+	for _, k := range []string{"policy_baseline", "pack_version", "keystore_version", "detector_ran"} {
+		if _, ok := byID["gw@old"][k]; ok {
+			t.Errorf("old heartbeat reports %s = %v, want absent", k, byID["gw@old"][k])
+		}
 	}
 }
 

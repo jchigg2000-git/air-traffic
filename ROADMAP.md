@@ -51,8 +51,9 @@ budget) · Appendix
 > (2026-09-01): `E2E_COMPOSE=1 ./scripts/e2e-gateway.sh` **9/9** (recall_behavioral 1.000,
 > precision 0.988, trap FPs 0).
 >
-> **▶ NEXT ACTION:** §7.2's remaining cheap instrumentation fix (PIVOT-3) is the strongest
-> candidate; PIVOT-4's remainder needs an owner ruling. Every proxy exit after authentication now
+> **▶ NEXT ACTION:** §7.2's cheap instrumentation is in (the heartbeat now carries its pulled
+> policy baseline, pack and keystore versions and `detector_ran`); PIVOT-4's remainder needs an
+> owner ruling. Every proxy exit after authentication now
 > records a report and feeds `gw_errors` / `gw_error_rate`; rejected keys count toward
 > `gw_auth_failures` without writing a row; gateway aggregates are per-route (2026-10-01). §3's
 > deferred G-blocks, §4's vendor cost facets and §5's 10 vendor auth schemas remain open and still
@@ -265,10 +266,6 @@ Gateway Traffic page and the keystore.**
 
 ### §7.2 Tier 0 — instrumentation preconditions (cheap, no decision needed)
 
-- ⬜ **PIVOT-3** **Heartbeat carries effective action + pulled policy/pack/keystore versions + a
-  `detector_ran` fact.** `model.EnforcementReport` (`internal/model/gateway.go:106-113`) carries no
-  versions, so a gateway stuck on a stale snapshot is indistinguishable from a current one.
-  Unblocks PIVOT-9, PIVOT-10 and the pack-version join in one change.
 - ⬜ **PIVOT-4** **The `openai` route still makes no coverage claim, by design — decide before
   changing it.** Gateway aggregates are now attributed to the route that served them (a `route`
   dimension, vendor = route label, the same label the per-request feed carries), and the heartbeat

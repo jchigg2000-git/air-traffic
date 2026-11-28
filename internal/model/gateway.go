@@ -139,13 +139,34 @@ const (
 // EnforcementReport is the gateway's periodic heartbeat: which vendor
 // capabilities it is actively enforcing right now. Freshness is what flips
 // proxy_enforced from label to truth; staleness raises drift.
+//
+// Action is the effective default action (what a caller with no app-scoped
+// baseline gets). The fields after Vendors say which pulled state produced
+// it, so a gateway stuck on a stale snapshot can be told apart from a current
+// one. All are optional: a heartbeat from an older gateway omits them, and a
+// nil pointer means "not reported", never zero.
 type EnforcementReport struct {
 	GatewayID string              `json:"gateway_id"`
 	BaseURL   string              `json:"base_url"`
 	Action    string              `json:"action"`
 	Detectors []string            `json:"detectors,omitempty"`
 	Vendors   map[string][]string `json:"vendors"`
-	At        time.Time           `json:"at,omitempty"`
+	// PolicyBaseline is the baseline id of the last policy pulled from the
+	// control plane; empty when none is applied or the action is pinned by
+	// GATEWAY_REDACT_ACTION.
+	PolicyBaseline string `json:"policy_baseline,omitempty"`
+	// PackVersion is the pattern-pack version the gateway last took, including
+	// one it rejected (that version is recorded so it is not re-fetched).
+	PackVersion *int `json:"pack_version,omitempty"`
+	// KeystoreVersion is the pulled keystore snapshot version; nil until the
+	// first successful keystore pull.
+	KeystoreVersion *int `json:"keystore_version,omitempty"`
+	// DetectorRan is whether every configured detector answered on the most
+	// recent proxied request that ran the chain: false means at least one
+	// errored (under fail-open that request went out unfiltered by it), nil
+	// means no request has run the chain since the gateway started.
+	DetectorRan *bool     `json:"detector_ran,omitempty"`
+	At          time.Time `json:"at,omitempty"`
 }
 
 // Pattern kinds: what shape of detector artifact a rule or proposal carries.

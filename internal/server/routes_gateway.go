@@ -151,16 +151,25 @@ func (s *Server) handleGatewayStatus(w http.ResponseWriter, r *http.Request) {
 		// says so rather than defaulting to the regex floor.
 		Detectors []string            `json:"detectors,omitempty"`
 		Vendors   map[string][]string `json:"vendors"`
-		LastSeen  time.Time           `json:"last_seen"`
-		Fresh     bool                `json:"fresh"`
+		// The pulled state behind Action, as the gateway reported it. Absent
+		// from an older gateway's heartbeat; see model.EnforcementReport.
+		PolicyBaseline  string    `json:"policy_baseline,omitempty"`
+		PackVersion     *int      `json:"pack_version,omitempty"`
+		KeystoreVersion *int      `json:"keystore_version,omitempty"`
+		DetectorRan     *bool     `json:"detector_ran,omitempty"`
+		LastSeen        time.Time `json:"last_seen"`
+		Fresh           bool      `json:"fresh"`
 	}
 	cutoff := time.Now().UTC().Add(-model.GatewayStaleAfter)
 	out := []gatewayStatus{}
 	for _, rep := range s.store.ListGatewayEnforcement() {
 		out = append(out, gatewayStatus{
 			GatewayID: rep.GatewayID, BaseURL: rep.BaseURL, Action: rep.Action,
-			Detectors: rep.Detectors,
-			Vendors:   rep.Vendors, LastSeen: rep.At, Fresh: rep.At.After(cutoff),
+			Detectors:      rep.Detectors,
+			Vendors:        rep.Vendors,
+			PolicyBaseline: rep.PolicyBaseline, PackVersion: rep.PackVersion,
+			KeystoreVersion: rep.KeystoreVersion, DetectorRan: rep.DetectorRan,
+			LastSeen: rep.At, Fresh: rep.At.After(cutoff),
 		})
 	}
 	// The auth posture is reported, not assumed: the honesty model applies to

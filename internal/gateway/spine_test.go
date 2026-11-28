@@ -23,6 +23,7 @@ type fakeControlPlane struct {
 	heartbeats   []map[string]any
 	policyJSON   string
 	packJSON     string
+	keysJSON     string
 }
 
 func (f *fakeControlPlane) handler(t *testing.T) http.Handler {
@@ -56,12 +57,19 @@ func (f *fakeControlPlane) handler(t *testing.T) http.Handler {
 	mux.HandleFunc("/api/gateway/patterns", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, f.packJSON)
 	})
+	mux.HandleFunc("/api/gateway/keys", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, f.keysJSON)
+	})
 	return mux
 }
 
 func newSpineGateway(t *testing.T, upstreamURL string) (*Server, *fakeControlPlane) {
 	t.Helper()
-	fcp := &fakeControlPlane{policyJSON: `{"policy":null}`, packJSON: `{"pack":{"version":0,"rules":[]}}`}
+	fcp := &fakeControlPlane{
+		policyJSON: `{"policy":null}`,
+		packJSON:   `{"pack":{"version":0,"rules":[]}}`,
+		keysJSON:   `{"snapshot":{"version":0,"apps":[],"keys":[]}}`,
+	}
 	cp := httptest.NewServer(fcp.handler(t))
 	t.Cleanup(cp.Close)
 	t.Setenv("GATEWAY_CONTROL_PLANE_URL", cp.URL)
@@ -408,4 +416,71 @@ func TestHeartbeatRetractsClaimWhileFailOpenChainFails(t *testing.T) {
 	if !claims() {
 		t.Error("claim should return after a clean request")
 	}
+}
+
+// The heartbeat names the pulled state behind its action — policy baseline,
+// pack version, keystore version — and whether the chain ran, so a gateway
+// stuck on a stale snapshot is distinguishable from a current one.
+func TestHeartbeatCarriesPulledVersions(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"type":"message"}`)
+	}))
+	defer upstream.Close()
+	gw, fcp := newSpineGateway(t, upstream.URL)
+	srv := httptest.NewServer(gw.Routes())
+	defer srv.Close()
+	ctx := context.Background()
+
+	beat := func() model.EnforcementReport {
+		t.Helper()
+		if err := gw.pushHeartbeat(ctx); err != nil {
+			t.Fatalf("heartbeat: %v", err)
+		}
+		fcp.mu.Lock()
+		defer fcp.mu.Unlock()
+		var rep model.EnforcementReport
+		b, _ := json.Marshal(fcp.heartbeats[len(fcp.heartbeats)-1])
+		if err := json.Unmarshal(b, &rep); err != nil {
+			t.Fatal(err)
+		}
+		return rep
+	}
+	check := func(rep model.EnforcementReport, baseline string, pack, keys int) {
+		t.Helper()
+		if rep.PolicyBaseline != baseline {
+			t.Errorf("policy_baseline = %q, want %q", rep.PolicyBaseline, baseline)
+		}
+		if rep.PackVersion == nil || *rep.PackVersion != pack {
+			t.Errorf("pack_version = %v, want %d", rep.PackVersion, pack)
+		}
+		if rep.KeystoreVersion == nil || *rep.KeystoreVersion != keys {
+			t.Errorf("keystore_version = %v, want %d", rep.KeystoreVersion, keys)
+		}
+	}
+
+	if rep := beat(); rep.DetectorRan != nil || rep.KeystoreVersion != nil {
+		t.Errorf("before any pull or request: detector_ran = %v, keystore_version = %v, want both absent",
+			rep.DetectorRan, rep.KeystoreVersion)
+	}
+
+	fcp.policyJSON = `{"policy":{"baseline":"fintech","vendor_defaults":{},"vendors":{},"agentic":{},"budget":{}}}`
+	fcp.packJSON = `{"pack":{"version":2,"rules":[]}}`
+	fcp.keysJSON = `{"snapshot":{"version":3,"apps":[],"keys":[]}}`
+	if err := gw.pullOnce(ctx); err != nil {
+		t.Fatalf("pull: %v", err)
+	}
+	postMessages(t, srv.URL, piiBody).Body.Close()
+	rep := beat()
+	check(rep, "fintech", 2, 3)
+	if rep.DetectorRan == nil || !*rep.DetectorRan {
+		t.Errorf("detector_ran = %v after a clean request, want true", rep.DetectorRan)
+	}
+
+	fcp.policyJSON = `{"policy":{"baseline":"healthcare","vendor_defaults":{},"vendors":{},"agentic":{},"budget":{}}}`
+	fcp.packJSON = `{"pack":{"version":5,"rules":[]}}`
+	fcp.keysJSON = `{"snapshot":{"version":4,"apps":[],"keys":[]}}`
+	if err := gw.pullOnce(ctx); err != nil {
+		t.Fatalf("pull: %v", err)
+	}
+	check(beat(), "healthcare", 5, 4)
 }

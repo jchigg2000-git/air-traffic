@@ -211,6 +211,17 @@ func (s *Server) pushHeartbeat(ctx context.Context) error {
 		Detectors: s.cfg.Detectors,
 		Vendors:   vendors,
 	}
+	rep.PolicyBaseline, _ = s.policyBaseline.Load().(string)
+	pack := int(s.packVersion.Load())
+	rep.PackVersion = &pack
+	if ks := s.keys.Load(); ks != nil {
+		v := ks.version
+		rep.KeystoreVersion = &v
+	}
+	if st := s.chainState.Load(); st != chainNotRun {
+		ran := st == chainClean
+		rep.DetectorRan = &ran
+	}
 	if err := s.postJSON(ctx, "/api/gateway/enforcement", rep); err != nil {
 		s.log.Warn("enforcement heartbeat failed", "error", err)
 		return err
