@@ -12,10 +12,10 @@
 >   (design), `docs/inference-gateway-build-plan.md` (sequencing), `docs/inference-gateway-eli5.md`
 >   (referenced by `scripts/capture-harness-screenshot.js`). **Live deferred-work ledgers, kept
 >   separate deliberately** because code and UI cite them by path: `docs/plans/TODO-gateway-deferred.md`
->   (cited from `internal/gateway/credbroker/credbroker.go:35`, `internal/server/routes_gateway.go:121`,
->   `internal/model/gateway.go:47`, and README) and `docs/plans/TODO-vendor-auth.md` (cited from
+>   (cited from `internal/gateway/credbroker/credbroker.go:35`, `internal/server/routes_gateway.go:117`,
+>   `internal/model/gateway.go:63`, and README) and `docs/plans/TODO-vendor-auth.md` (cited from
 >   `internal/store/store.go:78`, `web/src/lib/authSchemas.ts:3`, and rendered live in
->   `web/src/pages/Vendors.tsx:311`). Also kept separate as build-history records (linked from
+>   `web/src/pages/Vendors.tsx:332`). Also kept separate as build-history records (linked from
 >   README's "Plans:" line): `docs/plans/phase-1-surface-collection.md`,
 >   `docs/plans/phase-2-frontend.md`, `docs/plans/phase-3-inference-gateway.md`.
 > - **Decisions**: `DECISIONS.md` (append-only log; roadmap items cite it by date + title)
@@ -247,9 +247,9 @@ callout). Pointer only:
 
 ### §7.0 The finding that frames the rest
 
-The gateway is real. **The control plane is a simulator.** `internal/policy/reconcile.go:67-85`
+The gateway is real. **The control plane is a simulator.** `internal/policy/reconcile.go:63-81`
 `classify()` is a `switch` on a compile-time constant — `applied_native` is asserted for all 16
-vendors with no vendor call ever made. `internal/policy/drift.go:101-110` `overrideHeuristic` is
+vendors with no vendor call ever made. `internal/policy/drift.go:150-160` `overrideHeuristic` is
 `hash(id) % 5 == 0`, so the `env_managed` half of drift is deterministic fiction while the gateway
 half is real, and **both write `model.DriftRecord` with no field distinguishing them.** Every
 dollar, token, latency and cap-utilization figure comes from `internal/emitter/emitter.go:94`
@@ -298,7 +298,8 @@ are **latency and success**.
   Fire on `Action=="block"` ∧ every redaction `Path` prefixed `system` or `tools[` ∧ N≥10
   consecutive blocks from one `AppID`. The path-provenance half is decisive:
   `walkAnthropicBody` emits `Path=="system"` / `system[N].text` / `tools[N].description`
-  (`internal/gateway/adapter_anthropic.go:40,43,69,87`), so a redaction on those paths is *by
+  (`internal/gateway/adapter_anthropic.go:40` `system`, `:43` + `:87` `system[N].text`, `:69`
+  `tools[N].description`), so a redaction on those paths is *by
   construction* in developer-authored text, not user input.
   **Validated against the canonical incident:** existing drift misses (heartbeat fresh, action
   `block` = enforcing — enforcing *was* the failure). The harness misses **provably** — it scored
@@ -327,8 +328,8 @@ are **latency and success**.
   but `pullPolicy` returns early on `Policy == nil` **without clearing `s.policyAction`**
   (`internal/gateway/spine_pull.go:110-112`) — the gateway keeps enforcing while the control plane
   believes nothing is applied, and nothing compares them. `gatewayDrift`'s `expected` flips false
-  (`internal/policy/drift.go:49-52`), *silencing the one check that would have noticed*. When the
-  gateway later restarts it falls to `actionMask` (`proxy.go:158`) — a third posture matching
+  (`internal/policy/drift.go:52-56`), *silencing the one check that would have noticed*. When the
+  gateway later restarts it falls to `actionMask` (`internal/gateway/proxy.go:173`) — a third posture matching
   neither belief. Detection needs no persistence: policy nil + a gateway reporting a non-default
   enforcing action = one comparison, one drift record. Pairs with the policy-persistence work
   ratified in `DECISIONS.md` 2026-08-15 — **persistence and heartbeat version-reporting land
@@ -404,12 +405,12 @@ are **latency and success**.
     **read-only** — its `NARRATIVE` block (`web/src/pages/RigorConsole.tsx:18-55`) is the best
     non-expert writing in the app, so keep the page and move the button.
   - Expert-only, do not attempt to simplify: Policy Editor (`proxy_enforced` is a *conditional*
-    truth — `web/src/lib/dispositions.ts:24` — and any simplification rounds it up to "protected",
+    truth — `web/src/lib/dispositions.ts:22` — and any simplification rounds it up to "protected",
     the exact lie the taxonomy exists to prevent); Vendors (a test-fixture driver wearing an admin
     console's clothes — it offers `500` / `timeout` / `invalid-json`); Observability; Gateway
     Harness (eight prerequisite concepts, and it holds the only irreversible control).
   - **Guided must not:** show "Healthy %" without the emitting denominator in the headline
-    (`web/src/pages/FlightDeck.tsx:104-106` — dropping sub-labels re-creates the exact bug
+    (`web/src/pages/FlightDeck.tsx:106-110` — dropping sub-labels re-creates the exact bug
     `DECISIONS.md` 2026-08-15 was written to kill); show spend against a cap
     (`FlightDeck.tsx:19` and `web/src/pages/CostExplorer.tsx:17` each hardcode `50000`, which is
     *fintech's* number, rendered against every baseline — under healthcare/gov the real cap is `0`,
@@ -458,9 +459,9 @@ for exact destinations):
 code or UI cites them by path** (folding would strand those citations):
 
 - `docs/plans/TODO-gateway-deferred.md` — cited from `internal/gateway/credbroker/credbroker.go:35`,
-  `internal/server/routes_gateway.go:121`, `internal/model/gateway.go:47`, README. Pointed at from §3.
+  `internal/server/routes_gateway.go:117`, `internal/model/gateway.go:63`, README. Pointed at from §3.
 - `docs/plans/TODO-vendor-auth.md` — cited from `internal/store/store.go:78`,
-  `web/src/lib/authSchemas.ts:3`, rendered live in `web/src/pages/Vendors.tsx:311`. Pointed at
+  `web/src/lib/authSchemas.ts:3`, rendered live in `web/src/pages/Vendors.tsx:332`. Pointed at
   from §5.
 - `docs/plans/phase-1-surface-collection.md`, `docs/plans/phase-2-frontend.md`,
   `docs/plans/phase-3-inference-gateway.md` — all three linked directly from `README.md` as
