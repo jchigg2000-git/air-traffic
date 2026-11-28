@@ -118,8 +118,11 @@ func (s *Server) pullPolicy(ctx context.Context) error {
 		// posture matching neither belief. Since 2026-08-16 the control plane
 		// persists its policy across restarts (internal/store/policy_persist.go),
 		// so the common cause of this is gone; say so out loud when it happens
-		// anyway rather than letting it stay silent. Turning the disagreement
-		// into a first-class drift record is PIVOT-13 and is not done here.
+		// anyway rather than letting it stay silent. The control plane also
+		// raises a warning drift record for it (internal/policy/drift.go,
+		// from the heartbeat's PolicyBaseline). What PIVOT-13 still leaves
+		// open is the restart leg: after this gateway restarts it falls to
+		// actionMask with no baseline, and nothing flags that posture.
 		if prev, ok := s.policyAction.Load().(string); ok && prev != "" {
 			s.log.Warn("control plane reports no applied policy while this gateway is still enforcing",
 				"enforcing", prev, "baseline", s.policyBaseline.Load())

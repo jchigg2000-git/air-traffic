@@ -98,3 +98,66 @@ func TestNoGatewayDriftUnderGeneralSaaS(t *testing.T) {
 		}
 	}
 }
+
+// splitBrainDrift returns the PIVOT-13 records: the control plane has no policy
+// while a gateway still enforces one it pulled earlier.
+func splitBrainDrift(st *store.Store) []model.DriftRecord {
+	var out []model.DriftRecord
+	for _, d := range st.ListDrift() {
+		if d.Surface == model.DispProxyEnforced && d.Declared == "no policy applied" {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+func enforcingHeartbeat(baseline string, at time.Time) model.EnforcementReport {
+	return model.EnforcementReport{
+		GatewayID: "gw@test", Action: "block", PolicyBaseline: baseline, At: at,
+		Vendors: map[string][]string{"anthropic": {"pii_redaction"}},
+	}
+}
+
+func TestGatewayDriftWarnsOnSplitBrain(t *testing.T) {
+	st := store.New() // no policy applied
+	st.SetGatewayEnforcement(enforcingHeartbeat("healthcare", time.Now().UTC()))
+	RefreshDrift(st, time.Now().UTC())
+
+	got := splitBrainDrift(st)
+	if len(got) != 1 {
+		t.Fatalf("split-brain records = %+v, want exactly one", got)
+	}
+	d := got[0]
+	if d.Vendor != "anthropic" || d.Capability != "pii_redaction" || d.Severity != "warning" {
+		t.Errorf("record = %+v, want anthropic/pii_redaction warning", d)
+	}
+}
+
+func TestNoSplitBrainDriftWhenGatewayHasNoPulledBaseline(t *testing.T) {
+	st := store.New()
+	// Action pinned by GATEWAY_REDACT_ACTION: the heartbeat carries no baseline.
+	st.SetGatewayEnforcement(enforcingHeartbeat("", time.Now().UTC()))
+	RefreshDrift(st, time.Now().UTC())
+	if got := splitBrainDrift(st); len(got) != 0 {
+		t.Errorf("pinned gateway raised split-brain drift: %+v", got)
+	}
+}
+
+func TestNoSplitBrainDriftWhenPolicyApplied(t *testing.T) {
+	st := store.New()
+	Apply(st, model.Policy{Baseline: "healthcare"})
+	st.SetGatewayEnforcement(enforcingHeartbeat("healthcare", time.Now().UTC()))
+	RefreshDrift(st, time.Now().UTC())
+	if got := splitBrainDrift(st); len(got) != 0 {
+		t.Errorf("applied policy raised split-brain drift: %+v", got)
+	}
+}
+
+func TestNoSplitBrainDriftOnStaleHeartbeat(t *testing.T) {
+	st := store.New()
+	st.SetGatewayEnforcement(enforcingHeartbeat("healthcare", time.Now().UTC().Add(-10*time.Minute)))
+	RefreshDrift(st, time.Now().UTC())
+	if got := splitBrainDrift(st); len(got) != 0 {
+		t.Errorf("stale heartbeat raised split-brain drift: %+v", got)
+	}
+}

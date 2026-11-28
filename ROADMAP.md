@@ -74,9 +74,9 @@ budget) · Appendix
 >   design (`docs/plans/TODO-gateway-deferred.md`, README): responses relay byte-faithfully and a
 >   streamed leak is scored informationally, not blocked. A gap scan will keep finding it; it is a
 >   feature, not a defect.
-> - **PIVOT-13 is NOT closed.** `pullPolicy` logs when the control plane reports no policy while
->   this gateway is still enforcing; the drift record that would make the disagreement
->   first-class is still open.
+> - **PIVOT-13 is NOT closed.** A fresh gateway still enforcing a pulled baseline while the control
+>   plane has no policy now raises a warning drift record; the gateway-restart / `actionMask` leg
+>   is still open.
 > - **Five Tier-2 fixtures are still missing** (M365 Copilot, Databricks, Perplexity, Cohere,
 >   Together) — see §1 PHASE1-3. Building them needs real vendor API documentation, not recall.
 > - The **Gateway Traffic** page and the Gateway Harness `allow_list` chip remain browser-unverified
@@ -322,15 +322,16 @@ are **latency and success**.
   auto-remedy before PIVOT-9 exists**: alone it cannot separate "misconfigured" from "correctly
   blocking an app that genuinely sends PII", so an auto-unblock fires precisely when an app is
   sending the most PII.
-- ⏳ **PIVOT-13** **Split-brain policy detector — HALF DONE 2026-08-16, do not read as closed.**
-  Two of the three legs changed: the applied policy now **persists** (`internal/store/policy_persist.go`,
-  loaded at boot, verified across a real `docker compose restart control-plane`), so the common
-  cause — the control plane forgetting on restart — is gone; and `pullPolicy` now **logs** the
-  disagreement when the control plane reports no policy while this gateway is still enforcing.
-  **Still open:** turning that into a first-class `model.DriftRecord` so it appears on `/api/drift`
-  rather than only in a log line, and the gateway-restart case that falls to `actionMask`. The
-  §7.7 ruling that persistence must not ship without the revert fix is satisfied in substance —
-  persisting *is* what stops the disagreement being durable — but the detector itself is not built.
+- ⏳ **PIVOT-13** **Split-brain policy detector — only the gateway-restart / `actionMask` leg remains.**
+  The applied policy now **persists** (`internal/store/policy_persist.go`, loaded at boot, verified
+  across a real `docker compose restart control-plane`), so the common cause — the control plane
+  forgetting on restart — is gone; `pullPolicy` **logs** the disagreement; and `gatewayDrift`
+  (`internal/policy/drift.go`) raises a **warning `model.DriftRecord`** on `/api/drift` when the
+  control plane has no policy while a fresh heartbeat still carries a pulled `PolicyBaseline`
+  (silent when that baseline is empty, i.e. the action is pinned by `GATEWAY_REDACT_ACTION`).
+  **Still open:** the gateway-restart case — after a restart the gateway falls to `actionMask` with
+  an empty `PolicyBaseline`, so the new check cannot tell it from a pinned gateway and nothing
+  flags that third posture.
   Original finding, unchanged:
   but `pullPolicy` returns early on `Policy == nil` **without clearing `s.policyAction`**
   (`internal/gateway/spine_pull.go:110-112`) — the gateway keeps enforcing while the control plane
