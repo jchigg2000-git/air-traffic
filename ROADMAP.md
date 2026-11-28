@@ -420,7 +420,7 @@ are **latency and success**.
   failure of it.
   - Guided pages: Gateway Traffic; Audit minus the disposition column (it imports a 6-term taxonomy
     into the only page that otherwise needs no vocabulary); Flight Deck reworked; Rigor Console
-    **read-only** — its `NARRATIVE` block (`web/src/pages/RigorConsole.tsx:18-55`) is the best
+    **read-only** — its `NARRATIVE` block (`web/src/pages/RigorConsole.tsx:19-56`) is the best
     non-expert writing in the app, so keep the page and move the button.
   - Expert-only, do not attempt to simplify: Policy Editor (`proxy_enforced` is a *conditional*
     truth — `web/src/lib/dispositions.ts:22` — and any simplification rounds it up to "protected",
@@ -429,10 +429,12 @@ are **latency and success**.
     Harness (eight prerequisite concepts, and it holds the only irreversible control).
   - **Guided must not:** show "Healthy %" without the emitting denominator in the headline
     (`web/src/pages/FlightDeck.tsx:106-110` — dropping sub-labels re-creates the exact bug
-    `DECISIONS.md` 2026-08-15 was written to kill); show spend against a cap
-    (`FlightDeck.tsx:19` and `web/src/pages/CostExplorer.tsx:17` each hardcode `50000`, which is
-    *fintech's* number, rendered against every baseline — under healthcare/gov the real cap is `0`,
-    i.e. none); drop the stale/degraded treatment; collapse dispositions into
+    `DECISIONS.md` 2026-08-15 was written to kill); drop the "notional" label on the spend
+    cap, or ever show spend against a cap as if it were real policy (`FlightDeck.tsx:19`
+    `NOTIONAL_ORG_CAP` and `web/src/pages/CostExplorer.tsx:17` `ORG_CAP` are both `50000`, commented
+    "Demo constant, NOT policy" and labelled "notional cap" on screen at `FlightDeck.tsx:116` and
+    `CostExplorer.tsx:92`; `50000` is *fintech's* baseline number — under healthcare/gov there is
+    no cap); drop the stale/degraded treatment; collapse dispositions into
     "protected / not protected"; or show a block count without the posture that produced it.
 
 ### §7.7 Explicitly not to be built (kept here so a later pass doesn't re-propose it)
