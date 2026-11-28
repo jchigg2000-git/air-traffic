@@ -239,8 +239,9 @@ func (s *Server) proxyRequest(w http.ResponseWriter, r *http.Request, d dialect)
 		}
 		var redactions []Redaction
 		var detErrs []string
-		mutated := false
+		mutated, chainRan := false, false
 		for _, f := range d.walk(doc) {
+			chainRan = true
 			spans, errs := s.chain.Run(r.Context(), f.text)
 			for _, e := range errs {
 				detErrs = append(detErrs, e.Error())
@@ -262,6 +263,13 @@ func (s *Server) proxyRequest(w http.ResponseWriter, r *http.Request, d dialect)
 		audit.Redactions = redactions
 		audit.DetectorErrors = detErrs
 		audit.FailModeTripped = len(detErrs) > 0
+		if chainRan {
+			if len(detErrs) > 0 {
+				s.chainState.Store(chainFailed)
+			} else {
+				s.chainState.Store(chainClean)
+			}
+		}
 		audit.AddedLatencyMS = time.Since(detectStart).Milliseconds()
 
 		// A detector failure means we cannot promise the filter ran. Closed

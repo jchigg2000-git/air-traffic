@@ -6,9 +6,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+
+	"github.com/jchigg2000-git/air-traffic/internal/model"
 )
 
 // fakeControlPlane captures spine pushes and serves policy/baselines/patterns.
@@ -338,5 +342,70 @@ func TestPushReportsDropsRejectedChunkAndRequeuesTransient(t *testing.T) {
 	gw.pushReports(ctx)
 	if left := gw.audits.drain(); len(left) != 1001 {
 		t.Errorf("ring holds %d after a 502, want 1001 requeued", len(left))
+	}
+}
+
+// Under GATEWAY_FAIL_MODE=open a failing detector lets traffic through
+// unfiltered by it, so the heartbeat must withdraw the pii_redaction claim
+// while the chain is failing, and restore it once a request runs clean.
+func TestHeartbeatRetractsClaimWhileFailOpenChainFails(t *testing.T) {
+	var presidioDown atomic.Bool
+	presidio := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if presidioDown.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = io.WriteString(w, `[]`)
+	}))
+	defer presidio.Close()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"type":"message"}`)
+	}))
+	defer upstream.Close()
+
+	t.Setenv("GATEWAY_DETECTORS", "regex,presidio")
+	t.Setenv("GATEWAY_PRESIDIO_URL", presidio.URL)
+	t.Setenv("GATEWAY_FAIL_MODE", "open")
+	gw, fcp := newSpineGateway(t, upstream.URL)
+	srv := httptest.NewServer(gw.Routes())
+	defer srv.Close()
+	ctx := context.Background()
+
+	claims := func() bool {
+		t.Helper()
+		if err := gw.pushHeartbeat(ctx); err != nil {
+			t.Fatalf("heartbeat: %v", err)
+		}
+		fcp.mu.Lock()
+		defer fcp.mu.Unlock()
+		var rep model.EnforcementReport
+		b, _ := json.Marshal(fcp.heartbeats[len(fcp.heartbeats)-1])
+		if err := json.Unmarshal(b, &rep); err != nil {
+			t.Fatal(err)
+		}
+		return slices.Contains(rep.Vendors["anthropic"], "pii_redaction")
+	}
+	send := func() {
+		t.Helper()
+		resp := postMessages(t, srv.URL, piiBody)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200 under fail-open", resp.StatusCode)
+		}
+	}
+
+	send()
+	if !claims() {
+		t.Fatal("healthy chain should claim anthropic pii_redaction")
+	}
+	presidioDown.Store(true)
+	send()
+	if claims() {
+		t.Error("heartbeat still claims pii_redaction after a fail-open request with a failing detector")
+	}
+	presidioDown.Store(false)
+	send()
+	if !claims() {
+		t.Error("claim should return after a clean request")
 	}
 }

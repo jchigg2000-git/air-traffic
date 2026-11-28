@@ -50,9 +50,23 @@ type Server struct {
 	// env key set carries authentication until then.
 	keys atomic.Pointer[keySnapshot]
 
+	// chainState is the outcome of the most recent detector-chain run on a
+	// proxied request (chainNotRun until one has run). It is a direct fact,
+	// not an inference: the heartbeat reports it as detector_ran and, under
+	// GATEWAY_FAIL_MODE=open, withdraws the pii_redaction claim while the last
+	// run had a detector fail — that traffic was forwarded unfiltered by it.
+	chainState atomic.Int32
+
 	audits  auditRing
 	metrics *routeMetrics
 }
+
+// chainState values.
+const (
+	chainNotRun int32 = iota
+	chainClean        // every configured detector answered
+	chainFailed       // at least one detector errored
+)
 
 // New validates runtime wiring (client keys resolvable, upstreams present,
 // detector chain compiled) and returns a ready-to-serve gateway.

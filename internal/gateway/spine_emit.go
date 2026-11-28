@@ -190,7 +190,18 @@ func (s *Server) pushHeartbeat(ctx context.Context) error {
 	// dialect makes no claim: the catalog's openai adapter declares no
 	// pii_redaction capability, and a route labelled "openai" may front any
 	// compatible vendor (ROADMAP PIVOT-4).
-	if _, served := s.cfg.Upstreams[anthropicDialect().route]; served && enforces(action) && s.allAppsEnforce() {
+	//
+	// And the chain has to be running. Under GATEWAY_FAIL_MODE=open a request
+	// whose detectors errored is forwarded with only the engines that
+	// answered, so while the last run failed the claim is unsupported and is
+	// withdrawn — a retraction, never a new claim.
+	// It returns on the next request the whole chain answers. Fail-closed needs
+	// no retraction: a failed run there refuses the request instead.
+	unfiltered := s.cfg.FailMode != "closed" && s.chainState.Load() == chainFailed
+	if unfiltered {
+		s.log.Warn("detector chain failing under fail-open; heartbeat withholds the pii_redaction claim")
+	}
+	if _, served := s.cfg.Upstreams[anthropicDialect().route]; served && enforces(action) && s.allAppsEnforce() && !unfiltered {
 		vendors["anthropic"] = []string{"pii_redaction"}
 	}
 	rep := model.EnforcementReport{

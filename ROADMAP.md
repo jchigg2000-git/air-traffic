@@ -333,16 +333,6 @@ are **latency and success**.
   falls through to the global action and only logs (`internal/gateway/proxy.go:130-136`), while the
   report's `Baseline` carries the *global* id. Exact string comparison against authoritative local
   keystore state; near-zero false-positive risk.
-- ⬜ **PIVOT-12** **Fail-open unenforcement → the one justified auto-apply.** Under
-  `GATEWAY_FAIL_MODE=open` a dead Presidio forwards traffic unfiltered while `pushHeartbeat` keeps
-  claiming `pii_redaction` — it consults only whether the route has an upstream, `enforces(action)`
-  and `allAppsEnforce()` (`internal/gateway/spine_emit.go`, `pushHeartbeat`) and never asks whether
-  the chain actually ran. Drift
-  structurally cannot see this. What auto-applies is **honesty, not policy**: retract the
-  enforcement claim. It changes no enforcement behaviour; it withdraws an assertion the system
-  cannot substantiate. Sole condition satisfying all three safety properties — it is a *retraction*
-  not a novel state, it moves fail-*closed*, and its signal is a direct fact rather than an
-  inference over a distribution.
 - ⏳ **PIVOT-13** **Split-brain policy detector — HALF DONE 2026-08-16, do not read as closed.**
   Two of the three legs changed: the applied policy now **persists** (`internal/store/policy_persist.go`,
   loaded at boot, verified across a real `docker compose restart control-plane`), so the common
